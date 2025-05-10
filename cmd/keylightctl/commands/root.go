@@ -23,7 +23,7 @@ func NewRootCommand(logger *slog.Logger, version, commit, buildDate string) *cob
 	// Add commands
 	cmd.AddCommand(newVersionCommand(version, commit, buildDate))
 	cmd.AddCommand(NewLightCommand(logger))
-	cmd.AddCommand(newGroupCommand(logger))
+	cmd.AddCommand(NewGroupCommand(logger))
 
 	if logger != nil {
 		parent := cmd.Context()

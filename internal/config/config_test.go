@@ -18,7 +18,7 @@ func TestLoad(t *testing.T) {
 	os.Unsetenv("KEYLIGHTD_DISCOVERY_INTERVAL")
 
 	// Test loading with no config file
-	config, err := Load()
+	config, err := Load("test.yaml", "")
 	require.NoError(t, err)
 	assert.NotNil(t, config)
 	assert.Equal(t, getRuntimeSocketPath(), config.Server.UnixSocket)
@@ -28,7 +28,7 @@ func TestLoad(t *testing.T) {
 	// Test loading with environment variables
 	os.Setenv("KEYLIGHTD_DISCOVERY_INTERVAL", "60")
 
-	config, err = Load()
+	config, err = Load("test.yaml", "")
 	require.NoError(t, err)
 	assert.Equal(t, 60, config.Discovery.Interval)
 }
@@ -50,16 +50,16 @@ func TestSave(t *testing.T) {
 	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
 
 	// Save config
-	err = config.Save()
+	err = config.Save("test.yaml")
 	require.NoError(t, err)
 
 	// Verify config file exists
-	configPath := filepath.Join(tmpDir, "keylightd", "keylightd.yaml")
+	configPath := filepath.Join(tmpDir, "keylight", "test.yaml")
 	_, err = os.Stat(configPath)
 	require.NoError(t, err)
 
 	// Load config and verify values
-	loadedConfig, err := Load()
+	loadedConfig, err := Load("test.yaml", "")
 	require.NoError(t, err)
 	assert.Equal(t, config.Server.UnixSocket, loadedConfig.Server.UnixSocket)
 	assert.Equal(t, config.Discovery.Interval, loadedConfig.Discovery.Interval)
