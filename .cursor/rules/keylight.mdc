@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This project is designed to provide a package to interact with Elgato Keylights, providing functionality to persist the configuration of lights. lights can be grouped together, and should be discovered via mDNS. It provides functionalty to turn lights to on/off, set their brightness, set their colour warmth and exposing a light on/off toggle.
+
+It should also provide a CLI command interface which accesses keylightd, providing a separate configuration file to persist the location of the API endpoints or socket files for keylightd. It should be used to manage keylightd. it should be called keylightctl. Config files should be stored in the normal user locations as keylight/keylightd or keylight/keylightctl.
+
+Lights when discovered will include the name of the light with a trailing serial number. An example of this looks like: 
+
+Elgato\032Key\032Light\0321E2D;_elg._tcp;local;elgato-key-light-1e2d.local;192.168.1.190;9123;"pv=1.0" "md=Elgato Key Light 20GAK9901" "id=9D:08:AA:33:90:8E" "dt=53" "mf=Elgato"
+
+The md field should be the light name. The light name should be used to persist the light in a group, however lights might disappear off the network. The IP for a given light should be cached in memory and updated each disovery run. HTTP requests to control the lights should be ran concurrently for all lights in the group (commands are issued to groups or individual lights).

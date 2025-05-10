@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+You will be developing a go CLI application, and as such you should make use of good CLI orientated libraries.
+
+Prioritise the use of spf13/cobra for handling CLI interactions, spf13/viper for configuration management, use the standard logging library slog for logging, have the logging level exposed via a global flag and default to warning with human output (also make this configurable as log format on a global flag).
+
+For interactive command prompts such as selections/multi-selections, spinners and progress bars make use of pterm/pterm.
+
+Follow best practice project folder structures.
+
+Goreleaser should be used for creating releases, along with a github actions workflow for it. You should also produce a banner at the top of the readme with build/test status, codecov status etc. Goreleaser should ideally build a binary for amd64 and arm64 for linux.
