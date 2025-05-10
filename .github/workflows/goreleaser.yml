@@ -19,20 +19,23 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
-        with:
-          go-version: '1.24'
-
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          version: latest
 
       - name: Run GoReleaser (snapshot)
+        uses: goreleaser/goreleaser-action@v6
         if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
-        run: goreleaser build --clean --snapshot
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run GoReleaser (release)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        run: goreleaser release --clean
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
