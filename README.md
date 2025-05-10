@@ -1,80 +1,113 @@
-# Keylightd
+# keylightd
 
-Keylightd is a daemon service that provides a RESTful API for managing Elgato Keylights. It supports automatic discovery of Keylights via mDNS, grouping of lights, and management of API keys.
+[![Build Status](https://github.com/jmylchreest/keylightd/actions/workflows/goreleaser.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
+[![Test Status](https://github.com/jmylchreest/keylightd/actions/workflows/test.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
+[![Codecov](https://codecov.io/gh/jmylchreest/keylightd/branch/main/graph/badge.svg)](https://codecov.io/gh/jmylchreest/keylightd)
+
+**keylightd** is a daemon and CLI tool for managing Elgato Keylights on your local network. It discovers lights via mDNS, allows grouping, and provides a robust CLI for automation and scripting.
+
+---
 
 ## Features
-
 - Automatic discovery of Elgato Keylights via mDNS
-- RESTful API for controlling lights
-- Unix socket for local administration
-- API key authentication
-- Light grouping
-- Configurable discovery interval
-- Debug logging
+- Local daemon (`keylightd`) exposes a Unix socket for CLI/API access
+- CLI tool (`keylightctl`) for managing lights and groups
+- Grouping of lights for batch control
+- Configurable discovery interval and logging
+- No REST API (all communication is via Unix socket and CLI)
 
-## Building
+---
+
+## Architecture
+- **keylightd**: Runs as a background daemon, discovers and manages lights, persists configuration, and exposes a Unix socket for local control.
+- **keylightctl**: CLI tool that communicates with the daemon via the Unix socket. All user interaction and scripting is done through this CLI.
+
+```
++-----------+      Unix Socket      +-----------+      mDNS/HTTP      +-------------------+
+| keylightctl| <------------------> | keylightd | <---------------> | Elgato Key Lights |
++-----------+                      +-----------+                    +-------------------+
+```
+
+---
+
+## Installation & Building
 
 ### Prerequisites
-
 - Go 1.24 or later
-- Make
-- Git
+- [goreleaser](https://goreleaser.com/)
 
-### Build Steps
+### Building with GoReleaser
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/jmylchreest/keylightd.git
-   cd keylightd
-   ```
-
-2. Build the application:
-   ```bash
-   make build
-   ```
-
-The binary will be created in the `bin` directory.
-
-## Running
-
-### Command Line Options
-
-- `-v`: Increase verbosity level (can be specified multiple times)
-
-### Example
+To build and create release artifacts:
 
 ```bash
-./bin/keylightd -v
+goreleaser build --clean --snapshot
 ```
 
-## Docker
-
-You can also run keylightd using Docker:
+To create a full release (for maintainers):
 
 ```bash
-docker build -t keylightd .
-docker run -d --name keylightd keylightd
+goreleaser release --clean --snapshot
 ```
 
-## Development
+Binaries for `linux/amd64` and `linux/arm64` will be produced.
 
-### Installing Development Tools
+---
+
+## Usage
+
+### Running the Daemon
 
 ```bash
-make tools
+./keylightd
 ```
 
-### Running Tests
+- The daemon will discover lights and listen on a Unix socket (default: `$XDG_RUNTIME_DIR/keylightd.sock` or `/run/user/<uid>/keylightd.sock`).
+- Configuration is stored in `$XDG_CONFIG_HOME/keylight/keylightd.yaml` or `~/.config/keylight/keylightd.yaml`.
+
+### Using the CLI
 
 ```bash
-make test
+./keylightctl light list
+./keylightctl group add "My Group"
+./keylightctl group set <group-id> on true
 ```
 
-### Running Linters
+- The CLI will connect to the daemon via the Unix socket.
+- CLI config is stored in `$XDG_CONFIG_HOME/keylight/keylightctl.yaml` or `~/.config/keylight/keylightctl.yaml`.
+
+---
+
+## Configuration
+- Config files are YAML and are auto-generated on first run.
+- You can override config locations with environment variables (`XDG_CONFIG_HOME`, etc).
+- See the `internal/config` package for details.
+
+---
+
+## Testing
+
+Run all tests:
 
 ```bash
-make lint
+go test ./...
 ```
+
+Generate a coverage report:
+
+```bash
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+---
+
+## Contributing
+- PRs and issues are welcome!
+- Please ensure all tests pass and code is formatted (`gofmt`, `goimports`).
+- See [CONTRIBUTING.md](CONTRIBUTING.md) if present.
+
+---
 
 ## License
 
