@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"regexp"
 	"testing"
 	"time"
 
@@ -129,17 +130,39 @@ func TestLightListCommandParseable(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Helper to capture stdout
+// Helper to capture stdout and strip ANSI codes
 func captureStdout(f func()) string {
-	oldStdout := os.Stdout
+	oldStdout := os.Stdout // Save original os.Stdout
 	r, w, _ := os.Pipe()
-	os.Stdout = w
+	os.Stdout = w // Redirect os.Stdout to the pipe
 
-	f()
+	// Save original pterm settings and default table writer
+	oldPrintColor := pterm.PrintColor
+	oldOutput := pterm.Output
+	oldDefaultTableWriter := pterm.DefaultTable.Writer
+
+	// Disable pterm color output, enable pterm output, and set default table writer to the pipe
+	pterm.PrintColor = false // Disable colors
+	pterm.Output = true      // Enable output
+	pterm.DefaultTable.Writer = w
+
+	f() // Run the test function
+
 	w.Close()
 	out, _ := io.ReadAll(r)
-	os.Stdout = oldStdout
-	return string(out)
+
+	// Restore original pterm settings and default table writer
+	pterm.PrintColor = oldPrintColor
+	pterm.Output = oldOutput
+	pterm.DefaultTable.Writer = oldDefaultTableWriter
+
+	os.Stdout = oldStdout // Restore original os.Stdout
+
+	// Strip ANSI escape codes from the captured output
+	ansiRegex := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	cleanedOutput := ansiRegex.ReplaceAllString(string(out), "")
+
+	return cleanedOutput
 }
 
 func TestLightGetCommand(t *testing.T) {
@@ -154,7 +177,7 @@ func TestLightGetCommand(t *testing.T) {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	})
-	require.Contains(t, outTable, pterm.Bold.Sprint("ID"))
+	require.Contains(t, outTable, "ID") // Check for plain text ID
 	require.Contains(t, outTable, "Test Light")
 	require.Contains(t, outTable, "1.0.0 (build 1)")
 	require.Contains(t, outTable, "true")
@@ -162,8 +185,8 @@ func TestLightGetCommand(t *testing.T) {
 	require.Contains(t, outTable, "5000")
 	require.Contains(t, outTable, "192.168.1.1")
 	require.Contains(t, outTable, "9123")
-	// Check for formatted LastSeen time (e.g., 26 Oct 23 10:00 UTC)
-	require.Contains(t, outTable, "26 Oct 23 10:00 UTC") // Adjust format based on formatLastSeen
+	// Check for formatted LastSeen time (e.g., Thu, 26 Oct 2023 10:00:00 +0000)
+	require.Contains(t, outTable, "Thu, 26 Oct 2023 10:00:00 +0000")
 
 	// Test parseable output
 	outParseable := captureStdout(func() {
@@ -199,13 +222,13 @@ func TestLightListCommand(t *testing.T) {
 		err := cmd.Execute()
 		require.NoError(t, err)
 	})
-	require.Contains(t, outTable, pterm.Bold.Sprint("ID"))
+	require.Contains(t, outTable, "ID") // Check for plain text ID
 	require.Contains(t, outTable, "Light 1")
 	require.Contains(t, outTable, "SN1")
 	require.Contains(t, outTable, "192.168.1.1")
 	// Check for formatted LastSeen times
-	require.Contains(t, outTable, "26 Oct 23 10:00 UTC")
-	require.Contains(t, outTable, "26 Oct 23 10:05 UTC") // Adjust format based on formatLastSeen
+	require.Contains(t, outTable, "Thu, 26 Oct 2023 10:00:00 +0000")
+	require.Contains(t, outTable, "Thu, 26 Oct 2023 10:05:00 +0000")
 
 	// Test parseable output
 	outParseable := captureStdout(func() {
