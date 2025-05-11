@@ -3,6 +3,7 @@ package keylight
 import (
 	"errors"
 	"net"
+	"time"
 )
 
 // Common errors
@@ -25,6 +26,7 @@ type Light struct {
 	FirmwareBuild     int
 	SerialNumber      string
 	State             *LightState
+	LastSeen          time.Time // Timestamp of the last successful communication
 }
 
 // LightManager defines the interface for managing Keylight devices

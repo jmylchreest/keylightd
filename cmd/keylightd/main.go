@@ -74,6 +74,9 @@ func main() {
 				}
 			}()
 
+			// Start the cleanup worker
+			go manager.StartCleanupWorker(ctx, time.Duration(cfg.Discovery.CleanupInterval)*time.Second, time.Duration(cfg.Discovery.CleanupTimeout)*time.Second)
+
 			if err := srv.Start(); err != nil {
 				logger.Error("Failed to start server", "error", err)
 				return err

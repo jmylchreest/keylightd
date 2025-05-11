@@ -52,7 +52,9 @@ type ServerConfig struct {
 
 // DiscoveryConfig represents the discovery configuration
 type DiscoveryConfig struct {
-	Interval int
+	Interval        int
+	CleanupInterval int `mapstructure:"cleanup_interval"` // Interval for running cleanup worker in seconds
+	CleanupTimeout  int `mapstructure:"cleanup_timeout"`  // Timeout for considering a light stale in seconds
 }
 
 // LoggingConfig represents the logging configuration
@@ -72,6 +74,8 @@ func Load(configName, configFile string) (*Config, error) {
 	v.SetDefault("discovery.interval", 30)
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "text")
+	v.SetDefault("discovery.cleanup_interval", 60) // Default cleanup interval: 60 seconds
+	v.SetDefault("discovery.cleanup_timeout", 180) // Default cleanup timeout: 180 seconds (3 minutes)
 
 	// Add config paths
 	if configFile != "" {
@@ -107,7 +111,9 @@ func Load(configName, configFile string) (*Config, error) {
 			UnixSocket: v.GetString("server.unix_socket"),
 		},
 		Discovery: DiscoveryConfig{
-			Interval: v.GetInt("discovery.interval"),
+			Interval:        v.GetInt("discovery.interval"),
+			CleanupInterval: v.GetInt("discovery.cleanup_interval"),
+			CleanupTimeout:  v.GetInt("discovery.cleanup_timeout"),
 		},
 		Logging: LoggingConfig{
 			Level:  v.GetString("logging.level"),

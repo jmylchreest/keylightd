@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var dial = net.Dial
@@ -98,6 +99,20 @@ func (c *Client) GetLights() (map[string]interface{}, error) {
 	if err := c.request(map[string]string{"action": "list_lights"}, &resp); err != nil {
 		return nil, err
 	}
+
+	// Iterate through lights and convert lastseen string to time.Time
+	for _, lightData := range resp {
+		if lightMap, ok := lightData.(map[string]interface{}); ok {
+			if lastSeenStr, ok := lightMap["lastseen"].(string); ok {
+				if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
+					lightMap["lastseen"] = t
+				} else {
+					c.logger.Error("Failed to parse lastseen time string", "error", err, "value", lastSeenStr)
+				}
+			}
+		}
+	}
+
 	return resp, nil
 }
 
@@ -110,6 +125,16 @@ func (c *Client) GetLight(id string) (map[string]interface{}, error) {
 	}, &resp); err != nil {
 		return nil, err
 	}
+
+	// Convert lastseen string to time.Time
+	if lastSeenStr, ok := resp["lastseen"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
+			resp["lastseen"] = t
+		} else {
+			c.logger.Error("Failed to parse lastseen time string", "error", err, "value", lastSeenStr)
+		}
+	}
+
 	return resp, nil
 }
 

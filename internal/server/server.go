@@ -136,6 +136,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				"temperature":     l.Temperature,
 				"brightness":      l.Brightness,
 				"on":              l.On,
+				"lastseen":        l.LastSeen,
 			}
 		}
 		enc.Encode(resp)
@@ -157,6 +158,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			"temperature":     light.Temperature,
 			"brightness":      light.Brightness,
 			"on":              light.On,
+			"lastseen":        light.LastSeen,
 		})
 	case "set_light":
 		id, _ := req["id"].(string)

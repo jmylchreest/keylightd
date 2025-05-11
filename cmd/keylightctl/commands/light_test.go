@@ -2,9 +2,13 @@ package commands
 
 import (
 	"context"
+	"io"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/jmylchreest/keylightd/pkg/client"
+	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,6 +22,8 @@ type mockClient struct{}
 var _ client.ClientInterface = (*mockClient)(nil)
 
 func (m *mockClient) GetLight(id string) (map[string]interface{}, error) {
+	// Use a fixed time for predictable test output
+	lastSeenTime := time.Date(2023, time.October, 26, 10, 0, 0, 0, time.UTC)
 	return map[string]interface{}{
 		"id":              id,
 		"productname":     "Test Light",
@@ -29,10 +35,15 @@ func (m *mockClient) GetLight(id string) (map[string]interface{}, error) {
 		"temperature":     5000,
 		"ip":              "192.168.1.1",
 		"port":            9123,
+		"lastseen":        lastSeenTime,
 	}, nil
 }
 
 func (m *mockClient) GetLights() (map[string]interface{}, error) {
+	// Use a fixed time for predictable test output
+	lastSeenTime1 := time.Date(2023, time.October, 26, 10, 0, 0, 0, time.UTC)
+	lastSeenTime2 := time.Date(2023, time.October, 26, 10, 5, 0, 0, time.UTC)
+
 	return map[string]interface{}{
 		"light1": map[string]interface{}{
 			"id":              "light1",
@@ -45,6 +56,7 @@ func (m *mockClient) GetLights() (map[string]interface{}, error) {
 			"temperature":     5000,
 			"ip":              "192.168.1.1",
 			"port":            9123,
+			"lastseen":        lastSeenTime1,
 		},
 		"light2": map[string]interface{}{
 			"id":              "light2",
@@ -57,6 +69,7 @@ func (m *mockClient) GetLights() (map[string]interface{}, error) {
 			"temperature":     3000,
 			"ip":              "192.168.1.2",
 			"port":            9123,
+			"lastseen":        lastSeenTime2,
 		},
 	}, nil
 }
@@ -114,4 +127,98 @@ func TestLightListCommandParseable(t *testing.T) {
 	cmd.SetContext(ctx)
 	err := cmd.Execute()
 	require.NoError(t, err)
+}
+
+// Helper to capture stdout
+func captureStdout(f func()) string {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+	w.Close()
+	out, _ := io.ReadAll(r)
+	os.Stdout = oldStdout
+	return string(out)
+}
+
+func TestLightGetCommand(t *testing.T) {
+	mock := &mockClient{}
+	ctx := context.WithValue(context.Background(), clientContextKey, mock)
+
+	// Test table output
+	outTable := captureStdout(func() {
+		cmd := newLightGetCommand()
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"test-light"})
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	require.Contains(t, outTable, pterm.Bold.Sprint("ID"))
+	require.Contains(t, outTable, "Test Light")
+	require.Contains(t, outTable, "1.0.0 (build 1)")
+	require.Contains(t, outTable, "true")
+	require.Contains(t, outTable, "50")
+	require.Contains(t, outTable, "5000")
+	require.Contains(t, outTable, "192.168.1.1")
+	require.Contains(t, outTable, "9123")
+	// Check for formatted LastSeen time (e.g., 26 Oct 23 10:00 UTC)
+	require.Contains(t, outTable, "26 Oct 23 10:00 UTC") // Adjust format based on formatLastSeen
+
+	// Test parseable output
+	outParseable := captureStdout(func() {
+		cmd := newLightGetCommand()
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"test-light", "--parseable"})
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	require.Contains(t, outParseable, "id=\"test-light\"")
+	require.Contains(t, outParseable, "productname=\"Test Light\"")
+	require.Contains(t, outParseable, "serialnumber=\"123456\"")
+	require.Contains(t, outParseable, "firmwareversion=\"1.0.0\"")
+	require.Contains(t, outParseable, "firmwarebuild=1")
+	require.Contains(t, outParseable, "on=true")
+	require.Contains(t, outParseable, "brightness=50")
+	require.Contains(t, outParseable, "temperature=5000")
+	require.Contains(t, outParseable, "ip=\"192.168.1.1\"")
+	require.Contains(t, outParseable, "port=9123")
+	// Check for Unix timestamp of fixed time
+	require.Contains(t, outParseable, "lastseen=1698314400") // Unix timestamp for 2023-10-26 10:00:00 UTC
+}
+
+func TestLightListCommand(t *testing.T) {
+	mock := &mockClient{}
+	ctx := context.WithValue(context.Background(), clientContextKey, mock)
+
+	// Test table output
+	outTable := captureStdout(func() {
+		cmd := newLightListCommand()
+		cmd.Context() // Ensure context is set
+		cmd.SetContext(ctx)
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	require.Contains(t, outTable, pterm.Bold.Sprint("ID"))
+	require.Contains(t, outTable, "Light 1")
+	require.Contains(t, outTable, "SN1")
+	require.Contains(t, outTable, "192.168.1.1")
+	// Check for formatted LastSeen times
+	require.Contains(t, outTable, "26 Oct 23 10:00 UTC")
+	require.Contains(t, outTable, "26 Oct 23 10:05 UTC") // Adjust format based on formatLastSeen
+
+	// Test parseable output
+	outParseable := captureStdout(func() {
+		cmd := newLightListCommand()
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"--parseable"})
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	require.Contains(t, outParseable, "id=\"light1\"")
+	require.Contains(t, outParseable, "serialnumber=\"SN1\"")
+	require.Contains(t, outParseable, "lastseen=1698314400") // Unix timestamp for 2023-10-26 10:00:00 UTC
+	require.Contains(t, outParseable, "id=\"light2\"")
+	require.Contains(t, outParseable, "serialnumber=\"SN2\"")
+	require.Contains(t, outParseable, "lastseen=1698314700") // Unix timestamp for 2023-10-26 10:05:00 UTC
 }
