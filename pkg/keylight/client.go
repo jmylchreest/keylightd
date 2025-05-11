@@ -39,13 +39,19 @@ type KeyLightClient struct {
 }
 
 // NewKeyLightClient creates a new client for a Key Light device
-func NewKeyLightClient(ip string, port int, logger *slog.Logger) *KeyLightClient {
+func NewKeyLightClient(ip string, port int, logger *slog.Logger, httpClient ...*http.Client) *KeyLightClient {
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var hc *http.Client
+	if len(httpClient) > 0 && httpClient[0] != nil {
+		hc = httpClient[0]
+	} else {
+		hc = &http.Client{Timeout: 5 * time.Second}
+	}
 	return &KeyLightClient{
 		baseURL:    fmt.Sprintf("http://%s:%d/elgato", ip, port),
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: hc,
 		logger:     logger,
 	}
 }
@@ -154,57 +160,4 @@ func (c *KeyLightClient) SetLightState(on bool, brightness, temperature int) err
 
 	c.logger.Debug("light state updated successfully")
 	return nil
-}
-
-// Helper functions
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}
-
-// convertTemperatureToDevice converts from Kelvin to mireds (device units)
-// The Elgato Key Light uses mireds (micro reciprocal degrees) for temperature control
-// Mireds = 1,000,000 / Kelvin
-// Device range: 344 mireds (2900K) to 143 mireds (7000K)
-func convertTemperatureToDevice(kelvin int) int {
-	// Clamp input to valid range
-	if kelvin < 2900 {
-		kelvin = 2900
-	} else if kelvin > 7000 {
-		kelvin = 7000
-	}
-
-	// Convert Kelvin to mireds
-	// Mireds = 1,000,000 / Kelvin
-	mireds := 1000000 / kelvin
-
-	// Clamp mireds to device range
-	if mireds > 344 {
-		mireds = 344 // 2900K
-	} else if mireds < 143 {
-		mireds = 143 // 7000K
-	}
-
-	return mireds
-}
-
-// convertDeviceToTemperature converts from mireds (device units) to Kelvin
-// The Elgato Key Light uses mireds (micro reciprocal degrees) for temperature control
-// Kelvin = 1,000,000 / mireds
-func convertDeviceToTemperature(mireds int) int {
-	// Clamp input to valid range
-	if mireds > 344 {
-		mireds = 344 // 2900K
-	} else if mireds < 143 {
-		mireds = 143 // 7000K
-	}
-
-	// Convert mireds to Kelvin
-	// Kelvin = 1,000,000 / mireds
-	kelvin := 1000000 / mireds
-
-	return kelvin
 }

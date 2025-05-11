@@ -3,8 +3,10 @@ package group
 import (
 	"bytes"
 	"log/slog"
+	"os"
 	"testing"
 
+	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +25,7 @@ func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
 	return light, nil
 }
 
-func (m *mockLightManager) SetLightState(id string, on bool) error {
+func (m *mockLightManager) SetLightState(id string, property string, value interface{}) error {
 	_, exists := m.lights[id]
 	if !exists {
 		return keylight.ErrLightNotFound
@@ -32,19 +34,46 @@ func (m *mockLightManager) SetLightState(id string, on bool) error {
 }
 
 func (m *mockLightManager) SetLightBrightness(id string, brightness int) error {
-	_, exists := m.lights[id]
-	if !exists {
-		return keylight.ErrLightNotFound
-	}
-	return nil
+	return m.SetLightState(id, "brightness", brightness)
 }
 
 func (m *mockLightManager) SetLightTemperature(id string, temperature int) error {
-	_, exists := m.lights[id]
-	if !exists {
-		return keylight.ErrLightNotFound
+	return m.SetLightState(id, "temperature", temperature)
+}
+
+func (m *mockLightManager) SetLightPower(id string, on bool) error {
+	return m.SetLightState(id, "on", on)
+}
+
+func (m *mockLightManager) GetLights() map[string]*keylight.Light {
+	return m.lights
+}
+
+func (m *mockLightManager) GetDiscoveredLights() []*keylight.Light {
+	lights := make([]*keylight.Light, 0, len(m.lights))
+	for _, light := range m.lights {
+		lights = append(lights, light)
 	}
-	return nil
+	return lights
+}
+
+func setupTestConfig(t *testing.T) *config.Config {
+	// Create temporary directory for config
+	tmpDir, err := os.MkdirTemp("", "keylightd-test")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tmpDir) })
+
+	// Set XDG_CONFIG_HOME to temporary directory
+	oldXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Cleanup(func() { os.Setenv("XDG_CONFIG_HOME", oldXDG) })
+
+	// Create config
+	cfg, err := config.Load("test.yaml", "")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
+	return cfg
 }
 
 func TestNewManager(t *testing.T) {
@@ -52,7 +81,8 @@ func TestNewManager(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 	lights := &mockLightManager{lights: make(map[string]*keylight.Light)}
-	manager := NewManager(logger, lights)
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
 	assert.NotNil(t, manager)
 	assert.NotNil(t, manager.groups)
 }
@@ -67,7 +97,8 @@ func TestGroupManagement(t *testing.T) {
 			"light2": {ID: "light2", Name: "Light 2"},
 		},
 	}
-	manager := NewManager(logger, lights)
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
 
 	// Test creating group
 	group, err := manager.CreateGroup("test-group", []string{"light1", "light2"})
@@ -113,7 +144,8 @@ func TestGroupOperations(t *testing.T) {
 			"light2": {ID: "light2", Name: "Light 2"},
 		},
 	}
-	manager := NewManager(logger, lights)
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
 
 	// Create a group
 	group, err := manager.CreateGroup("test-group", []string{"light1", "light2"})

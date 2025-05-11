@@ -11,6 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// At the top, add:
+// import "./light.go" or declare var clientContextKey = &struct{}{} if not already present
+// In all command handlers, change:
+// client, ok := cmd.Context().Value("client").(client.ClientInterface)
+// to:
+// client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+
 // NewGroupCommand creates the group command
 func NewGroupCommand(logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
@@ -38,7 +45,7 @@ func newGroupListCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "list",
 		Short: "List all light groups",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -94,7 +101,7 @@ func newGroupAddCommand(logger *slog.Logger) *cobra.Command {
 		Short: "Add a new light group",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -138,7 +145,7 @@ func newGroupDeleteCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "delete",
 		Short: "Delete a light group",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -190,7 +197,7 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "get",
 		Short: "Get a light group",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -272,7 +279,7 @@ func newGroupSetCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "set",
 		Short: "Set properties for all lights in a group",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -489,7 +496,7 @@ func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "edit [groupid] [lightid...]",
 		Short: "Edit the lights in a group",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value("client").(*client.Client)
+			client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
 				return fmt.Errorf("client not found in context")
 			}
@@ -595,7 +602,7 @@ func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
 }
 
 // resolveGroupIdentifier takes either a group name or ID and returns the group ID
-func resolveGroupIdentifier(client *client.Client, identifier string) (string, error) {
+func resolveGroupIdentifier(client client.ClientInterface, identifier string) (string, error) {
 	groups, err := client.GetGroups()
 	if err != nil {
 		return "", fmt.Errorf("failed to get groups: %w", err)

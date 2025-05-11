@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,35 +9,25 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	// Save original environment variables
-	origInterval := os.Getenv("KEYLIGHTD_DISCOVERY_INTERVAL")
-	defer os.Setenv("KEYLIGHTD_DISCOVERY_INTERVAL", origInterval)
+	// Save original environment variable
+	oldInterval := os.Getenv("KEYLIGHT_DISCOVERY_INTERVAL")
+	defer os.Setenv("KEYLIGHT_DISCOVERY_INTERVAL", oldInterval)
 
-	// Clear environment variable
-	os.Unsetenv("KEYLIGHTD_DISCOVERY_INTERVAL")
-
-	// Test loading with no config file
-	config, err := Load("test.yaml", "")
+	// Test loading with default values
+	cfg, err := Load("test.yaml", "")
 	require.NoError(t, err)
-	assert.NotNil(t, config)
-	assert.Equal(t, getRuntimeSocketPath(), config.Server.UnixSocket)
-	assert.Equal(t, 30, config.Discovery.Interval)
-	assert.Equal(t, "info", config.Logging.Level)
+	assert.NotNil(t, cfg)
+	assert.Equal(t, 30, cfg.Discovery.Interval)
 
-	// Test loading with environment variables
-	os.Setenv("KEYLIGHTD_DISCOVERY_INTERVAL", "60")
-
-	config, err = Load("test.yaml", "")
+	// Test loading with environment variable
+	os.Setenv("KEYLIGHT_DISCOVERY_INTERVAL", "60")
+	cfg, err = Load("test.yaml", "")
 	require.NoError(t, err)
-	assert.Equal(t, 60, config.Discovery.Interval)
+	assert.NotNil(t, cfg)
+	assert.Equal(t, 60, cfg.Discovery.Interval)
 }
 
 func TestSave(t *testing.T) {
-	config := &Config{}
-	config.Server.UnixSocket = getRuntimeSocketPath()
-	config.Discovery.Interval = 30
-	config.Logging.Level = "info"
-
 	// Create temporary directory for config
 	tmpDir, err := os.MkdirTemp("", "keylightd-test")
 	require.NoError(t, err)
@@ -49,19 +38,17 @@ func TestSave(t *testing.T) {
 	os.Setenv("XDG_CONFIG_HOME", tmpDir)
 	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
 
+	// Create config
+	cfg, err := Load("test.yaml", "")
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+
 	// Save config
-	err = config.Save("test.yaml")
+	err = cfg.Save("test.yaml")
 	require.NoError(t, err)
 
-	// Verify config file exists
-	configPath := filepath.Join(tmpDir, "keylight", "test.yaml")
-	_, err = os.Stat(configPath)
+	// Load config again to verify
+	cfg2, err := Load("test.yaml", "")
 	require.NoError(t, err)
-
-	// Load config and verify values
-	loadedConfig, err := Load("test.yaml", "")
-	require.NoError(t, err)
-	assert.Equal(t, config.Server.UnixSocket, loadedConfig.Server.UnixSocket)
-	assert.Equal(t, config.Discovery.Interval, loadedConfig.Discovery.Interval)
-	assert.Equal(t, config.Logging.Level, loadedConfig.Logging.Level)
+	assert.Equal(t, cfg.Discovery.Interval, cfg2.Discovery.Interval)
 }

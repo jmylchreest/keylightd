@@ -9,6 +9,23 @@ import (
 	"path/filepath"
 )
 
+var dial = net.Dial
+
+// ClientInterface defines the methods for interacting with keylightd
+// Used for testability and mocking in CLI
+
+type ClientInterface interface {
+	GetLights() (map[string]interface{}, error)
+	GetLight(id string) (map[string]interface{}, error)
+	SetLightState(id string, property string, value interface{}) error
+	CreateGroup(name string) error
+	GetGroup(name string) (map[string]interface{}, error)
+	GetGroups() ([]map[string]interface{}, error)
+	SetGroupState(name string, property string, value interface{}) error
+	DeleteGroup(name string) error
+	SetGroupLights(groupID string, lightIDs []string) error
+}
+
 // Client represents a connection to keylightd
 type Client struct {
 	logger *slog.Logger
@@ -41,7 +58,7 @@ func New(logger *slog.Logger, socket string) *Client {
 func (c *Client) request(req interface{}, resp interface{}) error {
 	c.logger.Debug("Connecting to socket", "socket", c.socket)
 	// Connect to socket
-	conn, err := net.Dial("unix", c.socket)
+	conn, err := dial("unix", c.socket)
 	if err != nil {
 		c.logger.Error("Failed to connect to socket", "error", err, "socket", c.socket)
 		return fmt.Errorf("failed to connect to socket: %w", err)

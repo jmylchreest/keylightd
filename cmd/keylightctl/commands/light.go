@@ -12,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var clientContextKey = &struct{}{}
+
 // orderedProperties defines the order of properties in parseable output
 var orderedProperties = []string{
 	"id",
@@ -70,7 +72,7 @@ func newLightListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List discovered lights",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cmd.Context().Value("client").(*client.Client)
+			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
@@ -125,7 +127,7 @@ func newLightGetCommand() *cobra.Command {
 		Use:   "get [id] [property]",
 		Short: "Get information about a light",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cmd.Context().Value("client").(*client.Client)
+			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
@@ -213,8 +215,8 @@ func newLightSetCommand(logger *slog.Logger) *cobra.Command {
 		Use:   "set [id] [property] [value]",
 		Short: "Set a light property",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := cmd.Context().Value("client").(*client.Client)
-			lights, err := client.GetLights()
+			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
 			}
@@ -358,7 +360,7 @@ func newLightSetCommand(logger *slog.Logger) *cobra.Command {
 				}
 			}
 
-			if err := client.SetLightState(lightID, propertyLower, value); err != nil {
+			if err := c.SetLightState(lightID, propertyLower, value); err != nil {
 				return fmt.Errorf("failed to set light state: %w", err)
 			}
 

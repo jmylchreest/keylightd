@@ -18,6 +18,9 @@ var (
 	buildDate = "unknown"
 )
 
+// Define the same clientContextKey as in commands/light.go and group.go
+var clientContextKey = &struct{}{}
+
 func main() {
 	var logLevel, logFormat string
 	var configFile string
@@ -68,8 +71,8 @@ func main() {
 
 	client := client.New(logger, socket)
 
-	// Create context with client and logger
-	ctx := context.WithValue(context.Background(), "client", client)
+	// Create context with client and logger using the correct key
+	ctx := context.WithValue(context.Background(), clientContextKey, client)
 	ctx = context.WithValue(ctx, "logger", logger)
 
 	rootCmd := &cobra.Command{

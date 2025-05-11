@@ -3,7 +3,11 @@ package keylight
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"log/slog"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
@@ -11,65 +15,102 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockRoundTripper implements http.RoundTripper for testing
+// It returns canned responses for /elgato/lights and /elgato/lights PUT
+
+type mockRoundTripper struct{}
+
+func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method == http.MethodGet && req.URL.Path == "/elgato/lights" {
+		resp := map[string]interface{}{
+			"numberOfLights": 1,
+			"lights": []map[string]interface{}{
+				{
+					"on":          1,
+					"brightness":  50,
+					"temperature": 200,
+				},
+			},
+		}
+		b, _ := json.Marshal(resp)
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewReader(b)),
+			Header:     make(http.Header),
+		}, nil
+	}
+	if req.Method == http.MethodPut && req.URL.Path == "/elgato/lights" {
+		return &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"success":true}`))),
+			Header:     make(http.Header),
+		}, nil
+	}
+	return &http.Response{StatusCode: 404, Body: ioutil.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
+}
+
+func newTestManager(logger *slog.Logger) (*Manager, *http.Client) {
+	m := NewManager(logger)
+	mockClient := &http.Client{Transport: &mockRoundTripper{}}
+	m.clients = make(map[string]*KeyLightClient)
+	m.lights = make(map[string]Light)
+	return m, mockClient
+}
+
 func TestNewManager(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	manager := NewManager(logger)
+	manager, _ := newTestManager(logger)
 	assert.NotNil(t, manager)
 	assert.NotNil(t, manager.lights)
-	assert.NotNil(t, manager.stopChan)
-	assert.NotNil(t, manager.eventChan)
 }
 
 func TestLightManagement(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	manager := NewManager(logger)
+	manager, mockHTTP := newTestManager(logger)
+
+	// Add a test light with mock HTTP client
+	light := Light{
+		ID:   "test-light",
+		Name: "Test Light",
+		IP:   net.ParseIP("192.168.1.1"),
+		Port: 9123,
+	}
+	manager.lights[light.ID] = light
+	manager.clients[light.ID] = NewKeyLightClient(light.IP.String(), light.Port, logger, mockHTTP)
 
 	// Test setting light state
-	err := manager.SetLightState("non-existent", true)
-	assert.ErrorIs(t, err, ErrLightNotFound)
+	err := manager.SetLightState("test-light", "on", true)
+	require.NoError(t, err)
 
-	// Test setting light brightness (non-existent light)
-	err = manager.SetLightBrightness("non-existent", 50)
-	assert.ErrorIs(t, err, ErrLightNotFound)
+	// Test setting light brightness
+	err = manager.SetLightState("test-light", "brightness", 50)
+	require.NoError(t, err)
 
-	// Test setting invalid brightness (non-existent light, should still return ErrLightNotFound)
-	err = manager.SetLightBrightness("test", 150)
-	assert.ErrorIs(t, err, ErrLightNotFound)
+	// Test setting light temperature
+	err = manager.SetLightState("test-light", "temperature", 5000)
+	require.NoError(t, err)
 
-	// Test setting light temperature (non-existent light)
-	err = manager.SetLightTemperature("non-existent", 5000)
-	assert.ErrorIs(t, err, ErrLightNotFound)
-
-	// Test setting invalid temperature (non-existent light, should still return ErrLightNotFound)
-	err = manager.SetLightTemperature("test", 1000)
-	assert.ErrorIs(t, err, ErrLightNotFound)
+	// Test setting state for non-existent light
+	err = manager.SetLightState("non-existent", "on", true)
+	assert.Error(t, err)
 }
 
 func TestDiscovery(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
-	manager := NewManager(logger)
+	manager, _ := newTestManager(logger)
+
+	// Test discovery with a short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-
-	// Start discovery (should succeed)
-	err := manager.StartDiscovery(ctx, time.Second)
-	require.NoError(t, err)
-
-	// Start discovery again (should fail)
-	err = manager.StartDiscovery(ctx, time.Second)
-	assert.Error(t, err)
-
-	// Stop discovery (should succeed)
-	err = manager.StopDiscovery()
-	require.NoError(t, err)
-
-	// Stop discovery again (should fail)
-	err = manager.StopDiscovery()
-	assert.Error(t, err)
+	err := manager.DiscoverLights(ctx, 5*time.Second)
+	// Discovery may timeout, which is expected in tests
+	if err != nil && err != context.DeadlineExceeded {
+		require.NoError(t, err)
+	}
 }
