@@ -3,7 +3,8 @@ package keylight
 import (
 	"context"
 	"fmt"
-	"strings"
+	"log"
+	"os"
 	"time"
 
 	"github.com/hashicorp/mdns"
@@ -36,8 +37,18 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 		discoverCtx, cancel := context.WithTimeout(ctx, interval-time.Second)
 		defer cancel()
 
+		// Bridge slog.Logger to log.Logger for mDNS
+		var mdnsLogger *log.Logger
+		if m.logger != nil {
+			mdnsLogger = slogToStdLogger(m.logger)
+		} else {
+			mdnsLogger = log.New(os.Stderr, "mdns: ", log.LstdFlags)
+		}
+		params := mdns.DefaultParams("_elg._tcp")
+		params.Entries = entriesCh
+		params.Logger = mdnsLogger
 		// Start the discovery
-		err := mdns.Lookup("_elg._tcp", entriesCh)
+		err := mdns.Query(params)
 		if err != nil {
 			return fmt.Errorf("failed to start discovery: %w", err)
 		}
@@ -54,12 +65,6 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					return nil
 				}
 				if entry == nil {
-					continue
-				}
-
-				// Skip non-Elgato services
-				if !strings.HasSuffix(entry.Name, "._elg._tcp.local.") {
-					m.logger.Log(ctx, -8, "Skipping non-Elgato device", "name", entry.Name)
 					continue
 				}
 
