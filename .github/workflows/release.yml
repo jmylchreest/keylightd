@@ -17,14 +17,19 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
 
+      - name: Display Go version
+        run: go version
+
       - name: Run tests with coverage
         run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-
+  codecov:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.txt
-          fail_ci_if_error: true 
   release:
     runs-on: ubuntu-latest
     needs: test
