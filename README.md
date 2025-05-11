@@ -38,7 +38,7 @@
 
 ### Building with GoReleaser
 
-To build and create release artifacts:
+To create a snapshot:
 
 ```bash
 goreleaser build --clean --snapshot
@@ -47,7 +47,7 @@ goreleaser build --clean --snapshot
 To create a full release (for maintainers):
 
 ```bash
-goreleaser release --clean --snapshot
+goreleaser release --clean
 ```
 
 Binaries for `linux/amd64` and `linux/arm64` will be produced.
