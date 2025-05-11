@@ -10,6 +10,11 @@ import (
 	"github.com/hashicorp/mdns"
 )
 
+const (
+	serviceName = "_elg._tcp"
+	domain      = "local."
+)
+
 // DiscoverLights discovers Key Light devices on the network periodically.
 // The interval must be at least 5 seconds. If a shorter interval is provided,
 // it will be automatically increased to 5 seconds and a warning will be logged.
@@ -44,7 +49,8 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 		} else {
 			mdnsLogger = log.New(os.Stderr, "mdns: ", log.LstdFlags)
 		}
-		params := mdns.DefaultParams("_elg._tcp")
+		params := mdns.DefaultParams(serviceName)
+		params.Domain = domain
 		params.Entries = entriesCh
 		params.Logger = mdnsLogger
 		// Start the discovery
