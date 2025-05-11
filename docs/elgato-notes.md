@@ -1,4 +1,4 @@
-# Keylightd Details
+# Keylight Details
 
 ## Temperature Control
 

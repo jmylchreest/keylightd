@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
+	"runtime"
 	"time"
 
 	"log/slog"
@@ -67,10 +69,46 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 		params.Domain = domain
 		params.Entries = entriesCh
 		params.Logger = mdnsLogger
+
+		// mDNS is a bit broken on windows apparently (at least with the hasicorp/mDNS library). This is a workaround that appears to work despite a few warnings.
+		if runtime.GOOS == "windows" {
+			// Attempt to find a suitable network interface for mDNS on Windows
+			var selectedInterface *net.Interface
+			interfaces, errInterfaces := net.Interfaces()
+			if errInterfaces == nil {
+				for _, iface := range interfaces {
+					i := iface // Create a local copy for the pointer
+					if (i.Flags&net.FlagUp) == 0 || (i.Flags&net.FlagLoopback) != 0 || (i.Flags&net.FlagMulticast) == 0 {
+						continue
+					}
+					addrs, errAddrs := i.Addrs()
+					if errAddrs != nil {
+						continue
+					}
+					hasIPv4 := false
+					for _, addr := range addrs {
+						if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
+							hasIPv4 = true
+							break
+						}
+					}
+					if hasIPv4 {
+						selectedInterface = &i
+						params.DisableIPv6 = true // Required to allow hasicorp/mDNS to work on Windows
+						params.Interface = selectedInterface
+						m.logger.Info("Disabling IPv6 and using specific network interface for mDNS on Windows", "interface", i.Name)
+						break
+					}
+				}
+			} else {
+				m.logger.Warn("Failed to list network interfaces on Windows", "error", errInterfaces)
+			}
+		}
+
 		// Start the discovery
-		err := mdns.Query(params)
-		if err != nil {
-			return fmt.Errorf("failed to start discovery: %w", err)
+		errQuery := mdns.Query(params)
+		if errQuery != nil {
+			return fmt.Errorf("failed to start discovery: %w", errQuery)
 		}
 
 		// Process discovered services
