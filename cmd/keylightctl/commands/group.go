@@ -52,7 +52,10 @@ func newGroupListCommand(logger *slog.Logger) *cobra.Command {
 				for _, group := range groups {
 					id := group["id"].(string)
 					groupName := group["name"].(string)
-					lights := group["lights"].([]interface{})
+					var lights []interface{}
+					if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+						lights = lightsVal
+					}
 					lightIDs := make([]string, len(lights))
 					for i, light := range lights {
 						lightIDs[i] = light.(string)
@@ -67,7 +70,10 @@ func newGroupListCommand(logger *slog.Logger) *cobra.Command {
 			}
 
 			for _, group := range groups {
-				lights := group["lights"].([]interface{})
+				var lights []interface{}
+				if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+					lights = lightsVal
+				}
 				lightIDs := make([]string, len(lights))
 				for i, light := range lights {
 					lightIDs[i] = light.(string)
@@ -246,7 +252,10 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 			if parseable {
 				id := group["id"].(string)
 				groupName := group["name"].(string)
-				lights := group["lights"].([]interface{})
+				var lights []interface{}
+				if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+					lights = lightsVal
+				}
 				lightIDs := make([]string, len(lights))
 				for i, light := range lights {
 					lightIDs[i] = light.(string)
