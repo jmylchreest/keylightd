@@ -11,13 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// At the top, add:
-// import "./light.go" or declare var clientContextKey = &struct{}{} if not already present
-// In all command handlers, change:
-// client, ok := cmd.Context().Value("client").(client.ClientInterface)
-// to:
-// client, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
-
 // NewGroupCommand creates the group command
 func NewGroupCommand(logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{

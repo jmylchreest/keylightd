@@ -187,20 +187,22 @@ func (m *Manager) AddLight(light Light) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Create client for this light
 	client := NewKeyLightClient(light.IP.String(), light.Port, m.logger)
 	m.clients[light.ID] = client
 
-	// Get accessory info
-	info, err := client.GetAccessoryInfo()
-	if err != nil {
-		m.logger.Error("failed to get accessory info", slog.String("id", light.ID), slog.Any("error", err))
-	} else {
-		light.ProductName = info.ProductName
-		light.HardwareBoardType = info.HardwareBoardType
-		light.FirmwareVersion = info.FirmwareVersion
-		light.FirmwareBuild = info.FirmwareBuildNumber
-		light.SerialNumber = info.SerialNumber
+	// Only fetch accessory info if required fields are missing
+	if light.ProductName == "" || light.SerialNumber == "" {
+		info, err := client.GetAccessoryInfo()
+		if err != nil {
+			m.logger.Error("failed to get accessory info", slog.String("id", light.ID), slog.Any("error", err))
+		} else {
+			light.ProductName = info.ProductName
+			light.HardwareBoardType = info.HardwareBoardType
+			light.FirmwareVersion = info.FirmwareVersion
+			light.FirmwareBuild = info.FirmwareBuildNumber
+			light.SerialNumber = info.SerialNumber
+			light.Name = info.DisplayName
+		}
 	}
 
 	// Get current state

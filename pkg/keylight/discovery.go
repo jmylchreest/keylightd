@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"log/slog"
+
 	"github.com/hashicorp/mdns"
 )
 
@@ -14,6 +16,18 @@ const (
 	serviceName = "_elg._tcp"
 	domain      = "local."
 )
+
+// validProductNames contains all valid Elgato Key Light product names
+var validProductNames = []string{"Elgato Key Light"}
+
+func isValidProductName(name string) bool {
+	for _, valid := range validProductNames {
+		if name == valid {
+			return true
+		}
+	}
+	return false
+}
 
 // DiscoverLights discovers Key Light devices on the network periodically.
 // The interval must be at least 5 seconds. If a shorter interval is provided,
@@ -70,32 +84,11 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					// Channel closed, discovery complete
 					return nil
 				}
-				if entry == nil {
+				light, valid := validateLight(entry, m.logger)
+				if !valid {
 					continue
 				}
-
-				// Validate the service has required fields
-				if entry.AddrV4 == nil || entry.Port == 0 {
-					m.logger.Log(ctx, -8, "Skipping invalid service entry",
-						"name", entry.Name,
-						"addr", entry.AddrV4,
-						"port", entry.Port)
-					continue
-				}
-
-				m.logger.Debug("Discovered Elgato Key Light",
-					"name", entry.Name,
-					"addr", entry.AddrV4,
-					"port", entry.Port)
-
-				// Create a new light
-				light := Light{
-					ID:   entry.Name,
-					IP:   entry.AddrV4,
-					Port: entry.Port,
-				}
-
-				// Add the light to the manager
+				m.logger.Debug("Validated Elgato Key Light", "name", light.Name, "id", light.ID, "addr", light.IP, "port", light.Port)
 				m.AddLight(light)
 			}
 		}
@@ -118,4 +111,42 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			}
 		}
 	}
+}
+
+// validateLight checks if the mDNS entry is a valid Elgato Key Light by querying /elgato/accessory-info
+func validateLight(entry *mdns.ServiceEntry, logger *slog.Logger) (Light, bool) {
+	if entry == nil || entry.AddrV4 == nil || entry.Port == 0 {
+		if logger != nil {
+			logger.Debug("Skipping invalid service entry", "name", entry.Name, "addr", entry.AddrV4, "port", entry.Port)
+		}
+		return Light{}, false
+	}
+
+	client := NewKeyLightClient(entry.AddrV4.String(), entry.Port, logger)
+	info, err := client.GetAccessoryInfo()
+	if err != nil {
+		if logger != nil {
+			logger.Debug("Failed to get accessory info", "ip", entry.AddrV4, "port", entry.Port, "error", err)
+		}
+		return Light{}, false
+	}
+	if !isValidProductName(info.ProductName) {
+		if logger != nil {
+			logger.Debug("Discovered device is not a valid Elgato Key Light", "productName", info.ProductName, "name", entry.Name, "addr", entry.AddrV4)
+		}
+		return Light{}, false
+	}
+	// Build the Light struct with info
+	light := Light{
+		ID:                entry.Name,
+		IP:                entry.AddrV4,
+		Port:              entry.Port,
+		ProductName:       info.ProductName,
+		HardwareBoardType: info.HardwareBoardType,
+		FirmwareVersion:   info.FirmwareVersion,
+		FirmwareBuild:     info.FirmwareBuildNumber,
+		SerialNumber:      info.SerialNumber,
+		Name:              info.DisplayName,
+	}
+	return light, true
 }
