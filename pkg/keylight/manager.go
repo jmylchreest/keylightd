@@ -3,13 +3,7 @@ package keylight
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"sync"
-)
-
-const (
-	serviceName = "_elg._tcp"
-	domain      = "local."
 )
 
 // Manager manages Key Light devices
@@ -219,19 +213,4 @@ func (m *Manager) AddLight(light Light) {
 
 	m.lights[light.ID] = light
 	m.logger.Info("added light", slog.String("id", light.ID), slog.String("ip", light.IP.String()), slog.Int("port", light.Port))
-}
-
-// addLight adds a new light to the manager
-func (m *Manager) addLight(id string, ip net.IP, port int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if _, exists := m.lights[id]; !exists {
-		m.lights[id] = Light{
-			ID:   id,
-			IP:   ip,
-			Port: port,
-		}
-		m.logger.Info("added light", slog.String("id", id), slog.String("ip", ip.String()), slog.Int("port", port))
-	}
 }

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -35,18 +35,18 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		b, _ := json.Marshal(resp)
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewReader(b)),
+			Body:       io.NopCloser(bytes.NewReader(b)),
 			Header:     make(http.Header),
 		}, nil
 	}
 	if req.Method == http.MethodPut && req.URL.Path == "/elgato/lights" {
 		return &http.Response{
 			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewReader([]byte(`{"success":true}`))),
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"success":true}`))),
 			Header:     make(http.Header),
 		}, nil
 	}
-	return &http.Response{StatusCode: 404, Body: ioutil.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
+	return &http.Response{StatusCode: 404, Body: io.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
 }
 
 func newTestManager(logger *slog.Logger) (*Manager, *http.Client) {

@@ -8,6 +8,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Define a custom type for context keys to avoid collisions
+type loggerContextKey struct{}
+
 // NewRootCommand creates the root command
 func NewRootCommand(logger *slog.Logger, version, commit, buildDate string) *cobra.Command {
 	cmd := &cobra.Command{
@@ -30,7 +33,7 @@ func NewRootCommand(logger *slog.Logger, version, commit, buildDate string) *cob
 		if parent == nil {
 			parent = context.Background()
 		}
-		cmd.SetContext(context.WithValue(parent, "logger", logger))
+		cmd.SetContext(context.WithValue(parent, loggerContextKey{}, logger))
 	}
 
 	return cmd
