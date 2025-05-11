@@ -1,7 +1,6 @@
 # keylightd
 
-[![Build Status](https://github.com/jmylchreest/keylightd/actions/workflows/goreleaser.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
-[![Test Status](https://github.com/jmylchreest/keylightd/actions/workflows/test.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
+[![Build Status](https://github.com/jmylchreest/keylightd/actions/workflows/release.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
 [![Codecov](https://codecov.io/gh/jmylchreest/keylightd/branch/main/graph/badge.svg)](https://codecov.io/gh/jmylchreest/keylightd)
 
 **keylightd** is a daemon and CLI tool for managing Elgato Keylights on your local network. It discovers lights via mDNS, allows grouping, and provides a robust CLI for automation and scripting.
