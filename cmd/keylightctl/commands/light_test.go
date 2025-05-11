@@ -103,6 +103,20 @@ func (m *mockClient) SetGroupLights(groupID string, lightIDs []string) error {
 	return nil
 }
 
+// API Key Management Mocks (satisfy client.ClientInterface)
+func (m *mockClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error) {
+	// Simple mock: doesn't actually store/return a real key structure for light tests
+	return map[string]interface{}{"key": "mockapikey", "name": name}, nil
+}
+
+func (m *mockClient) ListAPIKeys() ([]map[string]interface{}, error) {
+	return []map[string]interface{}{}, nil // Return empty list for light tests
+}
+
+func (m *mockClient) DeleteAPIKey(key string) error {
+	return nil
+}
+
 func TestLightGetCommandParseable(t *testing.T) {
 	mock := &mockClient{}
 	ctx := context.WithValue(context.Background(), clientContextKey, mock)

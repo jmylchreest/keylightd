@@ -8,7 +8,6 @@ import (
 	"github.com/jmylchreest/keylightd/cmd/keylightctl/commands"
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/pkg/client"
-	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -28,14 +27,12 @@ func main() {
 	// Load configuration first
 	cfg, err := config.Load("keylightctl.yaml", configFile)
 	if err != nil {
-		// Only log error if it's not a missing config file
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			// Create a basic logger for the error
 			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 			logger.Error("failed to load configuration", "error", err)
 			os.Exit(1)
 		}
-		// Create default config if file not found
+		// If file not found, use defaults
 		cfg = &config.Config{
 			Logging: config.LoggingConfig{
 				Level:  "info",
@@ -64,29 +61,23 @@ func main() {
 	slog.SetDefault(logger)
 
 	// Set socket path from config
-	socket := "/run/user/1000/keylightd.sock"
+	socket := config.GetRuntimeSocketPath()
 	if cfg.Server.UnixSocket != "" {
 		socket = cfg.Server.UnixSocket
 	}
 
-	client := client.New(logger, socket)
+	apiClient := client.New(logger, socket)
 
-	// Create context with client and logger using the correct key
-	ctx := context.WithValue(context.Background(), clientContextKey, client)
-	ctx = context.WithValue(ctx, "logger", logger)
+	// Use the NewRootCommand from the commands package
+	rootCmd := commands.NewRootCommand(logger, version, commit, buildDate)
 
-	rootCmd := &cobra.Command{
-		Use:   "keylightctl",
-		Short: "Elgato Keylight Control",
+	// Get the context initialized by NewRootCommand (which includes the logger)
+	// and add the apiClient to it.
+	ctx := rootCmd.Context()
+	if ctx == nil { // Should not happen if NewRootCommand sets it up
+		ctx = context.Background()
 	}
-
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "log level (debug, info, warn, error)")
-	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "log format (text, json)")
-	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "path to configuration file")
-
-	// Create commands with logger
-	rootCmd.AddCommand(commands.NewGroupCommand(logger))
-	rootCmd.AddCommand(commands.NewLightCommand(logger))
+	ctx = context.WithValue(ctx, clientContextKey, apiClient)
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		os.Exit(1)

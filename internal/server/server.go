@@ -1,323 +1,882 @@
 package server
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
+	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/group"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
-// Server represents the Unix socket server
+// Server manages the keylightd daemon, including discovery, groups, and socket/HTTP APIs.
 type Server struct {
-	logger     *slog.Logger
-	lights     keylight.LightManager
-	groups     *group.Manager
-	unixServer net.Listener
-	cfg        *config.Config
+	logger        *slog.Logger
+	cfg           *config.Config
+	lights        keylight.LightManager
+	groups        *group.Manager
+	socketPath    string
+	listener      net.Listener
+	shutdown      chan struct{}
+	wg            sync.WaitGroup
+	apikeyManager *apikey.Manager
+	httpServer    *http.Server
 }
 
-// New creates a new server instance
-func New(logger *slog.Logger, lights keylight.LightManager, cfg *config.Config) *Server {
+// New creates a new server instance.
+func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightManager) *Server {
+	groupManager := group.NewManager(logger, lightManager, cfg)
+	apikeyMgr := apikey.NewManager(cfg, logger)
+
 	return &Server{
-		logger: logger,
-		lights: lights,
-		groups: group.NewManager(logger, lights, cfg),
-		cfg:    cfg,
+		logger:        logger,
+		cfg:           cfg,
+		lights:        lightManager,
+		groups:        groupManager,
+		socketPath:    cfg.Server.UnixSocket,
+		shutdown:      make(chan struct{}),
+		apikeyManager: apikeyMgr,
 	}
 }
 
-// Start starts the Unix socket server
+// Start begins the server operations, including listening on the socket and starting the HTTP server.
 func (s *Server) Start() error {
-	// Ensure socket directory exists
-	socketDir := filepath.Dir(s.cfg.Server.UnixSocket)
-	if err := os.MkdirAll(socketDir, 0755); err != nil {
-		return fmt.Errorf("failed to create socket directory: %w", err)
-	}
+	s.logger.Info("Starting keylightd server")
 
-	// Remove existing socket if it exists
-	if err := os.RemoveAll(s.cfg.Server.UnixSocket); err != nil {
-		return fmt.Errorf("failed to remove existing socket: %w", err)
-	}
-
-	// Create Unix socket listener
-	listener, err := net.Listen("unix", s.cfg.Server.UnixSocket)
-	if err != nil {
-		return fmt.Errorf("failed to create Unix socket: %w", err)
-	}
-
-	s.unixServer = listener
-	s.logger.Info("Starting Unix socket server", "socket", s.cfg.Server.UnixSocket)
-
-	// Accept connections
+	// Start cleanup worker for stale lights
+	s.wg.Add(1)
 	go func() {
-		for {
-			s.logger.Debug("Waiting for connection")
-			conn, err := s.unixServer.Accept()
-			if err != nil {
-				if !isClosedError(err) {
-					s.logger.Error("Failed to accept connection", "error", err)
-				}
-				return
-			}
-			s.logger.Debug("New connection accepted", "remote", conn.RemoteAddr())
-
-			go s.handleConnection(conn)
-		}
+		defer s.wg.Done()
+		// Pass s.shutdown as the context for cancellation, assuming StartCleanupWorker is adapted or a new context is derived.
+		// For now, we'll assume StartCleanupWorker takes a context derived from s.shutdown or similar.
+		// Let's create a cancellable context for the worker.
+		workerCtx, cancelWorker := context.WithCancel(context.Background())
+		go func() {
+			<-s.shutdown   // Wait for server shutdown signal
+			cancelWorker() // Cancel the worker's context
+		}()
+		s.lights.StartCleanupWorker(workerCtx, time.Duration(s.cfg.Discovery.CleanupInterval)*time.Second, time.Duration(s.cfg.Discovery.CleanupTimeout)*time.Second)
+		s.logger.Info("Light cleanup worker stopped")
 	}()
 
-	return nil
-}
+	// Ensure socket directory exists
+	sockDir := filepath.Dir(s.socketPath)
+	if err := os.MkdirAll(sockDir, 0755); err != nil {
+		return fmt.Errorf("failed to create socket directory %s: %w", sockDir, err)
+	}
 
-// Stop stops the Unix socket server
-func (s *Server) Stop(ctx context.Context) error {
-	var errs []error
-
-	// Stop Unix socket server
-	if s.unixServer != nil {
-		if err := s.unixServer.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("Unix socket server close error: %w", err))
+	// Remove existing socket file if it exists
+	if _, err := os.Stat(s.socketPath); err == nil {
+		if err := os.Remove(s.socketPath); err != nil {
+			return fmt.Errorf("failed to remove existing socket file %s: %w", s.socketPath, err)
 		}
 	}
 
-	// Remove Unix socket
-	if err := os.RemoveAll(s.cfg.Server.UnixSocket); err != nil {
-		errs = append(errs, fmt.Errorf("Failed to remove Unix socket: %w", err))
+	// Start listening on Unix socket
+	var err error
+	s.listener, err = net.Listen("unix", s.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to listen on socket %s: %w", s.socketPath, err)
+	}
+	s.logger.Info("Listening on Unix socket", "path", s.socketPath)
+
+	s.wg.Add(1)
+	go s.acceptConnections()
+
+	// Start HTTP server if API is configured
+	if s.cfg.API.ListenAddress != "" {
+		s.logger.Info("Starting HTTP API server", "address", s.cfg.API.ListenAddress)
+		mux := http.NewServeMux()
+
+		// API Key Management Endpoints
+		mux.Handle("POST /api/v1/apikeys", s.authMiddleware(s.handleAPIKeyCreate()))
+		mux.Handle("GET /api/v1/apikeys", s.authMiddleware(s.handleAPIKeyList()))
+		mux.Handle("DELETE /api/v1/apikeys/{key}", s.authMiddleware(s.handleAPIKeyDelete()))
+		mux.Handle("PUT /api/v1/apikeys/{key}/disabled", s.authMiddleware(s.handleAPIKeySetDisabled()))
+
+		// Light Endpoints
+		mux.Handle("GET /api/v1/lights", s.authMiddleware(s.handleLightsList()))
+		mux.Handle("GET /api/v1/lights/{id}", s.authMiddleware(s.handleLightGet()))
+		mux.Handle("POST /api/v1/lights/{id}/state", s.authMiddleware(s.handleLightSetState()))
+
+		// Group Endpoints
+		mux.Handle("GET /api/v1/groups", s.authMiddleware(s.handleGroupsList()))
+		mux.Handle("POST /api/v1/groups", s.authMiddleware(s.handleGroupCreate()))
+		mux.Handle("GET /api/v1/groups/{id}", s.authMiddleware(s.handleGroupGet()))
+		mux.Handle("DELETE /api/v1/groups/{id}", s.authMiddleware(s.handleGroupDelete()))
+		mux.Handle("PUT /api/v1/groups/{id}/lights", s.authMiddleware(s.handleGroupSetLights()))
+		mux.Handle("POST /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
+
+		s.httpServer = &http.Server{
+			Addr:    s.cfg.API.ListenAddress,
+			Handler: mux,
+		}
+
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				s.logger.Error("HTTP server failed", "error", err)
+			}
+			s.logger.Info("HTTP server stopped")
+		}()
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("server shutdown errors: %v", errs)
-	}
 	return nil
 }
 
-// handleConnection handles a single client connection
+// Stop gracefully shuts down the server.
+func (s *Server) Stop() {
+	s.logger.Info("Shutting down keylightd server")
+	close(s.shutdown) // Signal all goroutines to stop
+
+	if s.listener != nil {
+		s.logger.Info("Closing Unix socket listener")
+		s.listener.Close() // Close the socket listener to stop accepting new connections
+	}
+
+	if s.httpServer != nil {
+		s.logger.Info("Shutting down HTTP server")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			s.logger.Error("HTTP server shutdown failed", "error", err)
+		}
+	}
+
+	s.logger.Info("Waiting for services to stop...")
+	s.wg.Wait() // Wait for all goroutines to finish
+	s.logger.Info("Keylightd server shut down gracefully")
+}
+
+func (s *Server) acceptConnections() {
+	defer s.wg.Done()
+	for {
+		conn, err := s.listener.Accept()
+		if err != nil {
+			select {
+			case <-s.shutdown:
+				s.logger.Info("Socket listener shutting down")
+				return
+			default:
+				s.logger.Error("Failed to accept connection", "error", err)
+				// Decide if we should continue or not, for now, we continue
+				// If the error is critical (e.g. listener closed unexpectedly), this loop might spin.
+				// A more robust handling might check for specific error types.
+				continue
+			}
+		}
+		s.wg.Add(1)
+		go s.handleConnection(conn)
+	}
+}
+
 func (s *Server) handleConnection(conn net.Conn) {
-	defer func() {
-		s.logger.Debug("Closing connection", "remote", conn.RemoteAddr())
-		conn.Close()
+	defer conn.Close()
+	defer s.wg.Done()
+
+	// Create a context that is cancelled when the server shuts down
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		select {
+		case <-s.shutdown:
+			cconn, ok := conn.(*net.UnixConn)
+			if ok {
+				cconn.CloseRead() // Force connection to unblock for shutdown
+			}
+			cancel() // cancel the context for this connection
+		case <-ctx.Done(): // if connection context is cancelled (e.g. normal close)
+			return
+		}
 	}()
 
-	s.logger.Debug("Handling connection", "remote", conn.RemoteAddr())
-	dec := json.NewDecoder(conn)
-	enc := json.NewEncoder(conn)
+	reader := bufio.NewReader(conn)
+	encoder := json.NewEncoder(conn)
 
-	var req map[string]interface{}
-	if err := dec.Decode(&req); err != nil {
-		s.logger.Error("Invalid request", "error", err)
-		enc.Encode(map[string]interface{}{"error": "invalid request"})
-		return
-	}
-
-	s.logger.Debug("Received request", "req", req)
-
-	action, _ := req["action"].(string)
-	s.logger.Debug("Processing action", "action", action)
-
-	switch action {
-	case "list_lights":
-		lights := s.lights.GetDiscoveredLights()
-		resp := make(map[string]interface{})
-		for _, l := range lights {
-			resp[l.ID] = map[string]interface{}{
-				"id":              l.ID,
-				"productname":     l.ProductName,
-				"serialnumber":    l.SerialNumber,
-				"firmwareversion": l.FirmwareVersion,
-				"firmwarebuild":   l.FirmwareBuild,
-				"ip":              l.IP.String(),
-				"port":            l.Port,
-				"temperature":     l.Temperature,
-				"brightness":      l.Brightness,
-				"on":              l.On,
-				"lastseen":        l.LastSeen,
-			}
-		}
-		enc.Encode(resp)
-	case "get_light":
-		id, _ := req["id"].(string)
-		light, err := s.lights.GetLight(id)
-		if err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
+	for {
+		select {
+		case <-ctx.Done(): // Check if context was cancelled (e.g. server shutdown)
 			return
-		}
-		enc.Encode(map[string]interface{}{
-			"id":              light.ID,
-			"productname":     light.ProductName,
-			"serialnumber":    light.SerialNumber,
-			"firmwareversion": light.FirmwareVersion,
-			"firmwarebuild":   light.FirmwareBuild,
-			"ip":              light.IP.String(),
-			"port":            light.Port,
-			"temperature":     light.Temperature,
-			"brightness":      light.Brightness,
-			"on":              light.On,
-			"lastseen":        light.LastSeen,
-		})
-	case "set_light":
-		id, _ := req["id"].(string)
-		property, _ := req["property"].(string)
-		value := req["value"]
-		var err error
-		switch property {
-		case "on":
-			b, ok := value.(bool)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for on"})
-				return
-			}
-			err = s.lights.SetLightState(id, "on", b)
-		case "brightness":
-			f, ok := value.(float64)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for brightness"})
-				return
-			}
-			err = s.lights.SetLightBrightness(id, int(f))
-		case "temperature":
-			f, ok := value.(float64)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for temperature"})
-				return
-			}
-			err = s.lights.SetLightTemperature(id, int(f))
 		default:
-			enc.Encode(map[string]interface{}{"error": "unknown property"})
-			return
+			// Proceed with reading
 		}
+
+		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-		enc.Encode(map[string]interface{}{"result": "ok"})
-	case "create_group":
-		name, _ := req["name"].(string)
-		if name == "" {
-			s.logger.Error("Group name is required")
-			enc.Encode(map[string]interface{}{"error": "group name is required"})
-			return
-		}
-		s.logger.Debug("Creating group", "name", name)
-		group, err := s.groups.CreateGroup(name, nil)
-		if err != nil {
-			s.logger.Error("Failed to create group", "error", err)
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-		s.logger.Debug("Group created successfully", "id", group.ID, "name", group.Name)
-		resp := map[string]interface{}{
-			"id":     group.ID,
-			"name":   group.Name,
-			"lights": group.Lights,
-		}
-		if err := enc.Encode(resp); err != nil {
-			s.logger.Error("Failed to encode response", "error", err)
-			return
-		}
-		s.logger.Debug("Response sent", "response", resp)
-		// Flush the connection to ensure the response is sent
-		if flusher, ok := conn.(interface{ Flush() error }); ok {
-			if err := flusher.Flush(); err != nil {
-				s.logger.Error("Failed to flush connection", "error", err)
+			if err.Error() == "EOF" || strings.Contains(err.Error(), "use of closed network connection") {
+				s.logger.Debug("Client disconnected")
+			} else {
+				s.logger.Error("Failed to read from connection", "error", err)
 			}
+			return // Exit handler on read error or EOF
 		}
-	case "get_group":
-		name, _ := req["name"].(string)
-		group, err := s.groups.GetGroup(name)
-		if err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
+
+		var req map[string]interface{}
+		if err := json.Unmarshal(line, &req); err != nil {
+			s.logger.Error("Failed to unmarshal request", "error", err, "request", string(line))
+			s.sendError(conn, "unknown", fmt.Sprintf("invalid JSON request: %s", err))
+			continue
 		}
-		enc.Encode(map[string]interface{}{
-			"id":     group.ID,
-			"name":   group.Name,
-			"lights": group.Lights,
-		})
-	case "list_groups":
-		groups := s.groups.GetGroups()
-		resp := make(map[string]interface{})
-		for _, g := range groups {
-			resp[g.ID] = map[string]interface{}{
-				"name":   g.Name,
-				"lights": g.Lights,
-			}
-		}
-		enc.Encode(resp)
-	case "set_group":
-		name, _ := req["name"].(string)
-		property, _ := req["property"].(string)
-		value := req["value"]
-		var err error
-		switch property {
-		case "on":
-			b, ok := value.(bool)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for on"})
+
+		action, _ := req["action"].(string)
+		id, _ := req["id"].(string)                     // Optional request ID for client tracking
+		data, _ := req["data"].(map[string]interface{}) // Data payload
+
+		s.logger.Debug("Received request", "action", action, "id", id, "data", data)
+
+		switch action {
+		case "ping":
+			s.sendResponse(conn, id, map[string]interface{}{"message": "pong"})
+		case "list_lights":
+			lights := s.lights.GetLights()
+			s.sendResponse(conn, id, map[string]interface{}{"lights": lights})
+		case "get_light":
+			lightID, _ := data["id"].(string)
+			if lightID == "" {
+				s.sendError(conn, id, "missing light ID for get_light")
 				return
 			}
-			err = s.groups.SetGroupState(name, b)
-		case "brightness":
-			f, ok := value.(float64)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for brightness"})
+			light, err := s.lights.GetLight(lightID)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to get light %s: %s", lightID, err))
 				return
 			}
-			err = s.groups.SetGroupBrightness(name, int(f))
-		case "temperature":
-			f, ok := value.(float64)
-			if !ok {
-				enc.Encode(map[string]interface{}{"error": "invalid value for temperature"})
+			s.sendResponse(conn, id, map[string]interface{}{"light": light})
+		case "set_light_state":
+			lightID, _ := data["id"].(string)
+			property, _ := data["property"].(string)
+			value := data["value"] // Keep as interface{} for flexibility
+
+			if lightID == "" || property == "" || value == nil {
+				s.sendError(conn, id, "missing id, property, or value for set_light_state")
 				return
 			}
-			err = s.groups.SetGroupTemperature(name, int(f))
+
+			var errSet error
+			switch property {
+			case "on":
+				onVal, ok := value.(bool)
+				if !ok {
+					errSet = fmt.Errorf("invalid value type for 'on', expected boolean")
+				} else {
+					errSet = s.lights.SetLightState(lightID, "on", onVal)
+				}
+			case "brightness":
+				brightnessVal, ok := value.(float64) // JSON numbers are float64
+				if !ok {
+					errSet = fmt.Errorf("invalid value type for 'brightness', expected number")
+				} else {
+					errSet = s.lights.SetLightBrightness(lightID, int(brightnessVal))
+				}
+			case "temperature":
+				tempVal, ok := value.(float64) // JSON numbers are float64
+				if !ok {
+					errSet = fmt.Errorf("invalid value type for 'temperature', expected number")
+				} else {
+					errSet = s.lights.SetLightTemperature(lightID, int(tempVal))
+				}
+			default:
+				errSet = fmt.Errorf("unknown property: %s", property)
+			}
+
+			if errSet != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to set light %s state %s: %s", lightID, property, errSet))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+
+		case "create_group":
+			name, _ := data["name"].(string)
+			lightIDsReq, _ := data["lights"].([]interface{})
+			lightIDs := make([]string, len(lightIDsReq))
+			for i, v := range lightIDsReq {
+				lightIDs[i], _ = v.(string)
+			}
+			if name == "" {
+				s.sendError(conn, id, "missing name for create_group")
+				return
+			}
+			group, err := s.groups.CreateGroup(name, lightIDs)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to create group: %s", err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"group": group})
+
+		case "delete_group":
+			groupID, _ := data["id"].(string)
+			if groupID == "" {
+				s.sendError(conn, id, "missing group ID for delete_group")
+				return
+			}
+			if err := s.groups.DeleteGroup(groupID); err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to delete group %s: %s", groupID, err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+
+		case "get_group":
+			groupID, _ := data["id"].(string)
+			if groupID == "" {
+				s.sendError(conn, id, "missing group ID for get_group")
+				return
+			}
+			group, err := s.groups.GetGroup(groupID)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to get group %s: %s", groupID, err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"group": group})
+
+		case "list_groups":
+			groups := s.groups.GetGroups()
+			s.sendResponse(conn, id, map[string]interface{}{"groups": groups})
+
+		case "set_group_lights":
+			groupID, _ := data["id"].(string)
+			lightIDsReq, _ := data["lights"].([]interface{})
+			lightIDs := make([]string, len(lightIDsReq))
+			for i, v := range lightIDsReq {
+				lightIDs[i], _ = v.(string)
+			}
+			if groupID == "" {
+				s.sendError(conn, id, "missing group ID for set_group_lights")
+				return
+			}
+			if err := s.groups.SetGroupLights(groupID, lightIDs); err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to set lights for group %s: %s", groupID, err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+
+		case "set_group_state":
+			groupID, _ := data["id"].(string)
+			property, _ := data["property"].(string)
+			value := data["value"]
+			if groupID == "" || property == "" || value == nil {
+				s.sendError(conn, id, "missing id, property, or value for set_group_state")
+				return
+			}
+			var errSetGroup error
+			switch property {
+			case "on":
+				onVal, ok := value.(bool)
+				if !ok {
+					errSetGroup = fmt.Errorf("invalid value type for 'on', expected boolean")
+				} else {
+					errSetGroup = s.groups.SetGroupState(groupID, onVal)
+				}
+			case "brightness":
+				bVal, ok := value.(float64)
+				if !ok {
+					errSetGroup = fmt.Errorf("invalid value type for 'brightness', expected number")
+				} else {
+					errSetGroup = s.groups.SetGroupBrightness(groupID, int(bVal))
+				}
+			case "temperature":
+				tVal, ok := value.(float64)
+				if !ok {
+					errSetGroup = fmt.Errorf("invalid value type for 'temperature', expected number")
+				} else {
+					errSetGroup = s.groups.SetGroupTemperature(groupID, int(tVal))
+				}
+			default:
+				errSetGroup = fmt.Errorf("unknown property for group: %s", property)
+			}
+			if errSetGroup != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to set group state: %s", errSetGroup))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+
+		case "apikey_add":
+			name, _ := data["name"].(string)
+			expiresInStr, _ := data["expires_in"].(string)
+			var expiresIn time.Duration
+			if expiresInStr != "" {
+				expiresInSecs, err := strconv.ParseFloat(expiresInStr, 64)
+				if err != nil {
+					s.sendError(conn, id, fmt.Sprintf("invalid expires_in format: %s", err))
+					return
+				}
+				expiresIn = time.Duration(expiresInSecs * float64(time.Second))
+			}
+			if name == "" {
+				s.sendError(conn, id, "missing name for apikey_add")
+				return
+			}
+			apiKey, err := s.apikeyManager.CreateAPIKey(name, expiresIn)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to create API key: %s", err))
+				return
+			}
+			// Construct a map with lowercase keys for the client
+			apiKeyResponse := map[string]interface{}{
+				"name":         apiKey.Name,
+				"key":          apiKey.Key,
+				"created_at":   apiKey.CreatedAt.Format(time.RFC3339Nano),
+				"expires_at":   apiKey.ExpiresAt.Format(time.RFC3339Nano),
+				"last_used_at": apiKey.LastUsedAt.Format(time.RFC3339Nano),
+				"disabled":     apiKey.IsDisabled(),
+				// Permissions are not included for now
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": apiKeyResponse})
+
+		case "apikey_list":
+			keys := s.apikeyManager.ListAPIKeys() // Returns []config.APIKey
+			// For socket response, we might not want to send the full key string.
+			// Let's send Name, CreatedAt, ExpiresAt, LastUsedAt, Disabled and a partial key.
+			responseKeys := make([]map[string]interface{}, len(keys))
+			for i, k := range keys {
+				responseKeys[i] = map[string]interface{}{
+					"name":         k.Name,
+					"key":          k.Key, // Client side will decide on obfuscation if needed for display
+					"created_at":   k.CreatedAt.Format(time.RFC3339Nano),
+					"expires_at":   k.ExpiresAt.Format(time.RFC3339Nano),
+					"last_used_at": k.LastUsedAt.Format(time.RFC3339Nano),
+					"disabled":     k.IsDisabled(),
+				}
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "keys": responseKeys})
+
+		case "apikey_delete":
+			key, _ := data["key"].(string)
+			if key == "" {
+				s.sendError(conn, id, "missing key for apikey_delete")
+				return
+			}
+			if err := s.apikeyManager.DeleteAPIKey(key); err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to delete API key: %s", err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+
+		case "apikey_set_disabled_status":
+			keyOrName, _ := data["key_or_name"].(string) // Corrected: use data, not req
+			disabledStr, _ := data["disabled"].(string)  // Corrected: use data, not req
+
+			if keyOrName == "" {
+				s.sendError(conn, id, "missing key_or_name for apikey_set_disabled_status")
+				return
+			}
+			if disabledStr == "" {
+				s.sendError(conn, id, "missing disabled state for apikey_set_disabled_status")
+				return
+			}
+
+			disabled, err := strconv.ParseBool(disabledStr)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("invalid boolean value for disabled state: %s", err))
+				return
+			}
+
+			updatedKey, err := s.apikeyManager.SetAPIKeyDisabledStatus(keyOrName, disabled)
+			if err != nil {
+				s.sendError(conn, id, fmt.Sprintf("failed to set API key disabled status: %s", err))
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": updatedKey})
+
 		default:
-			enc.Encode(map[string]interface{}{"error": "unknown property"})
-			return
+			s.logger.Warn("received unknown action", "action", action)
+			encoder.Encode(map[string]interface{}{"id": id, "error": "unknown action: " + action})
 		}
-		if err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-		enc.Encode(map[string]interface{}{"result": "ok"})
-	case "delete_group":
-		name, _ := req["name"].(string)
-		err := s.groups.DeleteGroup(name)
-		if err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-		enc.Encode(map[string]interface{}{"result": "ok"})
-	case "set_group_lights":
-		id, _ := req["id"].(string)
-		lights, _ := req["lights"].([]interface{})
-		if id == "" {
-			enc.Encode(map[string]interface{}{"error": "group ID is required"})
-			return
-		}
-
-		// Convert lights to []string
-		lightIDs := make([]string, len(lights))
-		for i, light := range lights {
-			lightIDs[i] = light.(string)
-		}
-
-		if err := s.groups.SetGroupLights(id, lightIDs); err != nil {
-			enc.Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-		enc.Encode(map[string]interface{}{"result": "ok"})
-	default:
-		enc.Encode(map[string]interface{}{"error": "unknown action"})
 	}
 }
 
-// isClosedError checks if an error is due to a closed connection
-func isClosedError(err error) bool {
-	return err.Error() == "use of closed network connection"
+func (s *Server) sendResponse(conn net.Conn, id string, data map[string]interface{}) {
+	response := map[string]interface{}{"status": "ok"}
+	if id != "" {
+		response["id"] = id
+	}
+	for k, v := range data {
+		response[k] = v
+	}
+	if err := json.NewEncoder(conn).Encode(response); err != nil {
+		s.logger.Error("Failed to send response", "error", err)
+	}
+}
+
+func (s *Server) sendError(conn net.Conn, id string, message string) {
+	s.logger.Error("Sending error response to client", "id", id, "message", message)
+	response := map[string]interface{}{"error": message}
+	if id != "" {
+		response["id"] = id
+	}
+	if err := json.NewEncoder(conn).Encode(response); err != nil {
+		s.logger.Error("Failed to send error response", "error", err)
+	}
+}
+
+// HTTP Handlers
+
+// authMiddleware performs API key authentication.
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiKey := r.Header.Get("Authorization")
+		const bearerPrefix = "Bearer "
+		if strings.HasPrefix(apiKey, bearerPrefix) {
+			apiKey = apiKey[len(bearerPrefix):]
+		} else {
+			apiKey = r.Header.Get("X-API-Key")
+		}
+
+		if apiKey == "" {
+			s.logger.Warn("API key missing")
+			http.Error(w, "Unauthorized: API key required", http.StatusUnauthorized)
+			return
+		}
+
+		validKey, err := s.apikeyManager.ValidateAPIKey(apiKey)
+		if err != nil { // Corrected: check err != nil
+			s.logger.Warn("Invalid API key used", "key_prefix", keyPrefix(apiKey), "error", err)
+			http.Error(w, fmt.Sprintf("Unauthorized: %s", err.Error()), http.StatusUnauthorized)
+			return
+		}
+
+		s.logger.Info("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
+		next.ServeHTTP(w, r)
+	})
+}
+
+func keyPrefix(key string) string {
+	if len(key) >= 4 {
+		return key[:4]
+	}
+	return key
+}
+
+// APIKeyRequest represents the request body for creating an API key.
+type APIKeyRequest struct {
+	Name      string `json:"name"`
+	ExpiresIn string `json:"expires_in,omitempty"` // Duration string like "720h", "30d"
+}
+
+// APIKeyResponse represents a created API key (omits the full key string for security).
+type APIKeyResponse struct {
+	ID        string    `json:"id"` // This is actually the key itself, or just the name?
+	Name      string    `json:"name"`
+	Key       string    `json:"key,omitempty"` // Only present on creation, otherwise omitted
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at,omitempty"`
+}
+
+// LightStateRequest represents the request body for setting a light's state.
+type LightStateRequest struct {
+	On          *bool `json:"on,omitempty"`          // Pointer to distinguish between not set and false
+	Brightness  *int  `json:"brightness,omitempty"`  // Pointer for optional field
+	Temperature *int  `json:"temperature,omitempty"` // Pointer for optional field
+}
+
+// GroupSetLightsRequest represents the request to set lights in a group
+type GroupSetLightsRequest struct {
+	LightIDs []string `json:"light_ids"`
+}
+
+func (s *Server) handleAPIKeyCreate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req APIKeyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if req.Name == "" {
+			http.Error(w, "API key name is required", http.StatusBadRequest)
+			return
+		}
+
+		var expiresInDuration time.Duration
+		if req.ExpiresIn != "" {
+			var err error
+			expiresInDuration, err = time.ParseDuration(req.ExpiresIn)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Invalid expires_in duration: %s", err), http.StatusBadRequest)
+				return
+			}
+		}
+
+		// Permissions not handled via HTTP API yet, pass nil
+		newKey, err := s.apikeyManager.CreateAPIKey(req.Name, expiresInDuration)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create API key: %s", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		writeJSONResponse(w, APIKeyResponse{
+			ID:        newKey.Key, // Using Key as ID
+			Name:      newKey.Name,
+			Key:       newKey.Key, // Show full key on creation only
+			CreatedAt: newKey.CreatedAt,
+			ExpiresAt: newKey.ExpiresAt,
+		})
+	}
+}
+
+func (s *Server) handleAPIKeyList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		keys := s.apikeyManager.ListAPIKeys() // Returns []config.APIKey
+		responseKeys := make([]APIKeyResponse, len(keys))
+		for i, k := range keys {
+			responseKeys[i] = APIKeyResponse{
+				ID:   k.Key, // Using Key as ID
+				Name: k.Name,
+				// Key field is omitted here for security (not on creation)
+				CreatedAt: k.CreatedAt,
+				ExpiresAt: k.ExpiresAt,
+			}
+		}
+		writeJSONResponse(w, responseKeys)
+	}
+}
+
+func (s *Server) handleAPIKeyDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key := r.PathValue("key")
+		if key == "" {
+			http.Error(w, "API key is required in path", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.apikeyManager.DeleteAPIKey(key); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, "API key not found", http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("Failed to delete API key: %s", err), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// handleAPIKeySetDisabled handles PUT /api/v1/apikeys/{key}/disabled
+func (s *Server) handleAPIKeySetDisabled() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		keyOrName := r.PathValue("key") // key could be the key string or its name
+		if keyOrName == "" {
+			http.Error(w, "API key/name is required in path", http.StatusBadRequest)
+			return
+		}
+
+		var payload struct {
+			Disabled bool `json:"disabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			http.Error(w, "Invalid request body, expected {\"disabled\": true/false}", http.StatusBadRequest)
+			return
+		}
+
+		updatedKey, err := s.apikeyManager.SetAPIKeyDisabledStatus(keyOrName, payload.Disabled)
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, "API key not found", http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("Failed to update API key: %s", err), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// Return the updated key details (omitting the full key string for security)
+		writeJSONResponse(w, APIKeyResponse{
+			ID:        updatedKey.Key,
+			Name:      updatedKey.Name,
+			CreatedAt: updatedKey.CreatedAt,
+			ExpiresAt: updatedKey.ExpiresAt,
+			// Disabled status is implicitly updated, not typically part of response here unless desired.
+		})
+	}
+}
+
+func (s *Server) handleLightsList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lights := s.lights.GetLights()
+		writeJSONResponse(w, lights)
+	}
+}
+
+func (s *Server) handleLightGet() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lightID := r.PathValue("id")
+		light, err := s.lights.GetLight(lightID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Light not found: %s", err), http.StatusNotFound)
+			return
+		}
+		writeJSONResponse(w, light)
+	}
+}
+
+func (s *Server) handleLightSetState() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lightID := r.PathValue("id")
+		var reqBody LightStateRequest
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		var errs []string
+
+		if reqBody.On != nil {
+			if err := s.lights.SetLightState(lightID, "on", *reqBody.On); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+		if reqBody.Brightness != nil {
+			if err := s.lights.SetLightBrightness(lightID, *reqBody.Brightness); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+		if reqBody.Temperature != nil {
+			if err := s.lights.SetLightTemperature(lightID, *reqBody.Temperature); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+
+		if len(errs) > 0 {
+			http.Error(w, fmt.Sprintf("Error(s) setting light state: %s", strings.Join(errs, "; ")), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		writeJSONResponse(w, map[string]string{"status": "ok"})
+	}
+}
+
+func (s *Server) handleGroupsList() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groups := s.groups.GetGroups()
+		writeJSONResponse(w, groups)
+	}
+}
+
+func (s *Server) handleGroupCreate() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqBody struct {
+			Name     string   `json:"name"`
+			LightIDs []string `json:"light_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		if reqBody.Name == "" {
+			http.Error(w, "Group name is required", http.StatusBadRequest)
+			return
+		}
+
+		group, err := s.groups.CreateGroup(reqBody.Name, reqBody.LightIDs)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to create group: %s", err), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		writeJSONResponse(w, group)
+	}
+}
+
+func (s *Server) handleGroupGet() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groupID := r.PathValue("id")
+		group, err := s.groups.GetGroup(groupID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Group not found: %s", err), http.StatusNotFound)
+			return
+		}
+		writeJSONResponse(w, group)
+	}
+}
+
+func (s *Server) handleGroupDelete() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groupID := r.PathValue("id")
+		if err := s.groups.DeleteGroup(groupID); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, "Group not found", http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("Failed to delete group: %s", err), http.StatusInternalServerError)
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (s *Server) handleGroupSetLights() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groupID := r.PathValue("id")
+		var reqBody GroupSetLightsRequest
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		if err := s.groups.SetGroupLights(groupID, reqBody.LightIDs); err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				http.Error(w, "Group or light not found", http.StatusNotFound)
+			} else {
+				http.Error(w, fmt.Sprintf("Failed to set group lights: %s", err), http.StatusInternalServerError)
+			}
+			return
+		}
+		writeJSONResponse(w, map[string]string{"status": "ok"})
+	}
+}
+
+func (s *Server) handleGroupSetState() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groupID := r.PathValue("id")
+		var reqBody LightStateRequest // Reusing LightStateRequest for group on/off, brightness, temp
+		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		var errs []string
+		if reqBody.On != nil {
+			if err := s.groups.SetGroupState(groupID, *reqBody.On); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+		if reqBody.Brightness != nil {
+			if err := s.groups.SetGroupBrightness(groupID, *reqBody.Brightness); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+		if reqBody.Temperature != nil {
+			if err := s.groups.SetGroupTemperature(groupID, *reqBody.Temperature); err != nil {
+				errs = append(errs, err.Error())
+			}
+		}
+
+		if len(errs) > 0 {
+			http.Error(w, fmt.Sprintf("Error(s) setting group state: %s", strings.Join(errs, "; ")), http.StatusInternalServerError)
+			return
+		}
+		writeJSONResponse(w, map[string]string{"status": "ok"})
+	}
+}
+
+// writeJSONResponse is a helper to write JSON responses
+func writeJSONResponse(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		// If encoding fails, it's too late to send a different status code normally.
+		// Log the error. The client will likely receive a truncated or malformed response.
+		slog.Default().Error("Failed to encode JSON response", "error", err)
+	}
 }

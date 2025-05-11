@@ -63,7 +63,7 @@ func main() {
 			)
 
 			manager := keylight.NewManager(logger)
-			srv := server.New(logger, manager, cfg)
+			srv := server.New(logger, cfg, manager)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -73,9 +73,6 @@ func main() {
 					logger.Error("Error discovering lights", "error", err)
 				}
 			}()
-
-			// Start the cleanup worker
-			go manager.StartCleanupWorker(ctx, time.Duration(cfg.Discovery.CleanupInterval)*time.Second, time.Duration(cfg.Discovery.CleanupTimeout)*time.Second)
 
 			if err := srv.Start(); err != nil {
 				logger.Error("Failed to start server", "error", err)
@@ -88,12 +85,7 @@ func main() {
 			logger.Info("Shutting down...")
 			cancel()
 
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer shutdownCancel()
-
-			if err := srv.Stop(shutdownCtx); err != nil {
-				logger.Error("Error stopping server", "error", err)
-			}
+			srv.Stop()
 			return nil
 		},
 	}

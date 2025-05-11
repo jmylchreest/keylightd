@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,15 +65,26 @@ func setupTestConfig(t *testing.T) *config.Config {
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 
-	// Set XDG_CONFIG_HOME to temporary directory
-	oldXDG := os.Getenv("XDG_CONFIG_HOME")
-	os.Setenv("XDG_CONFIG_HOME", tmpDir)
-	t.Cleanup(func() { os.Setenv("XDG_CONFIG_HOME", oldXDG) })
+	// Create config file path
+	configPath := filepath.Join(tmpDir, "test.yaml")
 
 	// Create config
-	cfg, err := config.Load("test.yaml", "")
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetConfigFile(configPath)
+	v.SetDefault("server.unix_socket", filepath.Join(tmpDir, "keylightd.sock"))
+	v.SetDefault("discovery.interval", 30)
+	v.SetDefault("logging.level", "info")
+	v.SetDefault("logging.format", "text")
+	v.SetDefault("discovery.cleanup_interval", 60)
+	v.SetDefault("discovery.cleanup_timeout", 180)
+	v.SetDefault("api.listen_address", ":9123")
+	v.SetDefault("api.api_keys", []config.APIKey{})
+
+	// Create and save initial config
+	cfg := config.New(v)
+	err = cfg.Save()
 	require.NoError(t, err)
-	require.NotNil(t, cfg)
 
 	return cfg
 }

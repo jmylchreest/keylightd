@@ -1,6 +1,7 @@
 package keylight
 
 import (
+	"context"
 	"errors"
 	"net"
 	"time"
@@ -39,6 +40,7 @@ type LightManager interface {
 	SetLightPower(id string, on bool) error
 	GetLights() map[string]*Light
 	AddLight(light Light)
+	StartCleanupWorker(ctx context.Context, cleanupInterval time.Duration, timeout time.Duration)
 }
 
 // DiscoveryEvent represents an event from the mDNS discovery process

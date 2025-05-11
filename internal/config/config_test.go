@@ -2,53 +2,62 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoad(t *testing.T) {
-	// Save original environment variable
-	oldInterval := os.Getenv("KEYLIGHT_DISCOVERY_INTERVAL")
-	defer os.Setenv("KEYLIGHT_DISCOVERY_INTERVAL", oldInterval)
+func TestLoadDefaults_NoConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "test.yaml")
 
-	// Test loading with default values
-	cfg, err := Load("test.yaml", "")
+	cfg, err := Load("test.yaml", configPath)
 	require.NoError(t, err)
-	assert.NotNil(t, cfg)
 	assert.Equal(t, 30, cfg.Discovery.Interval)
-
-	// Test loading with environment variable
-	os.Setenv("KEYLIGHT_DISCOVERY_INTERVAL", "60")
-	cfg, err = Load("test.yaml", "")
-	require.NoError(t, err)
-	assert.NotNil(t, cfg)
-	assert.Equal(t, 60, cfg.Discovery.Interval)
+	assert.Equal(t, ":9123", cfg.API.ListenAddress)
 }
 
-func TestSave(t *testing.T) {
-	// Create temporary directory for config
-	tmpDir, err := os.MkdirTemp("", "keylightd-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+func TestSaveAndLoadConfig_WithTimeFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "test.yaml")
 
-	// Set XDG_CONFIG_HOME to temporary directory
-	oldXDG := os.Getenv("XDG_CONFIG_HOME")
-	os.Setenv("XDG_CONFIG_HOME", tmpDir)
-	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
-
-	// Create config
-	cfg, err := Load("test.yaml", "")
-	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	// Create config and set a time field
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	cfg := New(v)
+	now := time.Now().UTC().Truncate(time.Second)
+	cfg.API.APIKeys = []APIKey{
+		{
+			Key:       "abc123",
+			Name:      "test",
+			CreatedAt: now,
+			ExpiresAt: now.Add(24 * time.Hour),
+		},
+	}
 
 	// Save config
-	err = cfg.Save("test.yaml")
-	require.NoError(t, err)
+	require.NoError(t, cfg.Save())
 
-	// Load config again to verify
-	cfg2, err := Load("test.yaml", "")
+	// Load config again
+	cfg2, err := Load("test.yaml", configPath)
 	require.NoError(t, err)
-	assert.Equal(t, cfg.Discovery.Interval, cfg2.Discovery.Interval)
+	require.Len(t, cfg2.API.APIKeys, 1)
+	key := cfg2.API.APIKeys[0]
+	assert.Equal(t, "abc123", key.Key)
+	assert.Equal(t, "test", key.Name)
+	assert.WithinDuration(t, now, key.CreatedAt, time.Second)
+	assert.WithinDuration(t, now.Add(24*time.Hour), key.ExpiresAt, time.Second)
+}
+
+func TestLoadConfig_InvalidFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "bad.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("not: [valid: yaml"), 0644))
+
+	_, err := Load("bad.yaml", configPath)
+	assert.Error(t, err)
 }

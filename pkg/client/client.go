@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -25,6 +26,10 @@ type ClientInterface interface {
 	SetGroupState(name string, property string, value interface{}) error
 	DeleteGroup(name string) error
 	SetGroupLights(groupID string, lightIDs []string) error
+	AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error)
+	ListAPIKeys() ([]map[string]interface{}, error)
+	DeleteAPIKey(key string) error
+	SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]interface{}, error)
 }
 
 // Client represents a connection to keylightd
@@ -252,4 +257,156 @@ func (c *Client) SetGroupLights(groupID string, lightIDs []string) error {
 	}
 
 	return nil
+}
+
+// API Key Management Methods
+
+// AddAPIKey tells keylightd to add a new API key.
+func (c *Client) AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error) {
+	// Server expects: { "action": "apikey_add", "data": { "name": "...". "expires_in": "..." } }
+	reqData := map[string]interface{}{
+		"name": name,
+	}
+	if expiresInSeconds > 0 {
+		reqData["expires_in"] = fmt.Sprintf("%f", expiresInSeconds) // Server socket handler expects string seconds
+	}
+
+	apiRequest := map[string]interface{}{
+		"action": "apikey_add",
+		"data":   reqData,
+	}
+
+	var serverResponse map[string]interface{}
+	if err := c.request(apiRequest, &serverResponse); err != nil {
+		return nil, err
+	}
+
+	// Server sends: {"status": "ok", "id": "req_id_optional", "key": APIKeyObject}
+	// The c.request method handles the general structure and potential top-level "error" field.
+	// If we are here, c.request did not return an error, implying basic success.
+
+	apiKeyData, ok := serverResponse["key"].(map[string]interface{})
+	if !ok {
+		// This case implies the server response was successful at a transport level,
+		// but the expected "key" field containing the APIKey details is missing.
+		// This indicates an unexpected response structure from the server for a successful apikey_add operation.
+		c.logger.Error("apikey_add response missing 'key' field", "response", serverResponse)
+		return nil, fmt.Errorf("server response for apikey_add missing 'key' field: %+v", serverResponse)
+	}
+
+	// Parse time strings in the returned key data, similar to ListAPIKeys
+	for _, field := range []string{"created_at", "expires_at", "last_used_at"} {
+		if valStr, ok := apiKeyData[field].(string); ok {
+			// Handle zero time explicitly
+			if valStr == "0001-01-01T00:00:00Z" {
+				apiKeyData[field] = time.Time{} // Set to zero time
+				continue
+			}
+			// Try parsing with RFC3339Nano first, then RFC3339
+			if t, err := time.Parse(time.RFC3339Nano, valStr); err == nil {
+				apiKeyData[field] = t
+			} else if t, err := time.Parse(time.RFC3339, valStr); err == nil {
+				apiKeyData[field] = t
+			} else if valStr != "" { // Only warn if it's not an empty string that failed parsing
+				c.logger.Warn("Failed to parse time string in AddAPIKey response", "field", field, "value", valStr, "error", err)
+				// If parsing fails for a non-empty string, keep the original string
+				apiKeyData[field] = valStr
+			}
+		}
+	}
+
+	return apiKeyData, nil
+}
+
+// ListAPIKeys lists all API keys
+func (c *Client) ListAPIKeys() ([]map[string]interface{}, error) {
+	// Expect the server's wrapper object { "status": "ok", "keys": [...] }
+	var serverResponse map[string]interface{}
+	if err := c.request(map[string]string{
+		"action": "apikey_list",
+	}, &serverResponse); err != nil {
+		return nil, err
+	}
+
+	// Extract the actual list of keys from the "keys" field
+	keysData, ok := serverResponse["keys"].([]interface{})
+	if !ok {
+		if errMsg, hasErr := serverResponse["error"].(string); hasErr {
+			return nil, fmt.Errorf("server error: %s", errMsg)
+		}
+		return nil, fmt.Errorf("failed to parse 'keys' field from server response: %v", serverResponse)
+	}
+
+	apiKeys := make([]map[string]interface{}, 0, len(keysData))
+	for _, keyEntry := range keysData {
+		keyMap, ok := keyEntry.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid API key entry in server response: %v", keyEntry)
+		}
+		apiKeys = append(apiKeys, keyMap)
+	}
+
+	// Post-process response: parse time strings
+	for _, keyData := range apiKeys { // Iterate over the extracted apiKeys
+		for _, field := range []string{"created_at", "expires_at", "last_used_at"} {
+			if valStr, ok := keyData[field].(string); ok {
+				// Handle zero time explicitly
+				if valStr == "0001-01-01T00:00:00Z" {
+					keyData[field] = time.Time{} // Set to zero time
+					continue
+				}
+				// Try parsing with RFC3339Nano first, then RFC3339
+				if t, err := time.Parse(time.RFC3339Nano, valStr); err == nil {
+					keyData[field] = t
+				} else if t, err := time.Parse(time.RFC3339, valStr); err == nil {
+					keyData[field] = t
+				} else if valStr != "" { // Only warn if it's not an empty string that failed parsing
+					c.logger.Warn("Failed to parse time string for API key", "field", field, "value", valStr, "error", err)
+					// If parsing fails for a non-empty string, keep the original string
+					keyData[field] = valStr
+				}
+			} else if _, isTime := keyData[field].(time.Time); isTime {
+				// It's already a time.Time object, possibly from AddAPIKey response processing.
+				// No action needed.
+			}
+		}
+	}
+	return apiKeys, nil
+}
+
+// DeleteAPIKey deletes an API key by its value
+func (c *Client) DeleteAPIKey(key string) error {
+	payload := map[string]interface{}{
+		"action": "apikey_delete",
+		"data":   map[string]interface{}{"key": key},
+	}
+	// We expect a response like {"status": "ok"} or an error response.
+	// The generic response handling in c.request will return an error if the server sends one.
+	return c.request(payload, nil) // No specific data needed from a successful delete response beyond status.
+}
+
+// SetAPIKeyDisabledStatus sends a request to enable or disable an API key.
+func (c *Client) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"action": "apikey_set_disabled_status",
+		"data": map[string]interface{}{
+			"key_or_name": keyOrName,
+			"disabled":    strconv.FormatBool(disabled),
+		},
+	}
+	var respData map[string]interface{}
+	if err := c.request(payload, &respData); err != nil {
+		return nil, err
+	}
+
+	// Based on server.go, the response for this action is:
+	// s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": updatedKey})
+	// The c.request method handles the outer envelope, so respData here should be the map sent as the third arg to sendResponse.
+	// Thus, respData should be map[string]interface{}{"status":"ok", "key": map[string]interface{...}}
+	// We need to extract the nested "key" map which contains the actual APIKey fields.
+	updatedKeyData, ok := respData["key"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected response format, missing 'key' field containing API key details in response data: %+v", respData)
+	}
+	return updatedKeyData, nil
 }

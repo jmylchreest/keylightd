@@ -65,6 +65,29 @@ func (m *mockGroupClient) DeleteGroup(name string) error {
 	return nil
 }
 
+// API Key Management Mocks (satisfy client.ClientInterface)
+func (m *mockGroupClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error) {
+	if m.fail {
+		return nil, errors.New("add api key failed")
+	}
+	// Simple mock: doesn't actually store/return a real key structure for group tests
+	return map[string]interface{}{"key": "mockapikey", "name": name}, nil
+}
+
+func (m *mockGroupClient) ListAPIKeys() ([]map[string]interface{}, error) {
+	if m.fail {
+		return nil, errors.New("list api keys failed")
+	}
+	return []map[string]interface{}{}, nil // Return empty list for group tests
+}
+
+func (m *mockGroupClient) DeleteAPIKey(key string) error {
+	if m.fail {
+		return errors.New("delete api key failed")
+	}
+	return nil
+}
+
 func TestGroupListCommand(t *testing.T) {
 	mock := &mockGroupClient{groups: map[string]map[string]interface{}{
 		"group1": {"id": "group1", "name": "Group 1", "lights": []interface{}{"light1"}},

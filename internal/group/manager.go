@@ -115,7 +115,7 @@ func (m *Manager) saveGroups() error {
 
 	m.logger.Debug("Saving config to file")
 	// Save config
-	if err := m.cfg.Save("keylightd.yaml"); err != nil {
+	if err := m.cfg.Save(); err != nil {
 		m.logger.Error("Failed to save groups to config", "error", err)
 		return fmt.Errorf("failed to save groups to config: %w", err)
 	}
