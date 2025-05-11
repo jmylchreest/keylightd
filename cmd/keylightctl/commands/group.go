@@ -57,10 +57,14 @@ func newGroupListCommand(logger *slog.Logger) *cobra.Command {
 
 			if parseable {
 				for _, group := range groups {
-					fmt.Printf("id=%q name=%q lights=%q\n",
-						group["id"],
-						group["name"],
-						group["lights"])
+					id := group["id"].(string)
+					groupName := group["name"].(string)
+					lights := group["lights"].([]interface{})
+					lightIDs := make([]string, len(lights))
+					for i, light := range lights {
+						lightIDs[i] = light.(string)
+					}
+					fmt.Printf("id=\"%s\" name=\"%s\" lights=\"%s\"\n", id, groupName, strings.Join(lightIDs, ","))
 				}
 				return nil
 			}
@@ -192,6 +196,7 @@ func newGroupDeleteCommand(logger *slog.Logger) *cobra.Command {
 // newGroupGetCommand creates the group get command
 func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 	var name string
+	var parseable bool
 
 	cmd := &cobra.Command{
 		Use:   "get",
@@ -245,27 +250,51 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 				return fmt.Errorf("failed to get group: %w", err)
 			}
 
+			if parseable {
+				id := group["id"].(string)
+				groupName := group["name"].(string)
+				lights := group["lights"].([]interface{})
+				lightIDs := make([]string, len(lights))
+				for i, light := range lights {
+					lightIDs[i] = light.(string)
+				}
+				fmt.Printf("id=\"%s\" name=\"%s\" lights=\"%s\"\n", id, groupName, strings.Join(lightIDs, ","))
+				return nil
+			}
+
 			lights := group["lights"].([]interface{})
-			lightIDs := make([]string, len(lights))
-			for i, light := range lights {
-				lightIDs[i] = light.(string)
+			if len(lights) == 0 {
+				pterm.Info.Println("No lights in group.")
+				return nil
 			}
 
-			table := pterm.TableData{
-				{"Group ID", "Name", "Lights"},
-				{
-					group["id"].(string),
-					group["name"].(string),
-					strings.Join(lightIDs, ", "),
-				},
+			for _, lightID := range lights {
+				id := lightID.(string)
+				light, err := client.GetLight(id)
+				if err != nil {
+					pterm.Warning.Printf("Could not fetch light %s: %v\n", id, err)
+					continue
+				}
+				table := pterm.TableData{
+					[]string{pterm.Bold.Sprint("ID"), pterm.Bold.Sprint(id)},
+					[]string{"Product", fmt.Sprintf("%v", light["productname"])},
+					[]string{"Serial", fmt.Sprintf("%v", light["serialnumber"])},
+					[]string{"Firmware", fmt.Sprintf("%v (build %v)", light["firmwareversion"], light["firmwarebuild"])},
+					[]string{"On", fmt.Sprintf("%v", light["on"])},
+					[]string{"Temperature", fmt.Sprintf("%v", light["temperature"])},
+					[]string{"Brightness", fmt.Sprintf("%v", light["brightness"])},
+					[]string{"IP", fmt.Sprintf("%v", light["ip"])},
+					[]string{"Port", fmt.Sprintf("%v", light["port"])},
+				}
+				pterm.DefaultTable.WithData(table).Render()
+				pterm.Println() // Blank line between lights
 			}
-
-			pterm.DefaultTable.WithHasHeader().WithData(table).Render()
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Name or ID of the group")
+	cmd.Flags().BoolVarP(&parseable, "parseable", "p", false, "Output in parseable format (key=value)")
 	return cmd
 }
 

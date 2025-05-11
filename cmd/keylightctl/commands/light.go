@@ -14,41 +14,6 @@ import (
 
 var clientContextKey = &struct{}{}
 
-// orderedProperties defines the order of properties in parseable output
-var orderedProperties = []string{
-	"id",
-	"productname",
-	"serialnumber",
-	"firmwareversion",
-	"firmwarebuild",
-	"on",
-	"brightness",
-	"temperature",
-	"ip",
-	"port",
-}
-
-// formatLightProperties formats light properties in a consistent order
-func formatLightProperties(id string, light map[string]interface{}) string {
-	var parts []string
-	// Always add ID first
-	parts = append(parts, fmt.Sprintf("id=%q", id))
-
-	// Add properties in defined order
-	for _, prop := range orderedProperties {
-		if val, ok := light[prop]; ok {
-			switch v := val.(type) {
-			case string:
-				parts = append(parts, fmt.Sprintf("%s=%q", prop, v))
-			default:
-				parts = append(parts, fmt.Sprintf("%s=%v", prop, v))
-			}
-		}
-	}
-
-	return strings.Join(parts, " ")
-}
-
 // NewLightCommand creates the light command
 func NewLightCommand(logger *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
@@ -87,10 +52,9 @@ func newLightListCommand() *cobra.Command {
 			}
 
 			if parseable {
-				// Print one line per light in key=value format
 				for id, light := range lights {
 					lightMap := light.(map[string]interface{})
-					fmt.Println(formatLightProperties(id, lightMap))
+					fmt.Println(LightParseable(id, lightMap))
 				}
 				return nil
 			}
@@ -98,18 +62,7 @@ func newLightListCommand() *cobra.Command {
 			// Create a table for each light
 			for id, light := range lights {
 				lightMap := light.(map[string]interface{})
-				table := pterm.TableData{
-					[]string{pterm.Bold.Sprint("ID"), pterm.Bold.Sprint(id)},
-					[]string{"Product", fmt.Sprintf("%v", lightMap["productname"])},
-					[]string{"Serial", fmt.Sprintf("%v", lightMap["serialnumber"])},
-					[]string{"Firmware", fmt.Sprintf("%v (build %v)", lightMap["firmwareversion"], lightMap["firmwarebuild"])},
-					[]string{"On", fmt.Sprintf("%v", lightMap["on"])},
-					[]string{"Temperature", fmt.Sprintf("%v", lightMap["temperature"])},
-					[]string{"Brightness", fmt.Sprintf("%v", lightMap["brightness"])},
-					[]string{"IP", fmt.Sprintf("%v", lightMap["ip"])},
-					[]string{"Port", fmt.Sprintf("%v", lightMap["port"])},
-				}
-
+				table := LightTableData(id, lightMap)
 				pterm.DefaultTable.WithData(table).Render()
 				pterm.Println() // Add a blank line between lights
 			}
@@ -184,22 +137,9 @@ func newLightGetCommand() *cobra.Command {
 
 			// Show all properties
 			if parseable {
-				fmt.Println(formatLightProperties(lightID, light))
+				fmt.Println(LightParseable(lightID, light))
 			} else {
-				// Create table for properties with proper capitalization
-				table := pterm.TableData{
-					[]string{"Property", "Value"},
-					[]string{"ID", lightID},
-					[]string{"Product", fmt.Sprintf("%v", light["productname"])},
-					[]string{"Serial", fmt.Sprintf("%v", light["serialnumber"])},
-					[]string{"Firmware", fmt.Sprintf("%v (build %v)", light["firmwareversion"], light["firmwarebuild"])},
-					[]string{"On", fmt.Sprintf("%v", light["on"])},
-					[]string{"Temperature", fmt.Sprintf("%v", light["temperature"])},
-					[]string{"Brightness", fmt.Sprintf("%v", light["brightness"])},
-					[]string{"IP", fmt.Sprintf("%v", light["ip"])},
-					[]string{"Port", fmt.Sprintf("%v", light["port"])},
-				}
-
+				table := LightTableData(lightID, light)
 				pterm.DefaultTable.WithData(table).Render()
 			}
 			return nil
