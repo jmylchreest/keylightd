@@ -300,9 +300,13 @@ These endpoints manage groups of Keylights.
 #### 3.6 Set Group State
 
 *   **Endpoint:** `PUT /api/v1/groups/{id}/state`
-*   **Description:** Updates the state (on/off, brightness, temperature) for all lights within a specific group.
+*   **Description:** Updates the state (on/off, brightness, temperature) for all lights within one or more groups. The `{id}` path parameter can be:
+    - A group ID (e.g., `group-1678886400000000000`)
+    - A group name (e.g., `office`)
+    - A comma-separated list of group IDs and/or names (e.g., `group-1,office,group-2`)
+    - If a name matches multiple groups, all are updated.
 *   **Path Parameters:**
-    -   `id` (string, required): The ID of the group.
+    -   `id` (string, required): The group ID, group name, or comma-separated list of IDs/names.
 *   **Request Body:** (Same structure as Set Light State)
     ```json
     {
@@ -313,17 +317,34 @@ These endpoints manage groups of Keylights.
     -   `on` (boolean, optional): `true` to turn on, `false` to turn off.
     -   `brightness` (integer, optional): Brightness percentage (0-100).
     -   `temperature` (integer, optional): Color temperature in Kelvin (typically 2900-7000).
-*   **Response:** `200 OK`
+*   **Response:**
+    -   `200 OK` if all groups were updated successfully.
+    -   `207 Multi-Status` if some groups failed, with a JSON body listing errors.
     ```json
     {
-        "status": "ok"
+        "status": "partial",
+        "errors": [
+            "group group-1: error message",
+            "group group-2: error message"
+        ]
     }
     ```
 *   **Example:**
     ```bash
-    curl -X PUT -H "X-API-Key: <your_api_key>" -H "Content-Type: application/json" \\
-         -d '{"on": true, "brightness": 30}' \\
+    # Update a single group by ID
+    curl -X PUT -H "X-API-Key: <your_api_key>" -H "Content-Type: application/json" \
+         -d '{"on": true, "brightness": 30}' \
          http://localhost:9123/api/v1/groups/group-1678886400000000000/state
+
+    # Update all groups named "office"
+    curl -X PUT -H "X-API-Key: <your_api_key>" -H "Content-Type: application/json" \
+         -d '{"on": false}' \
+         http://localhost:9123/api/v1/groups/office/state
+
+    # Update multiple groups by ID and name
+    curl -X PUT -H "X-API-Key: <your_api_key>" -H "Content-Type: application/json" \
+         -d '{"brightness": 50}' \
+         http://localhost:9123/api/v1/groups/group-1,office,group-2/state
     ```
 
 // Note: The socket API wraps light and group objects in a 'light' or 'group' field, but the HTTP API returns flat objects. The CLI client automatically unwraps these for consistency.

@@ -407,41 +407,52 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
 
 		case "set_group_state":
-			groupID, _ := data["id"].(string)
+			groupKeys, _ := data["id"].(string)
 			property, _ := data["property"].(string)
 			value := data["value"]
-			if groupID == "" || property == "" || value == nil {
+			if groupKeys == "" || property == "" || value == nil {
 				s.sendError(conn, id, "missing id, property, or value for set_group_state")
 				return
 			}
-			var errSetGroup error
-			switch property {
-			case "on":
-				onVal, ok := value.(bool)
-				if !ok {
-					errSetGroup = fmt.Errorf("invalid value type for 'on', expected boolean")
-				} else {
-					errSetGroup = s.groups.SetGroupState(groupID, onVal)
-				}
-			case "brightness":
-				bVal, ok := value.(float64)
-				if !ok {
-					errSetGroup = fmt.Errorf("invalid value type for 'brightness', expected number")
-				} else {
-					errSetGroup = s.groups.SetGroupBrightness(groupID, int(bVal))
-				}
-			case "temperature":
-				tVal, ok := value.(float64)
-				if !ok {
-					errSetGroup = fmt.Errorf("invalid value type for 'temperature', expected number")
-				} else {
-					errSetGroup = s.groups.SetGroupTemperature(groupID, int(tVal))
-				}
-			default:
-				errSetGroup = fmt.Errorf("unknown property for group: %s", property)
+			matchedGroups, notFound := s.groups.GetGroupsByKeys(groupKeys)
+			if len(matchedGroups) == 0 {
+				s.sendError(conn, id, "no groups found for: "+strings.Join(notFound, ", "))
+				return
 			}
-			if errSetGroup != nil {
-				s.sendError(conn, id, fmt.Sprintf("failed to set group state: %s", errSetGroup))
+			var errs []string
+			for _, grp := range matchedGroups {
+				var errSetGroup error
+				switch property {
+				case "on":
+					onVal, ok := value.(bool)
+					if !ok {
+						errSetGroup = fmt.Errorf("invalid value type for 'on', expected boolean")
+					} else {
+						errSetGroup = s.groups.SetGroupState(grp.ID, onVal)
+					}
+				case "brightness":
+					bVal, ok := value.(float64)
+					if !ok {
+						errSetGroup = fmt.Errorf("invalid value type for 'brightness', expected number")
+					} else {
+						errSetGroup = s.groups.SetGroupBrightness(grp.ID, int(bVal))
+					}
+				case "temperature":
+					tVal, ok := value.(float64)
+					if !ok {
+						errSetGroup = fmt.Errorf("invalid value type for 'temperature', expected number")
+					} else {
+						errSetGroup = s.groups.SetGroupTemperature(grp.ID, int(tVal))
+					}
+				default:
+					errSetGroup = fmt.Errorf("unknown property for group: %s", property)
+				}
+				if errSetGroup != nil {
+					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, errSetGroup))
+				}
+			}
+			if len(errs) > 0 {
+				s.sendResponse(conn, id, map[string]interface{}{"status": "partial", "errors": errs})
 				return
 			}
 			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
@@ -882,32 +893,70 @@ func (s *Server) handleGroupSetLights() http.HandlerFunc {
 
 func (s *Server) handleGroupSetState() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		groupID := r.PathValue("id")
-		var reqBody LightStateRequest // Reusing LightStateRequest for group on/off, brightness, temp
+		groupParam := r.PathValue("id") // e.g., "office" or "group-1,office"
+		groupKeys := strings.Split(groupParam, ",")
+		var matchedGroups []*group.Group
+		var notFound []string
+		groupSeen := make(map[string]bool) // To avoid duplicate group actions
+
+		for _, key := range groupKeys {
+			key = strings.TrimSpace(key)
+			// Try by ID
+			grp, err := s.groups.GetGroup(key)
+			if err == nil {
+				if !groupSeen[grp.ID] {
+					matchedGroups = append(matchedGroups, grp)
+					groupSeen[grp.ID] = true
+				}
+				continue
+			}
+			// Try by name (could be multiple)
+			byName := s.groups.GetGroupsByName(key)
+			if len(byName) > 0 {
+				for _, g := range byName {
+					if !groupSeen[g.ID] {
+						matchedGroups = append(matchedGroups, g)
+						groupSeen[g.ID] = true
+					}
+				}
+			} else {
+				notFound = append(notFound, key)
+			}
+		}
+
+		if len(matchedGroups) == 0 {
+			http.Error(w, fmt.Sprintf("No groups found for: %v", notFound), http.StatusNotFound)
+			return
+		}
+
+		var reqBody LightStateRequest
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
 		var errs []string
-		if reqBody.On != nil {
-			if err := s.groups.SetGroupState(groupID, *reqBody.On); err != nil {
-				errs = append(errs, err.Error())
+		for _, grp := range matchedGroups {
+			if reqBody.On != nil {
+				if err := s.groups.SetGroupState(grp.ID, *reqBody.On); err != nil {
+					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
+				}
 			}
-		}
-		if reqBody.Brightness != nil {
-			if err := s.groups.SetGroupBrightness(groupID, *reqBody.Brightness); err != nil {
-				errs = append(errs, err.Error())
+			if reqBody.Brightness != nil {
+				if err := s.groups.SetGroupBrightness(grp.ID, *reqBody.Brightness); err != nil {
+					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
+				}
 			}
-		}
-		if reqBody.Temperature != nil {
-			if err := s.groups.SetGroupTemperature(groupID, *reqBody.Temperature); err != nil {
-				errs = append(errs, err.Error())
+			if reqBody.Temperature != nil {
+				if err := s.groups.SetGroupTemperature(grp.ID, *reqBody.Temperature); err != nil {
+					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
+				}
 			}
 		}
 
 		if len(errs) > 0 {
-			http.Error(w, fmt.Sprintf("Error(s) setting group state: %s", strings.Join(errs, "; ")), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusMultiStatus) // 207
+			writeJSONResponse(w, map[string]interface{}{"status": "partial", "errors": errs})
 			return
 		}
 		writeJSONResponse(w, map[string]string{"status": "ok"})

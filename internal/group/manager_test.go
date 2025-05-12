@@ -223,3 +223,49 @@ func TestGroupLightsJSONAlwaysArray(t *testing.T) {
 		})
 	}
 }
+
+func TestGetGroupsByKeys_MultiGroupAndByName(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	lights := &mockLightManager{
+		lights: map[string]*keylight.Light{
+			"light1": {ID: "light1", Name: "Light 1"},
+			"light2": {ID: "light2", Name: "Light 2"},
+		},
+	}
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
+
+	// Create groups with same name and different names
+	g1, err := manager.CreateGroup("office", []string{"light1"})
+	require.NoError(t, err)
+	g2, err := manager.CreateGroup("office", []string{"light2"})
+	require.NoError(t, err)
+	g3, err := manager.CreateGroup("studio", []string{"light1", "light2"})
+	require.NoError(t, err)
+
+	// Test by ID
+	groups, notFound := manager.GetGroupsByKeys(g1.ID)
+	assert.Len(t, groups, 1)
+	assert.Equal(t, g1.ID, groups[0].ID)
+	assert.Empty(t, notFound)
+
+	// Test by name (multiple groups)
+	groups, notFound = manager.GetGroupsByKeys("office")
+	assert.Len(t, groups, 2)
+	ids := []string{groups[0].ID, groups[1].ID}
+	assert.Contains(t, ids, g1.ID)
+	assert.Contains(t, ids, g2.ID)
+	assert.Empty(t, notFound)
+
+	// Test by comma-separated IDs/names (deduplication)
+	keyStr := g1.ID + ",office,studio,notfound"
+	groups, notFound = manager.GetGroupsByKeys(keyStr)
+	assert.Len(t, groups, 3) // g1, g2, g3 (g1 only once)
+	ids = []string{groups[0].ID, groups[1].ID, groups[2].ID}
+	assert.Contains(t, ids, g1.ID)
+	assert.Contains(t, ids, g2.ID)
+	assert.Contains(t, ids, g3.ID)
+	assert.Equal(t, []string{"notfound"}, notFound)
+}

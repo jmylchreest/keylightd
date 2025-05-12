@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -422,4 +423,51 @@ func (m *Manager) UpdateGroupName(groupID string, newName string) error {
 	}
 
 	return nil
+}
+
+// GetGroupsByName returns all groups with the given name
+func (m *Manager) GetGroupsByName(name string) []*Group {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	var result []*Group
+	for _, group := range m.groups {
+		if group.Name == name {
+			result = append(result, group)
+		}
+	}
+	return result
+}
+
+// GetGroupsByKeys returns all groups matching the given comma-separated list of IDs or names.
+// It matches by ID first, then by name (allowing multiple matches for names), and deduplicates results.
+func (m *Manager) GetGroupsByKeys(keys string) ([]*Group, []string) {
+	keyList := strings.Split(keys, ",")
+	var matchedGroups []*Group
+	var notFound []string
+	groupSeen := make(map[string]bool)
+	for _, key := range keyList {
+		key = strings.TrimSpace(key)
+		// Try by ID
+		grp, err := m.GetGroup(key)
+		if err == nil {
+			if !groupSeen[grp.ID] {
+				matchedGroups = append(matchedGroups, grp)
+				groupSeen[grp.ID] = true
+			}
+			continue
+		}
+		// Try by name (could be multiple)
+		byName := m.GetGroupsByName(key)
+		if len(byName) > 0 {
+			for _, g := range byName {
+				if !groupSeen[g.ID] {
+					matchedGroups = append(matchedGroups, g)
+					groupSeen[g.ID] = true
+				}
+			}
+		} else {
+			notFound = append(notFound, key)
+		}
+	}
+	return matchedGroups, notFound
 }
