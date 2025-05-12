@@ -3,15 +3,12 @@ package keylight
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
-	"os"
-	"runtime"
 	"time"
 
 	"log/slog"
 
-	"github.com/hashicorp/mdns"
+	"github.com/grandcat/zeroconf"
 )
 
 const (
@@ -31,131 +28,96 @@ func isValidProductName(name string) bool {
 	return false
 }
 
+// ServiceEntry is a minimal struct for passing discovery info to validateLight
+type ServiceEntry struct {
+	Name   string
+	AddrV4 net.IP
+	Port   int
+	Info   string
+}
+
 // DiscoverLights discovers Key Light devices on the network periodically.
 // The interval must be at least 5 seconds. If a shorter interval is provided,
 // it will be automatically increased to 5 seconds and a warning will be logged.
 // Each discovery run will last (interval - 1) seconds to ensure a 1-second gap
 // between discovery runs.
 func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) error {
-	// Enforce minimum interval of 5 seconds
 	if interval < 5*time.Second {
 		interval = 5 * time.Second
 		m.logger.Warn("Discovery interval too short, using minimum of 5 seconds")
 	}
 
-	// Create a channel to receive discovered services
-	entriesCh := make(chan *mdns.ServiceEntry, 10)
-	defer close(entriesCh)
-
 	// Create a ticker for periodic discovery
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	// Function to perform a single discovery run
 	discover := func() error {
-		// Create a context with timeout for this discovery run
-		// Use interval - 1 second to ensure we don't overlap with next discovery
 		discoverCtx, cancel := context.WithTimeout(ctx, interval-time.Second)
 		defer cancel()
 
-		// Bridge slog.Logger to log.Logger for mDNS
-		var mdnsLogger *log.Logger
-		if m.logger != nil {
-			mdnsLogger = slogToStdLogger(m.logger)
-		} else {
-			mdnsLogger = log.New(os.Stderr, "mdns: ", log.LstdFlags)
+		entries := make(chan *zeroconf.ServiceEntry, 10)
+		resolver, err := zeroconf.NewResolver(nil)
+		if err != nil {
+			return fmt.Errorf("failed to create zeroconf resolver: %w", err)
 		}
-		params := mdns.DefaultParams(serviceName)
-		params.Domain = domain
-		params.Entries = entriesCh
-		params.Logger = mdnsLogger
 
-		// mDNS is a bit broken on windows apparently (at least with the hasicorp/mDNS library). This is a workaround that appears to work despite a few warnings.
-		if runtime.GOOS == "windows" {
-			// Attempt to find a suitable network interface for mDNS on Windows
-			var selectedInterface *net.Interface
-			interfaces, errInterfaces := net.Interfaces()
-			if errInterfaces == nil {
-				for _, iface := range interfaces {
-					i := iface // Create a local copy for the pointer
-					if (i.Flags&net.FlagUp) == 0 || (i.Flags&net.FlagLoopback) != 0 || (i.Flags&net.FlagMulticast) == 0 {
-						continue
-					}
-					addrs, errAddrs := i.Addrs()
-					if errAddrs != nil {
-						continue
-					}
-					hasIPv4 := false
-					for _, addr := range addrs {
-						if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-							hasIPv4 = true
-							break
-						}
-					}
-					if hasIPv4 {
-						selectedInterface = &i
-						params.DisableIPv6 = true // Required to allow hasicorp/mDNS to work on Windows
-						params.Interface = selectedInterface
-						m.logger.Info("Disabling IPv6 and using specific network interface for mDNS on Windows", "interface", i.Name)
-						break
-					}
+		go func() {
+			for entry := range entries {
+				m.logger.Debug("zeroconf: received entry", "instance", entry.Instance, "service", entry.Service, "addrIPv4", entry.AddrIPv4, "addrIPv6", entry.AddrIPv6, "port", entry.Port, "text", entry.Text)
+				if entry.Service != serviceName {
+					continue // Only process _elg._tcp
 				}
-			} else {
-				m.logger.Warn("Failed to list network interfaces on Windows", "error", errInterfaces)
-			}
-		}
-
-		// Start the discovery
-		errQuery := mdns.Query(params)
-		if errQuery != nil {
-			return fmt.Errorf("failed to start discovery: %w", errQuery)
-		}
-
-		// Process discovered services
-		for {
-			select {
-			case <-discoverCtx.Done():
-				// Discovery timeout reached, this is normal
-				return nil
-			case entry, ok := <-entriesCh:
-				if !ok {
-					// Channel closed, discovery complete
-					return nil
+				// Convert zeroconf.ServiceEntry to mdns.ServiceEntry-like for validateLight
+				var ipv4 net.IP
+				if len(entry.AddrIPv4) > 0 {
+					ipv4 = entry.AddrIPv4[0]
 				}
-				light, valid := validateLight(entry, m.logger)
+				localEntry := &ServiceEntry{
+					Name:   entry.Instance + "." + entry.Service + "." + entry.Domain,
+					AddrV4: ipv4,
+					Port:   entry.Port,
+					Info:   fmt.Sprint(entry.Text),
+				}
+				light, valid := validateLight(localEntry, m.logger)
 				if !valid {
+					m.logger.Debug("zeroconf: entry did not validate as key light", "instance", entry.Instance, "addrIPv4", entry.AddrIPv4, "port", entry.Port)
 					continue
 				}
-				m.logger.Debug("Validated Elgato Key Light", "name", light.Name, "id", light.ID, "addr", light.IP, "port", light.Port)
+				m.logger.Info("light: validated Light", "name", light.Name, "id", light.ID, "addr", light.IP, "port", light.Port)
 				m.AddLight(light)
 			}
+		}()
+
+		err = resolver.Browse(discoverCtx, serviceName, domain, entries)
+		if err != nil {
+			return fmt.Errorf("zeroconf browse failed: %w", err)
 		}
+
+		<-discoverCtx.Done()
+		return nil
 	}
 
-	// Run initial discovery
 	if err := discover(); err != nil {
 		return err
 	}
 
-	// Run periodic discovery
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
 			if err := discover(); err != nil {
-				m.logger.Error("Discovery failed", "error", err)
-				// Continue running even if discovery fails
+				m.logger.Info("light: stopping discovery", "reason", err)
 			}
 		}
 	}
 }
 
 // validateLight checks if the mDNS entry is a valid Elgato Key Light by querying /elgato/accessory-info
-func validateLight(entry *mdns.ServiceEntry, logger *slog.Logger) (Light, bool) {
+func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	if entry == nil || entry.AddrV4 == nil || entry.Port == 0 {
 		if logger != nil {
-			logger.Debug("Skipping invalid service entry", "name", entry.Name, "addr", entry.AddrV4, "port", entry.Port)
+			logger.Debug("validateLight: skipping invalid service entry", "name", entry.Name, "addr", entry.AddrV4, "port", entry.Port)
 		}
 		return Light{}, false
 	}
@@ -164,19 +126,19 @@ func validateLight(entry *mdns.ServiceEntry, logger *slog.Logger) (Light, bool) 
 	info, err := client.GetAccessoryInfo()
 	if err != nil {
 		if logger != nil {
-			logger.Debug("Failed to get accessory info", "ip", entry.AddrV4, "port", entry.Port, "error", err)
+			logger.Debug("validateLight: failed to get accessory info", "ip", entry.AddrV4, "port", entry.Port, "error", err)
 		}
 		return Light{}, false
 	}
 	if !isValidProductName(info.ProductName) {
 		if logger != nil {
-			logger.Debug("Discovered device is not a valid Elgato Key Light", "productName", info.ProductName, "name", entry.Name, "addr", entry.AddrV4)
+			logger.Debug("validateLight: discovered device is not a valid Elgato Key Light", "productName", info.ProductName, "name", entry.Name, "addr", entry.AddrV4)
 		}
 		return Light{}, false
 	}
 	// Build the Light struct with info
 	light := Light{
-		ID:                entry.Name,
+		ID:                UnescapeRFC6763Label(entry.Name),
 		IP:                entry.AddrV4,
 		Port:              entry.Port,
 		ProductName:       info.ProductName,
@@ -184,7 +146,7 @@ func validateLight(entry *mdns.ServiceEntry, logger *slog.Logger) (Light, bool) 
 		FirmwareVersion:   info.FirmwareVersion,
 		FirmwareBuild:     info.FirmwareBuildNumber,
 		SerialNumber:      info.SerialNumber,
-		Name:              info.DisplayName,
+		Name:              UnescapeRFC6763Label(info.DisplayName),
 	}
 	return light, true
 }

@@ -14,20 +14,20 @@ var (
 
 // Light represents a Key Light device
 type Light struct {
-	ID                string
-	Name              string
-	IP                net.IP
-	Port              int
-	Temperature       int
-	Brightness        int
-	On                bool
-	ProductName       string
-	HardwareBoardType int
-	FirmwareVersion   string
-	FirmwareBuild     int
-	SerialNumber      string
-	State             *LightState
-	LastSeen          time.Time // Timestamp of the last successful communication
+	ID                string      `json:"id"`
+	Name              string      `json:"name"`
+	IP                net.IP      `json:"ip"`
+	Port              int         `json:"port"`
+	Temperature       int         `json:"temperature"`
+	Brightness        int         `json:"brightness"`
+	On                bool        `json:"on"`
+	ProductName       string      `json:"productname"`
+	HardwareBoardType int         `json:"hardwareboardtype"`
+	FirmwareVersion   string      `json:"firmwareversion"`
+	FirmwareBuild     int         `json:"firmwarebuild"`
+	SerialNumber      string      `json:"serialnumber"`
+	State             *LightState `json:"state,omitempty"`
+	LastSeen          time.Time   `json:"lastseen"`
 }
 
 // LightManager defines the interface for managing Keylight devices

@@ -105,8 +105,18 @@ func (c *Client) GetLights() (map[string]interface{}, error) {
 		return nil, err
 	}
 
+	// The server returns {"lights": {id: lightMap, ...}}, so extract the 'lights' field
+	lightsField, ok := resp["lights"]
+	if !ok {
+		return nil, fmt.Errorf("no lights field in response")
+	}
+	lightsMap, ok := lightsField.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid lights format in response")
+	}
+
 	// Iterate through lights and convert lastseen string to time.Time
-	for _, lightData := range resp {
+	for _, lightData := range lightsMap {
 		if lightMap, ok := lightData.(map[string]interface{}); ok {
 			if lastSeenStr, ok := lightMap["lastseen"].(string); ok {
 				if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
@@ -118,17 +128,22 @@ func (c *Client) GetLights() (map[string]interface{}, error) {
 		}
 	}
 
-	return resp, nil
+	return lightsMap, nil
 }
 
 // GetLight returns the state of a specific light
 func (c *Client) GetLight(id string) (map[string]interface{}, error) {
 	var resp map[string]interface{}
-	if err := c.request(map[string]string{
+	if err := c.request(map[string]interface{}{
 		"action": "get_light",
-		"id":     id,
+		"data":   map[string]interface{}{"id": id},
 	}, &resp); err != nil {
 		return nil, err
+	}
+
+	// If the response is wrapped in a "light" field, extract it
+	if light, ok := resp["light"].(map[string]interface{}); ok {
+		resp = light
 	}
 
 	// Convert lastseen string to time.Time
@@ -147,10 +162,12 @@ func (c *Client) GetLight(id string) (map[string]interface{}, error) {
 func (c *Client) SetLightState(id string, property string, value interface{}) error {
 	var resp map[string]interface{}
 	if err := c.request(map[string]interface{}{
-		"action":   "set_light",
-		"id":       id,
-		"property": property,
-		"value":    value,
+		"action": "set_light_state",
+		"data": map[string]interface{}{
+			"id":       id,
+			"property": property,
+			"value":    value,
+		},
 	}, &resp); err != nil {
 		return err
 	}
@@ -160,11 +177,16 @@ func (c *Client) SetLightState(id string, property string, value interface{}) er
 // CreateGroup creates a new group of lights
 func (c *Client) CreateGroup(name string) error {
 	var resp map[string]interface{}
-	if err := c.request(map[string]string{
+	if err := c.request(map[string]interface{}{
 		"action": "create_group",
-		"name":   name,
+		"data":   map[string]interface{}{"name": name},
 	}, &resp); err != nil {
 		return err
+	}
+
+	// If the response is wrapped in a "group" field, extract it
+	if group, ok := resp["group"].(map[string]interface{}); ok {
+		resp = group
 	}
 
 	// Check for error in response
@@ -178,14 +200,20 @@ func (c *Client) CreateGroup(name string) error {
 }
 
 // GetGroup returns the state of all lights in a group
-func (c *Client) GetGroup(name string) (map[string]interface{}, error) {
+func (c *Client) GetGroup(id string) (map[string]interface{}, error) {
 	var resp map[string]interface{}
-	if err := c.request(map[string]string{
+	if err := c.request(map[string]interface{}{
 		"action": "get_group",
-		"name":   name,
+		"data":   map[string]interface{}{"id": id},
 	}, &resp); err != nil {
 		return nil, err
 	}
+
+	// If the response is wrapped in a "group" field, extract it
+	if group, ok := resp["group"].(map[string]interface{}); ok {
+		resp = group
+	}
+
 	return resp, nil
 }
 
@@ -198,14 +226,17 @@ func (c *Client) GetGroups() ([]map[string]interface{}, error) {
 		return nil, err
 	}
 
-	// Handle nil response
-	if resp == nil {
-		return []map[string]interface{}{}, nil
+	groupsField, ok := resp["groups"]
+	if !ok {
+		return nil, nil // or return an error if you prefer
+	}
+	groupsMap, ok := groupsField.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid groups format in response")
 	}
 
-	// Convert map to slice of maps
-	groups := make([]map[string]interface{}, 0, len(resp))
-	for id, group := range resp {
+	groups := make([]map[string]interface{}, 0, len(groupsMap))
+	for id, group := range groupsMap {
 		if groupMap, ok := group.(map[string]interface{}); ok {
 			groupMap["id"] = id
 			groups = append(groups, groupMap)
@@ -215,13 +246,15 @@ func (c *Client) GetGroups() ([]map[string]interface{}, error) {
 }
 
 // SetGroupState sets the state of all lights in a group
-func (c *Client) SetGroupState(name string, property string, value interface{}) error {
+func (c *Client) SetGroupState(id string, property string, value interface{}) error {
 	var resp map[string]interface{}
 	if err := c.request(map[string]interface{}{
-		"action":   "set_group",
-		"name":     name,
-		"property": property,
-		"value":    value,
+		"action": "set_group_state",
+		"data": map[string]interface{}{
+			"id":       id,
+			"property": property,
+			"value":    value,
+		},
 	}, &resp); err != nil {
 		return err
 	}
@@ -229,11 +262,11 @@ func (c *Client) SetGroupState(name string, property string, value interface{}) 
 }
 
 // DeleteGroup deletes a group of lights
-func (c *Client) DeleteGroup(name string) error {
+func (c *Client) DeleteGroup(id string) error {
 	var resp map[string]interface{}
-	if err := c.request(map[string]string{
+	if err := c.request(map[string]interface{}{
 		"action": "delete_group",
-		"name":   name,
+		"data":   map[string]interface{}{"id": id},
 	}, &resp); err != nil {
 		return err
 	}
@@ -245,8 +278,10 @@ func (c *Client) SetGroupLights(groupID string, lightIDs []string) error {
 	var resp map[string]interface{}
 	if err := c.request(map[string]interface{}{
 		"action": "set_group_lights",
-		"id":     groupID,
-		"lights": lightIDs,
+		"data": map[string]interface{}{
+			"id":     groupID,
+			"lights": lightIDs,
+		},
 	}, &resp); err != nil {
 		return err
 	}

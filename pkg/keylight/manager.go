@@ -124,6 +124,11 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	}
 	m.mu.Unlock()
 
+	// Log the final light struct before returning
+	m.logger.Debug("GetLight returning light", slog.String("id", id), slog.Any("light", updatedLight))
+	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" || updatedLight.FirmwareVersion == "" {
+		m.logger.Warn("GetLight: missing key fields in returned light", slog.String("id", id), slog.String("productname", updatedLight.ProductName), slog.String("serialnumber", updatedLight.SerialNumber), slog.String("firmwareversion", updatedLight.FirmwareVersion))
+	}
 	return &updatedLight, nil
 }
 
@@ -267,6 +272,11 @@ func (m *Manager) AddLight(light Light) {
 		// For now, proceed adding the light but log the error.
 	} else {
 		light.State = state
+		if state != nil && len(state.Lights) > 0 {
+			light.Temperature = state.Lights[0].Temperature
+			light.Brightness = state.Lights[0].Brightness
+			light.On = state.Lights[0].On == 1
+		}
 	}
 
 	// Set LastSeen timestamp
@@ -285,21 +295,31 @@ func (m *Manager) AddLight(light Light) {
 	m.clients[light.ID] = client
 	m.lights[light.ID] = light // Add or update the light with fetched state
 
-	m.logger.Info("added light", slog.String("id", light.ID), slog.String("ip", light.IP.String()), slog.Int("port", light.Port))
+	m.logger.Info("light: added",
+		slog.String("id", light.ID),
+		slog.String("ip", light.IP.String()),
+		slog.Int("port", light.Port),
+		slog.Int("brightness", light.Brightness),
+		slog.Bool("on", light.On),
+		slog.Int("temperature", light.Temperature),
+	)
 }
 
 // StartCleanupWorker starts a background goroutine to remove stale lights.
 func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.Duration, timeout time.Duration) {
+	m.logger.Debug("light: StartCleanupWorker called", "interval", cleanupInterval, "timeout", timeout)
+	if cleanupInterval <= 0 {
+		m.logger.Warn("Cleanup interval must be positive, not starting cleanup worker", "interval", cleanupInterval)
+		return
+	}
 	go func() {
 		ticker := time.NewTicker(cleanupInterval)
 		defer ticker.Stop()
-
-		m.logger.Info("Starting cleanup worker", "interval", cleanupInterval, "timeout", timeout)
-
+		m.logger.Info("light: cleanup worker started", "interval", cleanupInterval, "timeout", timeout)
 		for {
 			select {
 			case <-ctx.Done():
-				m.logger.Info("Cleanup worker stopping")
+				m.logger.Info("light: cleanup worker stopped (context canceled)")
 				return
 			case <-ticker.C:
 				m.cleanupStaleLights(timeout)

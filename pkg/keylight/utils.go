@@ -1,8 +1,7 @@
 package keylight
 
 import (
-	"log"
-	"log/slog"
+	"strconv"
 	"strings"
 )
 
@@ -31,7 +30,7 @@ func convertTemperatureToDevice(kelvin int) int {
 }
 
 // convertDeviceToTemperature converts device mireds to Kelvin
-func convertDeviceToTemperature(mireds int) int {
+func ConvertDeviceToTemperature(mireds int) int {
 	if mireds < 143 {
 		mireds = 143
 	} else if mireds > 344 {
@@ -40,44 +39,30 @@ func convertDeviceToTemperature(mireds int) int {
 	return 1000000 / mireds
 }
 
-// slogToStdLogger bridges slog.Logger to log.Logger
-func slogToStdLogger(s *slog.Logger) *log.Logger {
-	return log.New(slogWriter{s}, "", 0)
+// UnescapeRFC6763Label unescapes a DNS-SD label per RFC 6763 section 6.4
+func UnescapeRFC6763Label(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			// Check for \DDD decimal escape
+			if i+3 < len(s) && isDigit(s[i+1]) && isDigit(s[i+2]) && isDigit(s[i+3]) {
+				val, err := strconv.Atoi(s[i+1 : i+4])
+				if err == nil {
+					b.WriteByte(byte(val))
+					i += 3
+					continue
+				}
+			}
+			// Otherwise, just use the next character as-is
+			i++
+			b.WriteByte(s[i])
+		} else {
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
 }
 
-type slogWriter struct {
-	logger *slog.Logger
-}
-
-func (w slogWriter) Write(p []byte) (n int, err error) {
-	msg := string(p)
-	msg = strings.TrimSpace(msg) // Remove leading/trailing whitespace
-
-	level := slog.LevelInfo
-
-	// Parse [LEVEL] prefix
-	if strings.HasPrefix(msg, "[INFO]") {
-		msg = strings.TrimPrefix(msg, "[INFO]")
-		level = slog.LevelInfo
-	} else if strings.HasPrefix(msg, "[WARN]") {
-		msg = strings.TrimPrefix(msg, "[WARN]")
-		level = slog.LevelWarn
-	} else if strings.HasPrefix(msg, "[ERROR]") {
-		msg = strings.TrimPrefix(msg, "[ERROR]")
-		level = slog.LevelError
-	}
-	msg = strings.TrimSpace(msg)
-
-	// Log at the correct level
-	switch level {
-	case slog.LevelInfo:
-		w.logger.Info(msg)
-	case slog.LevelWarn:
-		w.logger.Warn(msg)
-	case slog.LevelError:
-		w.logger.Error(msg)
-	default:
-		w.logger.Info(msg)
-	}
-	return len(p), nil
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
 }

@@ -59,48 +59,52 @@ func NewKeyLightClient(ip string, port int, logger *slog.Logger, httpClient ...*
 // GetAccessoryInfo retrieves basic device information
 func (c *KeyLightClient) GetAccessoryInfo() (*AccessoryInfo, error) {
 	url := c.baseURL + "/accessory-info"
-	c.logger.Debug("getting accessory info", "url", url)
-
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
+		c.logger.Error("light: /accessory-info request failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to get accessory info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		err := fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		c.logger.Error("light: /accessory-info request failed", "url", url, "error", err)
+		return nil, err
 	}
 
 	var info AccessoryInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		c.logger.Error("light: /accessory-info decode failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.logger.Debug("got accessory info", "info", info)
+	c.logger.Debug("light: /accessory-info response", "url", url, "info", info)
 	return &info, nil
 }
 
 // GetLightState retrieves the current state of the light
 func (c *KeyLightClient) GetLightState() (*LightState, error) {
 	url := c.baseURL + "/lights"
-	c.logger.Debug("getting light state", "url", url)
-
 	resp, err := c.httpClient.Get(url)
 	if err != nil {
+		c.logger.Error("light: /lights request failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to get light state: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		err := fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		c.logger.Error("light: /lights request failed", "url", url, "error", err)
+		return nil, err
 	}
 
 	var state LightState
 	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
+		c.logger.Error("light: /lights decode failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	c.logger.Debug("got light state", "state", state)
+	c.logger.Debug("light: /lights response", "url", url, "state", state)
 	return &state, nil
 }
 
