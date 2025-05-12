@@ -13,7 +13,7 @@
 - CLI tool (`keylightctl`) for managing lights and groups
 - Grouping of lights for batch control
 - Configurable discovery interval and logging
-- No REST API (all communication is via Unix socket and CLI)
+- HTTP REST API and Unix socket/CLI for local and remote control
 
 ---
 
@@ -74,6 +74,40 @@ Binaries for `linux/amd64` and `linux/arm64` will be produced.
 
 - The CLI will connect to the daemon via the Unix socket.
 - CLI config is stored in `$XDG_CONFIG_HOME/keylight/keylightctl.yaml` or `~/.config/keylight/keylightctl.yaml`.
+
+### Running as a systemd Service
+
+You can run `keylightd` as a systemd service for automatic startup and management:
+
+1. **Copy the unit file:**
+   ```sh
+   sudo cp contrib/systemd/keylightd.service /etc/systemd/system/
+   ```
+
+2. **Create the user and directories:**
+   ```sh
+   sudo useradd --system --no-create-home --shell /usr/sbin/nologin keylightd
+   sudo mkdir -p /var/lib/keylightd
+   sudo chown keylightd:keylightd /var/lib/keylightd
+   sudo mkdir -p /etc/keylight
+   sudo chown keylightd:keylightd /etc/keylight
+   ```
+
+3. **Reload systemd and enable the service:**
+   ```sh
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now keylightd
+   ```
+
+4. **Check status:**
+   ```sh
+   sudo systemctl status keylightd
+   ```
+
+The default config path is `/etc/keylight/keylightd.yaml`. You can override this with the `KEYLIGHT_CONFIG` environment variable in the unit file or your environment.
+
+> **Note:**
+> Environment variables for configuration must use the `KEYLIGHT_` prefix (e.g., `KEYLIGHT_CONFIG` for the config file path), due to the use of `SetEnvPrefix("KEYLIGHT")` in the code. Using `KEYLIGHTD_CONFIG` (as previously shown) will **not** work unless the code is changed to use a different prefix. Always use `KEYLIGHT_` for environment variable overrides.
 
 ---
 
