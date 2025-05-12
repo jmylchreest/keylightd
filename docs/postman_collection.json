@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "keylightd-api",
 		"name": "keylightd API",
-		"description": "Collection for interacting with the keylightd HTTP API",
+		"description": "Collection for interacting with the keylightd HTTP API. Note: The HTTP API returns flat objects for lights and groups, while the socket API wraps these in a 'light' or 'group' field. The CLI client automatically unwraps these for consistency.",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [

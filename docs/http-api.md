@@ -326,4 +326,31 @@ These endpoints manage groups of Keylights.
          http://localhost:9123/api/v1/groups/group-1678886400000000000/state
     ```
 
-</rewritten_file> 
+// Note: The socket API wraps light and group objects in a 'light' or 'group' field, but the HTTP API returns flat objects. The CLI client automatically unwraps these for consistency.
+```json
+{
+    "productname": "Elgato Key Light",
+    "serialnumber": "ABC123456",
+    "firmwareversion": "1.0.3",
+    "firmwarebuild": 194,
+    "on": true,
+    "brightness": 50,
+    "temperature": 5000,
+    "ip": "192.168.1.100",
+    "port": 9123,
+    "lastseen": "2024-03-20T10:00:00Z"
+}
+```
+```json
+{
+    "id": "group-1",
+    "name": "Office Lights",
+    "lights": ["light-id-1", "light-id-2"]
+}
+```
+```json
+{
+    "id": "group-1",
+    "name": "Office Lights",
+    "lights": []
+} 

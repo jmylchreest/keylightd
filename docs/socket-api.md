@@ -46,16 +46,18 @@ The Unix socket interface is only accessible to the local user, providing inhere
 
 // Response
 {
-    "productname": "Elgato Key Light",
-    "serialnumber": "ABC123456",
-    "firmwareversion": "1.0.3",
-    "firmwarebuild": 194,
-    "on": true,
-    "brightness": 50,
-    "temperature": 5000,
-    "ip": "192.168.1.100",
-    "port": 9123,
-    "lastseen": "2024-03-20T10:00:00Z"
+    "light": {
+        "productname": "Elgato Key Light",
+        "serialnumber": "ABC123456",
+        "firmwareversion": "1.0.3",
+        "firmwarebuild": 194,
+        "on": true,
+        "brightness": 50,
+        "temperature": 5000,
+        "ip": "192.168.1.100",
+        "port": 9123,
+        "lastseen": "2024-03-20T10:00:00Z"
+    }
 }
 ```
 
@@ -83,13 +85,30 @@ The Unix socket interface is only accessible to the local user, providing inhere
 }
 
 // Response
-[
-    {
-        "id": "group-1",
-        "name": "Office Lights",
-        "lights": ["light-id-1", "light-id-2"]
+{
+  "status": "ok",
+  "groups": {
+    "group-1746907750613172530": {
+      "name": "office",
+      "lights": [
+        "Elgato Key Light 1E2D._elg._tcp.local.",
+        "Elgato Key Light 218C._elg._tcp.local."
+      ]
+    },
+    "group-1746947787717716493": {
+      "name": "office-left",
+      "lights": [
+        "Elgato Key Light 1E2D._elg._tcp.local."
+      ]
+    },
+    "group-1746947790203301385": {
+      "name": "office-right",
+      "lights": [
+        "Elgato Key Light 218C._elg._tcp.local."
+      ]
     }
-]
+  }
+}
 ```
 
 ### Get Group
@@ -102,9 +121,11 @@ The Unix socket interface is only accessible to the local user, providing inhere
 
 // Response
 {
-    "id": "group-1",
-    "name": "Office Lights",
-    "lights": ["light-id-1", "light-id-2"]
+    "group": {
+        "id": "group-1",
+        "name": "Office Lights",
+        "lights": ["light-id-1", "light-id-2"]
+    }
 }
 ```
 
@@ -118,9 +139,11 @@ The Unix socket interface is only accessible to the local user, providing inhere
 
 // Response
 {
-    "id": "group-1",
-    "name": "Office Lights",
-    "lights": []
+    "group": {
+        "id": "group-1",
+        "name": "Office Lights",
+        "lights": []
+    }
 }
 ```
 
