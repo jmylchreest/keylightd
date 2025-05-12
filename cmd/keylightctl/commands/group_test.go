@@ -88,6 +88,13 @@ func (m *mockGroupClient) DeleteAPIKey(key string) error {
 	return nil
 }
 
+func (m *mockGroupClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]interface{}, error) {
+	if m.fail {
+		return nil, errors.New("set api key disabled status failed")
+	}
+	return map[string]interface{}{"key": keyOrName, "disabled": disabled}, nil
+}
+
 func TestGroupListCommand(t *testing.T) {
 	mock := &mockGroupClient{groups: map[string]map[string]interface{}{
 		"group1": {"id": "group1", "name": "Group 1", "lights": []interface{}{"light1"}},

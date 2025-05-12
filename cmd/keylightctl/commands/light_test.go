@@ -117,6 +117,10 @@ func (m *mockClient) DeleteAPIKey(key string) error {
 	return nil
 }
 
+func (m *mockClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]interface{}, error) {
+	return map[string]interface{}{"key": keyOrName, "disabled": disabled}, nil
+}
+
 func TestLightGetCommandParseable(t *testing.T) {
 	mock := &mockClient{}
 	ctx := context.WithValue(context.Background(), clientContextKey, mock)
