@@ -1,6 +1,7 @@
 package group
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -26,6 +27,20 @@ type Group struct {
 	Lights []string `json:"lights"` // Store light IDs instead of pointers
 }
 
+// MarshalJSON ensures that Lights is always marshaled as [] instead of null
+func (g *Group) MarshalJSON() ([]byte, error) {
+	type Alias Group
+	tmp := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(g),
+	}
+	if tmp.Lights == nil {
+		tmp.Lights = []string{}
+	}
+	return json.Marshal(tmp)
+}
+
 // NewManager creates a new group manager
 func NewManager(logger *slog.Logger, lights keylight.LightManager, cfg *config.Config) *Manager {
 	manager := &Manager{
@@ -45,19 +60,11 @@ func NewManager(logger *slog.Logger, lights keylight.LightManager, cfg *config.C
 
 // loadGroups loads groups from the configuration file
 func (m *Manager) loadGroups() error {
-	m.logger.Debug("Loading groups from config")
-
 	// Get groups from config
-	groupsData := m.cfg.Get("groups")
-	if groupsData == nil {
+	groupsMap := m.cfg.State.Groups
+	if groupsMap == nil {
 		m.logger.Debug("No groups found in config")
 		return nil // No groups yet
-	}
-
-	// Convert to map[string]*Group
-	groupsMap, ok := groupsData.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid groups data in config")
 	}
 
 	groups := make(map[string]*Group)
@@ -89,7 +96,7 @@ func (m *Manager) loadGroups() error {
 	m.groups = groups
 	m.mu.Unlock()
 
-	m.logger.Debug("Loaded groups from config", "count", len(groups))
+	m.logger.Info("Loaded groups from config", "count", len(groups))
 	return nil
 }
 
@@ -111,7 +118,7 @@ func (m *Manager) saveGroups() error {
 
 	m.logger.Debug("Updating config with groups", "count", len(groupsMap), "groups", groupsMap)
 	// Update config
-	m.cfg.Set("groups", groupsMap)
+	m.cfg.State.Groups = groupsMap
 
 	m.logger.Debug("Saving config to file")
 	// Save config
@@ -187,7 +194,9 @@ func (m *Manager) GetGroup(id string) (*Group, error) {
 	if !exists {
 		return nil, fmt.Errorf("group not found: %s", id)
 	}
-
+	if group.Lights == nil {
+		group.Lights = []string{}
+	}
 	return group, nil
 }
 
@@ -198,9 +207,11 @@ func (m *Manager) GetGroups() []*Group {
 
 	groups := make([]*Group, 0, len(m.groups))
 	for _, group := range m.groups {
+		if group.Lights == nil {
+			group.Lights = []string{}
+		}
 		groups = append(groups, group)
 	}
-
 	return groups
 }
 
@@ -326,7 +337,7 @@ func (m *Manager) SetGroupTemperature(groupID string, temperature int) error {
 	return nil
 }
 
-// AddLightsToGroup adds lights to an existing group
+// AddLightsToGroup adds lights to a group
 func (m *Manager) AddLightsToGroup(groupID string, lightIDs []string) error {
 	m.mu.Lock()
 	group, exists := m.groups[groupID]
@@ -335,16 +346,17 @@ func (m *Manager) AddLightsToGroup(groupID string, lightIDs []string) error {
 		return fmt.Errorf("group not found: %s", groupID)
 	}
 
-	// Verify all lights exist
+	// Add only unique lights
+	lightSet := make(map[string]bool)
+	for _, id := range group.Lights {
+		lightSet[id] = true
+	}
 	for _, id := range lightIDs {
-		if _, err := m.lights.GetLight(id); err != nil {
-			m.mu.Unlock()
-			return fmt.Errorf("light not found: %s", err)
+		if !lightSet[id] {
+			group.Lights = append(group.Lights, id)
+			lightSet[id] = true
 		}
 	}
-
-	// Add new lights to the group
-	group.Lights = append(group.Lights, lightIDs...)
 	m.logger.Info("added lights to group", "group", groupID, "lights", lightIDs)
 	m.mu.Unlock()
 
@@ -356,7 +368,7 @@ func (m *Manager) AddLightsToGroup(groupID string, lightIDs []string) error {
 	return nil
 }
 
-// RemoveLightsFromGroup removes lights from an existing group
+// RemoveLightsFromGroup removes lights from a group
 func (m *Manager) RemoveLightsFromGroup(groupID string, lightIDs []string) error {
 	m.mu.Lock()
 	group, exists := m.groups[groupID]

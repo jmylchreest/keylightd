@@ -2,6 +2,7 @@ package group
 
 import (
 	"bytes"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -72,14 +73,14 @@ func setupTestConfig(t *testing.T) *config.Config {
 	v := viper.New()
 	v.SetConfigType("yaml")
 	v.SetConfigFile(configPath)
-	v.SetDefault("server.unix_socket", filepath.Join(tmpDir, "keylightd.sock"))
-	v.SetDefault("discovery.interval", 30)
-	v.SetDefault("logging.level", "info")
-	v.SetDefault("logging.format", "text")
-	v.SetDefault("discovery.cleanup_interval", 60)
-	v.SetDefault("discovery.cleanup_timeout", 180)
-	v.SetDefault("api.listen_address", ":9123")
-	v.SetDefault("api.api_keys", []config.APIKey{})
+	v.SetDefault("config.server.unix_socket", filepath.Join(tmpDir, "keylightd.sock"))
+	v.SetDefault("config.discovery.interval", 30)
+	v.SetDefault("config.logging.level", "info")
+	v.SetDefault("config.logging.format", "text")
+	v.SetDefault("config.discovery.cleanup_interval", 60)
+	v.SetDefault("config.discovery.cleanup_timeout", 180)
+	v.SetDefault("config.api.listen_address", ":9123")
+	v.SetDefault("state.api_keys", []config.APIKey{})
 
 	// Create and save initial config
 	cfg := config.New(v)
@@ -185,4 +186,40 @@ func TestGroupOperations(t *testing.T) {
 
 	err = manager.SetGroupTemperature("non-existent", 5000)
 	assert.Error(t, err)
+}
+
+func TestGroupLightsJSONAlwaysArray(t *testing.T) {
+	cases := []struct {
+		name  string
+		group Group
+		want  string
+	}{
+		{
+			name:  "non-empty lights",
+			group: Group{ID: "g1", Name: "Test", Lights: []string{"a", "b"}},
+			want:  `{"id":"g1","name":"Test","lights":["a","b"]}`,
+		},
+		{
+			name:  "empty lights",
+			group: Group{ID: "g2", Name: "Empty", Lights: []string{}},
+			want:  `{"id":"g2","name":"Empty","lights":[]}`,
+		},
+		{
+			name:  "nil lights",
+			group: Group{ID: "g3", Name: "Nil", Lights: nil},
+			want:  `{"id":"g3","name":"Nil","lights":[]}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b, err := json.Marshal(&tc.group)
+			if err != nil {
+				t.Fatalf("marshal failed: %v", err)
+			}
+			if string(b) != tc.want {
+				t.Errorf("got %s, want %s", string(b), tc.want)
+			}
+		})
+	}
 }

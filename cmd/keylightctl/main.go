@@ -34,25 +34,27 @@ func main() {
 		}
 		// If file not found, use defaults
 		cfg = &config.Config{
-			Logging: config.LoggingConfig{
-				Level:  "info",
-				Format: "text",
+			Config: config.ConfigBlock{
+				Logging: config.LoggingConfig{
+					Level:  "info",
+					Format: "text",
+				},
 			},
 		}
 	}
 
 	// Override config with command line flags if set
 	if logLevel != "" {
-		cfg.Logging.Level = logLevel
+		cfg.Config.Logging.Level = logLevel
 	}
 	if logFormat != "" {
-		cfg.Logging.Format = logFormat
+		cfg.Config.Logging.Format = logFormat
 	}
 
 	// Set up logging with configured level
-	level := getLogLevel(cfg.Logging.Level)
+	level := getLogLevel(cfg.Config.Logging.Level)
 	var handler slog.Handler
-	if cfg.Logging.Format == "json" {
+	if cfg.Config.Logging.Format == "json" {
 		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
 	} else {
 		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
@@ -62,8 +64,8 @@ func main() {
 
 	// Set socket path from config
 	socket := config.GetRuntimeSocketPath()
-	if cfg.Server.UnixSocket != "" {
-		socket = cfg.Server.UnixSocket
+	if cfg.Config.Server.UnixSocket != "" {
+		socket = cfg.Config.Server.UnixSocket
 	}
 
 	apiClient := client.New(logger, socket)

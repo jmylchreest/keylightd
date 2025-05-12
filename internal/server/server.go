@@ -45,7 +45,7 @@ func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightMan
 		cfg:           cfg,
 		lights:        lightManager,
 		groups:        groupManager,
-		socketPath:    cfg.Server.UnixSocket,
+		socketPath:    cfg.Config.Server.UnixSocket,
 		shutdown:      make(chan struct{}),
 		apikeyManager: apikeyMgr,
 	}
@@ -67,8 +67,7 @@ func (s *Server) Start() error {
 			<-s.shutdown   // Wait for server shutdown signal
 			cancelWorker() // Cancel the worker's context
 		}()
-		s.lights.StartCleanupWorker(workerCtx, time.Duration(s.cfg.Discovery.CleanupInterval)*time.Second, time.Duration(s.cfg.Discovery.CleanupTimeout)*time.Second)
-		s.logger.Info("Light cleanup worker stopped")
+		s.lights.StartCleanupWorker(workerCtx, time.Duration(s.cfg.Config.Discovery.CleanupInterval)*time.Second, time.Duration(s.cfg.Config.Discovery.CleanupTimeout)*time.Second)
 	}()
 
 	// Ensure socket directory exists
@@ -96,8 +95,8 @@ func (s *Server) Start() error {
 	go s.acceptConnections()
 
 	// Start HTTP server if API is configured
-	if s.cfg.API.ListenAddress != "" {
-		s.logger.Info("Starting HTTP API server", "address", s.cfg.API.ListenAddress)
+	if s.cfg.Config.API.ListenAddress != "" {
+		s.logger.Info("Starting HTTP API server", "address", s.cfg.Config.API.ListenAddress)
 		mux := http.NewServeMux()
 
 		// API Key Management Endpoints
@@ -120,7 +119,7 @@ func (s *Server) Start() error {
 		mux.Handle("POST /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
 
 		s.httpServer = &http.Server{
-			Addr:    s.cfg.API.ListenAddress,
+			Addr:    s.cfg.Config.API.ListenAddress,
 			Handler: mux,
 		}
 
@@ -228,7 +227,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		var req map[string]interface{}
 		if err := json.Unmarshal(line, &req); err != nil {
 			s.logger.Error("Failed to unmarshal request", "error", err, "request", string(line))
-			s.sendError(conn, "unknown", fmt.Sprintf("invalid JSON request: %s", err))
+			s.sendError(conn, "", fmt.Sprintf("invalid JSON request: %s", err))
 			continue
 		}
 
@@ -243,7 +242,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.sendResponse(conn, id, map[string]interface{}{"message": "pong"})
 		case "list_lights":
 			lights := s.lights.GetLights()
-			s.sendResponse(conn, id, map[string]interface{}{"lights": lights})
+			result := make(map[string]interface{}, len(lights))
+			for id, light := range lights {
+				// Marshal to JSON and then unmarshal to map[string]interface{}
+				b, err := json.Marshal(light)
+				if err != nil {
+					s.logger.Error("Failed to marshal light for socket response", "id", id, "error", err)
+					continue
+				}
+				var m map[string]interface{}
+				if err := json.Unmarshal(b, &m); err != nil {
+					s.logger.Error("Failed to unmarshal light for socket response", "id", id, "error", err)
+					continue
+				}
+				result[id] = m
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"lights": result})
 		case "get_light":
 			lightID, _ := data["id"].(string)
 			if lightID == "" {
@@ -255,8 +269,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to get light %s: %s", lightID, err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"light": light})
+			// Marshal to JSON and then unmarshal to map[string]interface{}
+			b, err := json.Marshal(light)
+			if err != nil {
+				s.logger.Error("Failed to marshal light for socket response", "id", lightID, "error", err)
+				s.sendError(conn, id, "internal error marshaling light")
+				return
+			}
+			var m map[string]interface{}
+			if err := json.Unmarshal(b, &m); err != nil {
+				s.logger.Error("Failed to unmarshal light for socket response", "id", lightID, "error", err)
+				s.sendError(conn, id, "internal error unmarshaling light")
+				return
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"light": m})
 		case "set_light_state":
+			// Always extract from 'data' map
 			lightID, _ := data["id"].(string)
 			property, _ := data["property"].(string)
 			value := data["value"] // Keep as interface{} for flexibility
@@ -340,11 +368,26 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to get group %s: %s", groupID, err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"group": group})
+			lights := group.Lights
+			if lights == nil {
+				lights = []string{}
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"group": map[string]interface{}{"id": group.ID, "name": group.Name, "lights": lights}})
 
 		case "list_groups":
 			groups := s.groups.GetGroups()
-			s.sendResponse(conn, id, map[string]interface{}{"groups": groups})
+			groupMap := make(map[string]interface{}, len(groups))
+			for _, g := range groups {
+				lights := g.Lights
+				if lights == nil {
+					lights = []string{}
+				}
+				groupMap[g.ID] = map[string]interface{}{
+					"name":   g.Name,
+					"lights": lights,
+				}
+			}
+			s.sendResponse(conn, id, map[string]interface{}{"groups": groupMap})
 
 		case "set_group_lights":
 			groupID, _ := data["id"].(string)

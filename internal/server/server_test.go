@@ -13,7 +13,6 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
-	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -121,27 +120,17 @@ func setupTestConfig(t *testing.T) *config.Config {
 	// Create config
 	v := viper.New()
 	v.SetConfigType("yaml")
-	v.SetDefault("server.unix_socket", "/tmp/keylightd.sock")
-	v.SetDefault("discovery.interval", 30)
-	v.SetDefault("logging.level", "info")
-	v.SetDefault("logging.format", "text")
-	v.SetDefault("discovery.cleanup_interval", 60)
-	v.SetDefault("discovery.cleanup_timeout", 180)
-	v.SetDefault("api.listen_address", ":9123")
-	v.SetDefault("api.api_keys", []config.APIKey{})
+	v.SetDefault("config.server.unix_socket", "/tmp/keylightd.sock")
+	v.SetDefault("config.discovery.interval", 30)
+	v.SetDefault("config.logging.level", "info")
+	v.SetDefault("config.logging.format", "text")
+	v.SetDefault("config.discovery.cleanup_interval", 60)
+	v.SetDefault("config.discovery.cleanup_timeout", 180)
+	v.SetDefault("config.api.listen_address", ":9123")
+	v.SetDefault("state.api_keys", []config.APIKey{})
 
 	cfg := config.New(v)
-	decoderConfig := &mapstructure.DecoderConfig{
-		DecodeHook: mapstructure.ComposeDecodeHookFunc(
-			mapstructure.StringToTimeHookFunc(time.RFC3339),
-			mapstructure.StringToTimeDurationHookFunc(),
-		),
-		Result:  cfg,
-		TagName: "yaml",
-	}
-	decoder, err := mapstructure.NewDecoder(decoderConfig)
-	require.NoError(t, err)
-	err = decoder.Decode(v.AllSettings())
+	err := v.Unmarshal(cfg)
 	require.NoError(t, err)
 
 	// Set Unix socket path to a temporary file
@@ -149,7 +138,7 @@ func setupTestConfig(t *testing.T) *config.Config {
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tmpDir) })
 	socketPath := filepath.Join(tmpDir, "keylightd.sock")
-	cfg.Server.UnixSocket = socketPath
+	cfg.Config.Server.UnixSocket = socketPath
 
 	return cfg
 }
@@ -179,7 +168,7 @@ func TestServerStartStop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test connection
-	conn, err := net.Dial("unix", cfg.Server.UnixSocket)
+	conn, err := net.Dial("unix", cfg.Config.Server.UnixSocket)
 	require.NoError(t, err)
 	conn.Close()
 
@@ -187,6 +176,6 @@ func TestServerStartStop(t *testing.T) {
 	server.Stop()
 
 	// Verify socket is removed
-	_, err = os.Stat(cfg.Server.UnixSocket)
+	_, err = os.Stat(cfg.Config.Server.UnixSocket)
 	assert.True(t, os.IsNotExist(err))
 }

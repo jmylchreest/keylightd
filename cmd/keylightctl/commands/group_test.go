@@ -118,15 +118,46 @@ func TestGroupAddCommand(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestGroupAddCommand_Duplicate(t *testing.T) {
+	mock := &mockGroupClient{groups: map[string]map[string]interface{}{}}
+	mock.groups["dupe"] = map[string]interface{}{"id": "dupe", "name": "dupe", "lights": []interface{}{}}
+	ctx := context.WithValue(context.Background(), clientContextKey, mock)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cmd := newGroupAddCommand(logger)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"dupe"})
+	out := captureStdout(func() {
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	kv := parseKeyValueOutput(out)
+	require.Equal(t, "dupe", kv["Name"])
+}
+
 func TestGroupDeleteCommand(t *testing.T) {
 	mock := &mockGroupClient{groups: map[string]map[string]interface{}{"group1": {"id": "group1", "name": "Group 1", "lights": []interface{}{}}}}
 	ctx := context.WithValue(context.Background(), clientContextKey, mock)
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	cmd := newGroupDeleteCommand(logger)
 	cmd.SetContext(ctx)
-	cmd.SetArgs([]string{"group1"})
+	cmd.SetArgs([]string{"group1", "--yes"})
 	err := cmd.Execute()
 	require.NoError(t, err)
+}
+
+func TestGroupDeleteCommand_GroupNotFound(t *testing.T) {
+	mock := &mockGroupClient{groups: map[string]map[string]interface{}{}}
+	ctx := context.WithValue(context.Background(), clientContextKey, mock)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cmd := newGroupDeleteCommand(logger)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"notfound", "--yes"})
+	out := captureStdout(func() {
+		err := cmd.Execute()
+		require.NoError(t, err)
+	})
+	kv := parseKeyValueOutput(out)
+	require.Equal(t, "notfound", kv["Input"])
 }
 
 func TestGroupGetCommand(t *testing.T) {

@@ -16,10 +16,12 @@ type Manager struct {
 
 // NewManager creates a new APIKeyManager
 func NewManager(cfg *config.Config, logger *slog.Logger) *Manager {
-	return &Manager{
+	m := &Manager{
 		cfg: cfg,
 		log: logger,
 	}
+	logger.Info("Loaded API keys from config", "count", len(cfg.State.APIKeys))
+	return m
 }
 
 // CreateAPIKey generates a new API key, stores it, and saves the config.

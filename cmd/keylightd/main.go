@@ -69,7 +69,7 @@ func main() {
 			defer cancel()
 
 			go func() {
-				if err := manager.DiscoverLights(ctx, time.Duration(cfg.Discovery.Interval)*time.Second); err != nil {
+				if err := manager.DiscoverLights(ctx, time.Duration(cfg.Config.Discovery.Interval)*time.Second); err != nil {
 					logger.Error("Error discovering lights", "error", err)
 				}
 			}()

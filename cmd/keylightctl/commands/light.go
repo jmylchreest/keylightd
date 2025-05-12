@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jmylchreest/keylightd/pkg/client"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -115,6 +116,9 @@ func newLightGetCommand() *cobra.Command {
 				lightID = strings.Split(selected, " (")[0]
 			}
 
+			// Normalize user-provided ID if it might be escaped
+			lightID = keylight.UnescapeRFC6763Label(lightID)
+
 			light, err := c.GetLight(lightID)
 			if err != nil {
 				return fmt.Errorf("failed to get light: %w", err)
@@ -150,7 +154,7 @@ func newLightGetCommand() *cobra.Command {
 }
 
 // newLightSetCommand creates the light set command
-func newLightSetCommand(logger *slog.Logger) *cobra.Command {
+func newLightSetCommand(_ *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set [id] [property] [value]",
 		Short: "Set a light property",
@@ -190,6 +194,9 @@ func newLightSetCommand(logger *slog.Logger) *cobra.Command {
 				// Extract ID from selected option
 				lightID = strings.Split(selected, " (")[0]
 			}
+
+			// Normalize user-provided ID if it might be escaped
+			lightID = keylight.UnescapeRFC6763Label(lightID)
 
 			// Get property
 			var property string

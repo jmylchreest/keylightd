@@ -2,14 +2,10 @@ package commands
 
 import (
 	"context"
-	"io"
-	"os"
-	"regexp"
 	"testing"
 	"time"
 
 	"github.com/jmylchreest/keylightd/pkg/client"
-	"github.com/pterm/pterm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -146,41 +142,6 @@ func TestLightListCommandParseable(t *testing.T) {
 	cmd.SetContext(ctx)
 	err := cmd.Execute()
 	require.NoError(t, err)
-}
-
-// Helper to capture stdout and strip ANSI codes
-func captureStdout(f func()) string {
-	oldStdout := os.Stdout // Save original os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w // Redirect os.Stdout to the pipe
-
-	// Save original pterm settings and default table writer
-	oldPrintColor := pterm.PrintColor
-	oldOutput := pterm.Output
-	oldDefaultTableWriter := pterm.DefaultTable.Writer
-
-	// Disable pterm color output, enable pterm output, and set default table writer to the pipe
-	pterm.PrintColor = false // Disable colors
-	pterm.Output = true      // Enable output
-	pterm.DefaultTable.Writer = w
-
-	f() // Run the test function
-
-	w.Close()
-	out, _ := io.ReadAll(r)
-
-	// Restore original pterm settings and default table writer
-	pterm.PrintColor = oldPrintColor
-	pterm.Output = oldOutput
-	pterm.DefaultTable.Writer = oldDefaultTableWriter
-
-	os.Stdout = oldStdout // Restore original os.Stdout
-
-	// Strip ANSI escape codes from the captured output
-	ansiRegex := regexp.MustCompile(`\x1b\[[0-9;]*m`)
-	cleanedOutput := ansiRegex.ReplaceAllString(string(out), "")
-
-	return cleanedOutput
 }
 
 func TestLightGetCommand(t *testing.T) {

@@ -37,7 +37,7 @@ func obfuscateAPIKey(key string) string {
 	return key
 }
 
-func newAPIKeyListCommand(logger *slog.Logger) *cobra.Command {
+func newAPIKeyListCommand(_ *slog.Logger) *cobra.Command {
 	var parseable bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -120,7 +120,7 @@ func newAPIKeyListCommand(logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-func newAPIKeyAddCommand(logger *slog.Logger) *cobra.Command {
+func newAPIKeyAddCommand(_ *slog.Logger) *cobra.Command {
 	var name string
 	var expiresIn string // This will hold flag value and interactive input
 
@@ -180,26 +180,37 @@ func newAPIKeyAddCommand(logger *slog.Logger) *cobra.Command {
 
 			createdKey, err := apiClient.AddAPIKey(name, expiresInDuration.Seconds())
 			if err != nil {
-				return fmt.Errorf("failed to add API key: %w", err)
+				PrintPromptResult("error", "Failed to Add API Key", "", [][2]string{{"Name", name}, {"Error", err.Error()}})
+				return nil
 			}
 
 			keyStr, _ := createdKey["key"].(string)
 			keyName, _ := createdKey["name"].(string)
 			expiresAtStr, _ := createdKey["expires_at"].(string)
 
-			pterm.Success.Println("API Key created successfully!")
-			pterm.Info.Println("  Name:    ", keyName)
-			pterm.Warning.Println("  Key:     ", keyStr, "(Store this securely! It will not be shown again.)")
+			// Prepare fields for output
+			fields := [][2]string{
+				{"Name", keyName},
+			}
+			expiresVal := "Never"
 			if expiresAtStr != "" && expiresAtStr != "0001-01-01T00:00:00Z" {
 				expiresAt, errParse := time.Parse(time.RFC3339, expiresAtStr)
 				if errParse == nil {
-					pterm.Info.Println("  Expires: ", expiresAt.Format(time.RFC1123))
+					expiresVal = expiresAt.Format(time.RFC1123)
 				} else {
-					pterm.Info.Println("  Expires: ", expiresAtStr, "(raw)") // Show raw if parsing failed
+					expiresVal = expiresAtStr + " (raw)"
 				}
-			} else {
-				pterm.Info.Println("  Expires: Never")
 			}
+			fields = append(fields, [2]string{"Expires", expiresVal})
+			fields = append(fields, [2]string{"Key", keyStr})
+
+			PrintPromptResult(
+				"success",
+				"API Key Created",
+				"Store this securely as it will not be shown again.",
+				fields,
+			)
+
 			return nil
 		},
 	}
@@ -209,7 +220,8 @@ func newAPIKeyAddCommand(logger *slog.Logger) *cobra.Command {
 	return cmd
 }
 
-func newAPIKeyDeleteCommand(logger *slog.Logger) *cobra.Command {
+func newAPIKeyDeleteCommand(_ *slog.Logger) *cobra.Command {
+	var yes bool
 	cmd := &cobra.Command{
 		Use:   "delete [key_string]",
 		Short: "Delete an API key",
@@ -260,28 +272,32 @@ func newAPIKeyDeleteCommand(logger *slog.Logger) *cobra.Command {
 			}
 
 			// Confirm before deleting
-			confirm, _ := pterm.DefaultInteractiveConfirm.
-				WithDefaultText(fmt.Sprintf("Are you sure you want to delete API key %s?", obfuscateAPIKey(keyToDelete))).
-				WithDefaultValue(false). // Default to no
-				Show()
+			if !yes {
+				confirm, _ := pterm.DefaultInteractiveConfirm.
+					WithDefaultText(fmt.Sprintf("Are you sure you want to delete API key %s?", obfuscateAPIKey(keyToDelete))).
+					WithDefaultValue(false). // Default to no
+					Show()
 
-			if !confirm {
-				pterm.Info.Println("API key deletion cancelled.")
-				return nil
+				if !confirm {
+					pterm.Info.Println("API key deletion cancelled.")
+					return nil
+				}
 			}
 
 			if err := apiClient.DeleteAPIKey(keyToDelete); err != nil {
-				return fmt.Errorf("failed to delete API key: %w", err)
+				PrintPromptResult("error", "Failed to Delete API Key", "", [][2]string{{"Key", obfuscateAPIKey(keyToDelete)}, {"Error", err.Error()}})
+				return nil
 			}
 
-			pterm.Success.Printf("API Key '%s' deleted successfully.\\n", obfuscateAPIKey(keyToDelete))
+			pterm.Success.Printf("API Key '%s' deleted successfully.\n", obfuscateAPIKey(keyToDelete))
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip confirmation prompt")
 	return cmd
 }
 
-func newAPIKeySetEnabledCommand(logger *slog.Logger) *cobra.Command {
+func newAPIKeySetEnabledCommand(_ *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set-enabled [key_or_name] [true|false]",
 		Short: "Set the enabled status of an API key (true for enabled, false for disabled).",

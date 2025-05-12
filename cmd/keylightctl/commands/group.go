@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/jmylchreest/keylightd/pkg/client"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +32,7 @@ func NewGroupCommand(logger *slog.Logger) *cobra.Command {
 }
 
 // newGroupListCommand creates the group list command
-func newGroupListCommand(logger *slog.Logger) *cobra.Command {
+func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 	var parseable bool
 
 	cmd := &cobra.Command{
@@ -96,7 +97,7 @@ func newGroupListCommand(logger *slog.Logger) *cobra.Command {
 }
 
 // newGroupAddCommand creates the group add command
-func newGroupAddCommand(logger *slog.Logger) *cobra.Command {
+func newGroupAddCommand(_ *slog.Logger) *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
@@ -126,12 +127,15 @@ func newGroupAddCommand(logger *slog.Logger) *cobra.Command {
 				}
 			}
 
-			logger.Debug("Creating group", "name", name)
 			if err := client.CreateGroup(name); err != nil {
-				return fmt.Errorf("failed to create group: %w", err)
+				PrintPromptResult("error", "Failed to Create Group", "", [][2]string{{"Name", name}, {"Error", err.Error()}})
+				return nil
 			}
 
-			pterm.Success.Printf("Created group: %s\n", name)
+			fields := [][2]string{
+				{"Name", name},
+			}
+			PrintPromptResult("success", "Group Created", "", fields)
 			return nil
 		},
 	}
@@ -141,8 +145,9 @@ func newGroupAddCommand(logger *slog.Logger) *cobra.Command {
 }
 
 // newGroupDeleteCommand creates the group delete command
-func newGroupDeleteCommand(logger *slog.Logger) *cobra.Command {
+func newGroupDeleteCommand(_ *slog.Logger) *cobra.Command {
 	var name string
+	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "delete",
@@ -153,30 +158,38 @@ func newGroupDeleteCommand(logger *slog.Logger) *cobra.Command {
 				return fmt.Errorf("client not found in context")
 			}
 
-			// Use identifier from args if provided
 			if len(args) > 0 {
-				var err error
-				name, err = resolveGroupIdentifier(client, args[0])
+				resolved, err := resolveGroupIdentifier(client, args[0])
 				if err != nil {
-					return err
+					PrintPromptResult("error", "Group Not Found", "", [][2]string{{"Input", args[0]}})
+					return nil
 				}
+				name = resolved
+			} else if name == "" {
+				// Fetch all groups for dropdown
+				groups, err := client.GetGroups()
+				if err != nil {
+					return fmt.Errorf("failed to get groups: %w", err)
+				}
+				if len(groups) == 0 {
+					pterm.Info.Println("No groups found.")
+					return nil
+				}
+				options := make([]string, len(groups))
+				for i, group := range groups {
+					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
+				}
+				selected, err := pterm.DefaultInteractiveSelect.WithOptions(options).Show("Select a group to delete")
+				if err != nil {
+					return fmt.Errorf("failed to select group: %w", err)
+				}
+				// Extract ID from selected option
+				name = strings.Split(selected, " (")[0]
 			}
 
-			// Prompt for name if not provided
-			if name == "" {
-				var err error
-				name, err = pterm.DefaultInteractiveTextInput.WithMultiLine(false).Show("Enter group name or ID")
-				if err != nil {
-					return fmt.Errorf("failed to get group name: %w", err)
-				}
-				if name == "" {
-					return fmt.Errorf("group name cannot be empty")
-				}
-				// Resolve the entered name/ID
-				name, err = resolveGroupIdentifier(client, name)
-				if err != nil {
-					return err
-				}
+			// Future: add confirmation prompt here if needed
+			if !yes {
+				// If you add a confirmation prompt in the future, put it here
 			}
 
 			if err := client.DeleteGroup(name); err != nil {
@@ -189,11 +202,12 @@ func newGroupDeleteCommand(logger *slog.Logger) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "Name or ID of the group")
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip confirmation prompt")
 	return cmd
 }
 
 // newGroupGetCommand creates the group get command
-func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
+func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 	var name string
 	var parseable bool
 
@@ -218,11 +232,11 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 
 			// Use identifier from args if provided
 			if len(args) > 0 {
-				var err error
-				name, err = resolveGroupIdentifier(client, args[0])
+				resolved, err := resolveGroupIdentifier(client, args[0])
 				if err != nil {
-					return err
+					return fmt.Errorf("no group found with name or ID: %s", args[0])
 				}
+				name = resolved
 			}
 
 			// Prompt for group if not provided
@@ -243,6 +257,9 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 				// Extract ID from selected option
 				name = strings.Split(selected, " (")[0]
 			}
+
+			// Normalize user-provided group ID if it might be escaped
+			name = keylight.UnescapeRFC6763Label(name)
 
 			group, err := client.GetGroup(name)
 			if err != nil {
@@ -301,7 +318,7 @@ func newGroupGetCommand(logger *slog.Logger) *cobra.Command {
 }
 
 // newGroupSetCommand creates the group set command
-func newGroupSetCommand(logger *slog.Logger) *cobra.Command {
+func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 	var name string
 	var property string
 	var value interface{}
@@ -352,6 +369,9 @@ func newGroupSetCommand(logger *slog.Logger) *cobra.Command {
 				// Extract ID from selected option
 				name = strings.Split(selected, " (")[0]
 			}
+
+			// Normalize user-provided group ID if it might be escaped
+			name = keylight.UnescapeRFC6763Label(name)
 
 			// Use property from args if provided
 			if len(args) > 1 {
@@ -522,7 +542,7 @@ func (f *valueFlag) Type() string {
 }
 
 // newGroupEditCommand creates the group edit command
-func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
+func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit [groupid] [lightid...]",
 		Short: "Edit the lights in a group",
@@ -556,7 +576,7 @@ func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
 				// Create options for group selection
 				options := make([]string, len(groups))
 				for i, group := range groups {
-					options[i] = fmt.Sprintf("%s (%s)", group["id"], group["name"])
+					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
 				}
 
 				selected, err := pterm.DefaultInteractiveSelect.
@@ -569,6 +589,9 @@ func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
 				// Extract ID from selected option
 				groupID = strings.Split(selected, " (")[0]
 			}
+
+			// Normalize user-provided group ID if it might be escaped
+			groupID = keylight.UnescapeRFC6763Label(groupID)
 
 			// Get current group
 			group, err := client.GetGroup(groupID)
@@ -616,7 +639,7 @@ func newGroupEditCommand(logger *slog.Logger) *cobra.Command {
 			// Extract IDs from selected options
 			newLightIDs := make([]string, len(selected))
 			for i, option := range selected {
-				newLightIDs[i] = strings.Split(option, " (")[0]
+				newLightIDs[i] = keylight.UnescapeRFC6763Label(strings.Split(option, " (")[0])
 			}
 
 			// Update group lights
