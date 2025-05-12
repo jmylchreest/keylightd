@@ -175,6 +175,22 @@ func Load(configName, configFile string) (*Config, error) {
 	if err := v.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal config: %w", err)
 	}
+
+	// Viper seems to fill map[string]interface{} fine, but doesnt seem reliable at all for []APIKey?
+	configPath := v.ConfigFileUsed()
+	if configPath != "" {
+		data, err := os.ReadFile(configPath)
+		if err == nil {
+			var raw map[string]interface{}
+			if err := yaml.Unmarshal(data, &raw); err == nil {
+				if stateRaw, ok := raw["state"]; ok {
+					stateBytes, _ := yaml.Marshal(stateRaw)
+					yaml.Unmarshal(stateBytes, &cfg.State)
+				}
+			}
+		}
+	}
+
 	// Enforce critical defaults after unmarshal
 	if cfg.Config.Server.UnixSocket == "" {
 		cfg.Config.Server.UnixSocket = GetRuntimeSocketPath()
