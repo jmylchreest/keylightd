@@ -116,7 +116,7 @@ func (s *Server) Start() error {
 		mux.Handle("GET /api/v1/groups/{id}", s.authMiddleware(s.handleGroupGet()))
 		mux.Handle("DELETE /api/v1/groups/{id}", s.authMiddleware(s.handleGroupDelete()))
 		mux.Handle("PUT /api/v1/groups/{id}/lights", s.authMiddleware(s.handleGroupSetLights()))
-		mux.Handle("POST /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
+		mux.Handle("PUT /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
 
 		s.httpServer = &http.Server{
 			Addr:    s.cfg.Config.API.ListenAddress,
