@@ -43,7 +43,7 @@ func TestClient_AllMethods(t *testing.T) {
 
 	t.Run("GetLights", func(t *testing.T) {
 		resp := map[string]interface{}{
-			"light1": map[string]interface{}{"id": "light1"},
+			"lights": map[string]interface{}{"light1": map[string]interface{}{"id": "light1"}},
 		}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
@@ -120,8 +120,10 @@ func TestClient_AllMethods(t *testing.T) {
 
 	t.Run("GetGroups", func(t *testing.T) {
 		resp := map[string]interface{}{
-			"g1": map[string]interface{}{"name": "G1"},
-			"g2": map[string]interface{}{"name": "G2"},
+			"groups": map[string]interface{}{
+				"g1": map[string]interface{}{"name": "G1"},
+				"g2": map[string]interface{}{"name": "G2"},
+			},
 		}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
