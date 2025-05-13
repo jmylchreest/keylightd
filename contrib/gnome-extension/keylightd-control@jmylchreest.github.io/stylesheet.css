@@ -1,0 +1,191 @@
+.keylight-popup {
+    background: #232323;
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 350px;
+    color: #fff;
+}
+
+.keylight-section-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    color: #f7c873;
+}
+
+.keylight-slider {
+    min-width: 120px;
+    margin: 0 8px;
+}
+
+.keylight-toggle {
+    margin-right: 8px;
+}
+
+/* New custom styles for the Elgato Control Center-like UI */
+.keylightd-menu-box {
+    width: 380px;
+    padding: 8px;
+}
+
+/* Title styling */
+.keylightd-title-box {
+    margin: 0 0 10px 0;
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.keylightd-title-label {
+    font-size: 16px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.keylightd-lights-container {
+    margin: 0;
+    padding: 0;
+}
+
+.keylightd-control-section {
+    margin: 8px 0;
+    padding: 10px 4px;
+    border-radius: 6px;
+}
+
+.keylightd-header-box {
+    margin-bottom: 10px;
+    padding: 2px 0;
+}
+
+.keylightd-light-name {
+    font-weight: bold;
+    margin-left: 4px;
+}
+
+.keylightd-power-button {
+    border-radius: 14px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.keylightd-power-on {
+    background-color: rgba(255, 180, 60, 0.3);
+}
+
+.keylightd-power-off {
+    background-color: rgba(100, 100, 100, 0.2);
+}
+
+/* Icon box styling */
+.keylightd-icon-box {
+    background-color: rgba(80, 80, 80, 0.3);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 4px;
+    margin-right: 4px;
+}
+
+/* Slider row styling */
+.keylightd-slider-row {
+    margin: 4px;
+    height: 36px;
+    spacing: 8px;
+    width: 100%;
+    padding: 0 4px;
+    background-color: rgba(40, 40, 40, 0.2);
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Main slider styling */
+.keylightd-slider {
+    min-width: 100px !important;
+    width: 100px !important;
+    height: 24px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Icon styling */
+.keylightd-slider-icon {
+    icon-size: 18px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Value label styling */
+.keylightd-value-label {
+    min-width: 55px;
+    width: 55px;
+    max-width: 55px;
+    text-align: right;
+    font-size: 14px;
+    font-weight: bold;
+    color: #ddd;
+}
+
+.keylightd-error-label {
+    color: #ff6060;
+    padding: 16px;
+    text-align: center;
+}
+
+.keylightd-no-lights-label {
+    padding: 16px;
+    text-align: center;
+    font-style: italic;
+}
+
+.keylightd-group-count {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    font-style: italic;
+    padding: 4px 0;
+    margin-bottom: 6px;
+}
+
+/* Slider internals - standard GNOME shell slider */
+.slider {
+    min-width: 100px;
+    height: 18px;
+    -barlevel-height: 8px;
+    -barlevel-background-color: rgba(80, 80, 80, 0.4);
+    -barlevel-active-background-color: #fc3;
+    -barlevel-overdrive-color: #ff6060;
+}
+
+/* Slider bar - the actual slider track */
+.slider-bar {
+    min-width: 100px;
+    min-height: 8px;
+    height: 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(80, 80, 80, 0.4);
+}
+
+/* Active part of the slider bar */
+.slider-bar:active, 
+.slider-bar:hover,
+.slider-bar:focus {
+    background-color: #fc3;
+}
+
+/* Slider thumb - the part you drag */
+.slider-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background-color: #fc3;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Active thumb state */
+.slider-thumb:hover, 
+.slider-thumb:active,
+.slider-thumb:focus {
+    background-color: #ffd966;
+} 

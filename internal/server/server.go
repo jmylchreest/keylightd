@@ -21,6 +21,23 @@ import (
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
+// --- Added loggingResponseWriter ---
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
+	return &loggingResponseWriter{w, http.StatusOK} // Default to 200 OK
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+// --- End added loggingResponseWriter ---
+
 // Server manages the keylightd daemon, including discovery, groups, and socket/HTTP APIs.
 type Server struct {
 	logger        *slog.Logger
@@ -120,7 +137,7 @@ func (s *Server) Start() error {
 
 		s.httpServer = &http.Server{
 			Addr:    s.cfg.Config.API.ListenAddress,
-			Handler: mux,
+			Handler: s.loggingMiddleware(mux), // Apply logging middleware here
 		}
 
 		s.wg.Add(1)
@@ -972,3 +989,34 @@ func writeJSONResponse(w http.ResponseWriter, data interface{}) {
 		slog.Default().Error("Failed to encode JSON response", "error", err)
 	}
 }
+
+// --- Added loggingMiddleware ---
+func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		// Log request details before handling
+		s.logger.Debug("HTTP Request Received",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"remote_addr", r.RemoteAddr,
+			"user_agent", r.UserAgent(),
+		)
+
+		// Wrap the response writer to capture status code
+		lrw := newLoggingResponseWriter(w)
+
+		// Call the next handler
+		next.ServeHTTP(lrw, r)
+
+		// Log response details after handling
+		s.logger.Debug("HTTP Response Sent",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", lrw.statusCode,
+			"duration", time.Since(start),
+		)
+	})
+}
+
+// --- End added loggingMiddleware ---

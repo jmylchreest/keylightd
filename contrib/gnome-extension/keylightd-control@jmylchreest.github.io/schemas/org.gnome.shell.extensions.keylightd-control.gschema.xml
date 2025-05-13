@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.keylightd-control" path="/org/gnome/shell/extensions/keylightd-control/">
+    <!-- API -->
+    <key type="s" name="api-url">
+      <default>'http://localhost:9123'</default>
+      <summary>Keylightd API URL</summary>
+      <description>URL of the keylightd API server.</description>
+    </key>
+    <key type="s" name="api-key">
+      <default>''</default>
+      <summary>API Key</summary>
+      <description>API key for authenticating with keylightd.</description>
+    </key>
+    <!-- Refresh Settings -->
+    <key type="i" name="refresh-interval">
+      <default>30</default>
+      <summary>Refresh Interval</summary>
+      <description>Time in seconds between automatic refreshes of lights and groups status.</description>
+    </key>
+    <key type="i" name="debounce-delay">
+      <default>500</default>
+      <summary>Control Update Delay</summary>
+      <description>Delay in milliseconds before sending control updates to lights. Higher values reduce network traffic but make controls less responsive.</description>
+    </key>
+    <!-- groups -->
+    <key type="as" name="groups">
+      <default>[]</default>
+      <summary>Groups</summary>
+      <description>List of group names to display.</description>
+    </key>
+    <key type="as" name="visible-groups">
+      <default>[]</default>
+      <summary>Visible Groups</summary>
+      <description>List of group IDs that should be visible in the quick settings menu.</description>
+    </key>
+    <!-- preferences -->
+    <key type="i" name="prefs-default-width">
+      <default>800</default>
+      <summary>Default width for the preferences window</summary>
+    </key>
+    <key type="i" name="prefs-default-height">
+      <default>600</default>
+      <summary>Default height for the preferences window</summary>
+    </key>
+  </schema>
+</schemalist> 
