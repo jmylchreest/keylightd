@@ -28,6 +28,7 @@ jobs:
         with:
           name: coverage
           path: coverage.txt
+
   codecov:
     runs-on: ubuntu-latest
     needs: test
@@ -43,44 +44,17 @@ jobs:
           files: ./coverage.txt
           fail_ci_if_error: true
 
-  build-gnome-extension:
+  release-keylightd:
     runs-on: ubuntu-latest
     needs: test
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make zip
-
-      - name: Build extension
-        run: |
-          cd contrib/gnome-extension
-          make zip
-
-      - name: Upload extension artifact
-        uses: actions/upload-artifact@v4
         with:
-          name: gnome-extension
-          path: dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
-
-  release-keylightd:
-    runs-on: ubuntu-latest
-    needs: build-gnome-extension
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
-
-      - name: Download gnome-extension artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gnome-extension
-          path: dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
 
       - name: Run GoReleaser (release)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -100,4 +74,40 @@ jobs:
           version: latest
           args: release --clean --snapshot
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-gnome-extension:
+    runs-on: ubuntu-latest
+    needs: release-keylightd
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make zip
+
+      - name: Build extension
+        run: |
+          cd contrib/gnome-extension
+          make zip
+
+      - name: Get Current Release
+        id: get_current_release
+        uses: joutvhu/get-release@v1
+        with:
+          debug: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_current_release.outputs.upload_url }}
+          asset_path: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
+          asset_name: keylightd-control@jmylchreest.github.io.shell-extension.zip
+          asset_content_type: application/zip
