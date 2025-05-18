@@ -6,7 +6,7 @@ DIST_DIR=../../dist/gnome-extension
 
 all: clean build pack 
 
-build:
+build: clean
 	@echo "Building schemas..."
 	glib-compile-schemas $(EXT_DIR)/schemas
 	@echo "Build complete."
@@ -23,6 +23,10 @@ pack: build
 		--extra-source=icons.js \
 		--extra-source=icon-names.js \
 		--out-dir $(DIST_DIR)
+
+zip: build
+	@echo "Zipping extension..."
+	zip -r $(DIST_DIR)/$(EXT_UUID).shell-extension.zip $(EXT_DIR)
 
 clean:
 	rm -rf $(EXT_DIR)/schemas/gschemas.compiled

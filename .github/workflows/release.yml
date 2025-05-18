@@ -53,12 +53,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y make gnome-shell-extensions build-essential
+          sudo apt-get install -y make zip
 
       - name: Build extension
         run: |
           cd contrib/gnome-extension
-          make all
+          make zip
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
