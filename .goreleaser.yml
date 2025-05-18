@@ -41,7 +41,7 @@ builds:
 
 release:
   extra_files:
-    - dist/gnome-extension/**
+    - glob: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
 
 archives:
   - formats: [ 'tar.gz' ]
