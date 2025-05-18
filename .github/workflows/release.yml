@@ -80,6 +80,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: gnome-extension
+          path: dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
 
       - name: Run GoReleaser (release)
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
