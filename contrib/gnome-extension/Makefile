@@ -11,7 +11,7 @@ build: clean
 	glib-compile-schemas $(EXT_DIR)/schemas
 	@echo "Build complete."
 
-pack: build
+pack: mkdist build
 	@echo "Packing extension with gnome-extensions..."
 	gnome-extensions pack $(EXT_DIR) --force \
 		--extra-source=preferences/ \
@@ -24,7 +24,11 @@ pack: build
 		--extra-source=icon-names.js \
 		--out-dir $(DIST_DIR)
 
-zip: build
+mkdist: clean
+	@echo "Creating dist directory..."
+	mkdir -p $(DIST_DIR)
+
+zip: mkdist build
 	@echo "Zipping extension..."
 	zip -r $(DIST_DIR)/$(EXT_UUID).shell-extension.zip $(EXT_DIR)
 
