@@ -204,7 +204,7 @@ export default class KeylightdControlExtension extends Extension {
             
             // Refresh groups
             try {
-                await this._groupsController.getGroups(true);
+            await this._groupsController.getGroups(true);
             } catch (groupError) {
                 console.error('Error refreshing groups during background refresh:', groupError);
                 return; // Exit early on error to avoid inconsistent state comparison
@@ -212,7 +212,7 @@ export default class KeylightdControlExtension extends Extension {
             
             // Refresh lights
             try {
-                await this._lightsController.getLights(true);
+            await this._lightsController.getLights(true);
             } catch (lightError) {
                 console.error('Error refreshing lights during background refresh:', lightError);
                 return; // Exit early on error to avoid inconsistent state comparison
@@ -347,9 +347,9 @@ export default class KeylightdControlExtension extends Extension {
             // Schedule another refresh after UI is more likely to be fully initialized
             setTimeout(() => {
                 try {
-                    if (this._keylightdIndicator && this._keylightdIndicator._keylightdToggle) {
-                        this._keylightdIndicator._keylightdToggle._updateToggleState();
-                    }
+            if (this._keylightdIndicator && this._keylightdIndicator._keylightdToggle) {
+                this._keylightdIndicator._keylightdToggle._updateToggleState();
+            }
                 } catch (error) {
                     console.error('Error in delayed toggle update:', error);
                 }

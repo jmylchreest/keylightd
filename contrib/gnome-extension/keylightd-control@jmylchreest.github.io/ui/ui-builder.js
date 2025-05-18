@@ -7,7 +7,8 @@ import Gio from 'gi://Gio';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import { Slider } from 'resource:///org/gnome/shell/ui/slider.js';
 import { log } from '../utils.js';
-import { SYSTEM_ICON_POWER, getIcon } from '../icons.js';
+import { SYSTEM_ICON_POWER, SYSTEM_ICON_BRIGHTNESS, SYSTEM_ICON_TEMPERATURE } from '../icon-names.js';
+import { getIcon } from '../icons.js';
 import GLib from 'gi://GLib';
 
 // Debounce function to limit function calls
@@ -142,8 +143,12 @@ export class UIBuilder {
             brightnessCallback,
             temperatureCallback,
             id,
-            powerIconName = SYSTEM_ICON_POWER
+            type = 'light',
+            powerIconName = SYSTEM_ICON_POWER,
+            brightnessIconName = SYSTEM_ICON_BRIGHTNESS,
+            temperatureIconName = SYSTEM_ICON_TEMPERATURE
         } = config;
+        log('debug', `[UIBuilder] Creating control section for ${name} (id: ${id}, type: ${type}) with icons: power=${powerIconName}, brightness=${brightnessIconName}, temperature=${temperatureIconName}`);
         
         // Create section container
         const section = new St.BoxLayout({
@@ -154,7 +159,7 @@ export class UIBuilder {
         
         // Add data attributes for identification
         section._keylightdId = id;
-        section._keylightdType = config.type || 'light';
+        section._keylightdType = type;
         
         // Create header with title and toggle
         const headerBox = new St.BoxLayout({
@@ -173,10 +178,23 @@ export class UIBuilder {
         // Always use the system power icon regardless of state
         // Only the style class of the button changes based on state
         const powerIcon = getIcon(powerIconName, {
-            icon_size: 14
+            icon_size: 14,
+            style_class: 'keylightd-power-icon'
         });
+        if (!powerIcon) log('error', `[UIBuilder] Power icon failed to load for ${powerIconName}`);
         
-        powerButton.set_child(powerIcon);
+        // Create a fixed-size container for the power icon to ensure it's visible
+        const powerIconContainer = new St.Bin({
+            style_class: 'keylightd-power-icon-container',
+            width: 18,
+            height: 18,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        powerIconContainer.set_child(powerIcon);
+        
+        // Set the container as the child of the button
+        powerButton.set_child(powerIconContainer);
         
         // Title (no icon anymore)
         const titleLabel = new St.Label({
@@ -231,7 +249,6 @@ export class UIBuilder {
             
             // Update power button style
             if (!powerButton.is_finalized) {
-                // IMPORTANT: Only change the style class, never the icon
                 powerButton.style_class = state ? 
                     'keylightd-power-button keylightd-power-on' : 
                     'keylightd-power-button keylightd-power-off';
@@ -270,7 +287,7 @@ export class UIBuilder {
         // ALWAYS add sliders regardless of light state - they'll just be disabled if off
         // Brightness slider
         const brightnessRow = this.createSliderRow({
-            iconName: 'display-brightness-symbolic',
+            iconName: brightnessIconName,
             value: SLIDER_CONFIGS.brightness.normalize(brightness),
             callback: brightnessCallback ? 
                 debounce(value => brightnessCallback(Math.round(value)), debounceTime) : 
@@ -280,7 +297,7 @@ export class UIBuilder {
         
         // Temperature slider
         const temperatureRow = this.createSliderRow({
-            iconName: 'thermometer-symbolic',
+            iconName: temperatureIconName,
             value: SLIDER_CONFIGS.temperature.normalize(temperature),
             callback: temperatureCallback ? 
                 debounce(value => temperatureCallback(Math.round(value)), debounceTime) : 
@@ -308,6 +325,7 @@ export class UIBuilder {
         section._titleLabel = titleLabel;
         section._powerButton = powerButton;
         section._powerIcon = powerIcon;
+        section._powerIconContainer = powerIconContainer;
         
         return section;
     }
@@ -324,6 +342,7 @@ export class UIBuilder {
             callback,
             type = 'brightness'  // 'brightness' or 'temperature'
         } = config;
+        log('debug', `[UIBuilder] Creating slider row (type: ${type}) with icon: ${iconName}`);
         
         const sliderConfig = SLIDER_CONFIGS[type];
         if (!sliderConfig) {
@@ -336,18 +355,29 @@ export class UIBuilder {
             x_expand: true
         });
         
-        // IMPORTANT: Ensure icon is created properly
-        const icon = getIcon(iconName, {
-            style_class: 'keylightd-slider-icon',
-            icon_size: 18
-        });
-        
         // Create a container for the slider
         const sliderBox = new St.BoxLayout({
             style_class: 'keylightd-slider-box',
             x_expand: true,
             min_width: 0
         });
+        
+        // Ensure the icon is properly created and visible
+        const icon = getIcon(iconName, {
+            style_class: 'keylightd-slider-icon',
+            icon_size: 18
+        });
+        if (!icon) log('error', `[UIBuilder] Slider icon failed to load for ${iconName} (type: ${type})`);
+        
+        // Force a specific size for the icon container to ensure it displays
+        const iconContainer = new St.Bin({
+            style_class: 'keylightd-icon-container',
+            width: 24,
+            height: 24,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER
+        });
+        iconContainer.set_child(icon);
         
         // Slider
         const slider = new Slider(value);
@@ -372,14 +402,17 @@ export class UIBuilder {
 
         // Add the slider to the sliderBox
         sliderBox.add_child(slider);
-        // Add all elements to the row
-        row.add_child(icon);
+        
+        // Add all elements to the row - use iconContainer instead of direct icon
+        row.add_child(iconContainer);
         row.add_child(sliderBox);
         row.add_child(valueLabel);
 
         // Store references for later updates
         row._slider = slider;
         row._valueLabel = valueLabel;
+        row._icon = icon;
+        row._iconContainer = iconContainer;
         row._type = type;
         row._config = sliderConfig;
 

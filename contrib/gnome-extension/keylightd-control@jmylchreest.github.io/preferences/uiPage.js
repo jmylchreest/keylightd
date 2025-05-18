@@ -5,13 +5,14 @@ import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import Adw from 'gi://Adw';
 import {gettext as _} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { SYSTEM_PREFS_UI_ICON } from '../icon-names.js';
 
 export const UIPage = GObject.registerClass(
     class UIPage extends Adw.PreferencesPage {
         _init(settings) {
             super._init({
                 title: _('UI'),
-                icon_name: 'preferences-desktop-display-symbolic'
+                icon_name: SYSTEM_PREFS_UI_ICON
             });
 
             this._settings = settings;

@@ -7,6 +7,7 @@ import Gdk from 'gi://Gdk';
 import Gio from 'gi://Gio';
 
 import { gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { SYSTEM_PREFS_GENERAL_ICON } from '../icon-names.js';
 
 
 export var GeneralPage = GObject.registerClass(
@@ -14,7 +15,7 @@ class KeylightdGeneralPage extends Adw.PreferencesPage {
     _init(settings, settingsKey) {
         super._init({
             title: _('General'),
-            icon_name: 'general-symbolic',
+            icon_name: SYSTEM_PREFS_GENERAL_ICON,
             name: 'GeneralPage'
         });
         this._settings = settings;

@@ -49,6 +49,26 @@
     transition: background-color 0.2s ease;
 }
 
+/* Power icon specific styling */
+.keylightd-power-icon {
+    icon-size: 14px;
+    color: #000000;
+    padding: 0;
+    margin: 0;
+}
+
+.keylightd-power-icon-container {
+    background-color: transparent;
+    min-width: 18px;
+    min-height: 18px;
+    margin: 0;
+    padding: 0;
+}
+
+.keylightd-power-off .keylightd-power-icon {
+    color: #ffffff;
+}
+
 .keylightd-power-button:hover {
     background-color: rgba(100, 100, 100, 0.6);
 }
@@ -77,6 +97,15 @@
     spacing: 8px;
     position: relative;
     min-width: 220px;
+}
+
+/* Icon container for sliders */
+.keylightd-icon-container {
+    background-color: transparent;
+    min-width: 24px;
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
 }
 
 /* Slider box container */

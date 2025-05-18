@@ -262,3 +262,16 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
         throw e;
     }
 }
+
+/**
+ * Fetch all light objects for a group.
+ * @param {GroupsController} groupsController
+ * @param {LightsController} lightsController
+ * @param {string} groupId
+ * @returns {Promise<Array>} Array of light objects
+ */
+export async function getGroupLights(groupsController, lightsController, groupId) {
+    const group = await groupsController.getGroup(groupId);
+    if (!group.lights || !Array.isArray(group.lights)) return [];
+    return await Promise.all(group.lights.map(id => lightsController.getLight(id)));
+}

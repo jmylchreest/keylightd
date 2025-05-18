@@ -12,6 +12,7 @@ import { gettext as _ } from 'resource:///org/gnome/Shell/Extensions/js/extensio
 
 // Import shared utilities
 import { fetchAPI, getErroring, log } from '../utils.js';
+import { SYSTEM_PREFS_GROUPS_ICON } from '../icon-names.js';
 
 // A dialog for adding/editing groups
 const GroupDialog = GObject.registerClass(
@@ -317,7 +318,7 @@ export var GroupsPage = GObject.registerClass({
     _init(settings, settingsKey) {
         super._init({
             title: _('Groups'),
-            icon_name: 'light-group-symbolic',
+            icon_name: SYSTEM_PREFS_GROUPS_ICON,
             name: 'GroupsPage'
         });
         

@@ -4,18 +4,10 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import { log } from './utils.js';
 import St from 'gi://St';
-
-// Icon filenames
-export const ICON_ENABLED = 'light-enabled.svg';
-export const ICON_DISABLED = 'light-disabled.svg';
-export const ICON_UNKNOWN = 'light-unknown.svg';
+import { ICON_ENABLED, ICON_DISABLED, ICON_UNKNOWN, SYSTEM_ICON_POWER, SYSTEM_ICON_BRIGHTNESS, SYSTEM_ICON_TEMPERATURE, FALLBACK_SYSTEM_ICON, SYSTEM_PREFS_GENERAL_ICON, SYSTEM_PREFS_GROUPS_ICON, SYSTEM_PREFS_LIGHTS_ICON, SYSTEM_PREFS_UI_ICON } from './icon-names.js';
 
 // Relative path to actions icons (from extension root)
 export const ACTIONS_PATH = '/icons/hicolor/scalable/actions/';
-
-// System icon names
-export const SYSTEM_ICON_POWER = 'system-shutdown-symbolic';
-export const FALLBACK_SYSTEM_ICON = 'dialog-question-symbolic';
 
 // Light states for semantic use
 export const LightState = {
@@ -45,6 +37,10 @@ export function getIconPath(iconFile) {
     if (!_extensionPath) {
         log('error', 'getIconPath called before icons.js was initialized!');
         return '';
+    }
+    // Always append .svg if not present
+    if (!iconFile.endsWith('.svg')) {
+        iconFile += '.svg';
     }
     const path = `${_extensionPath}${ACTIONS_PATH}${iconFile}`;
     log('debug', `Icon path: ${path}`);
@@ -89,7 +85,6 @@ export function getLightStateIcon(state) {
     if (iconExists(iconPath)) {
         try {
             const icon = Gio.icon_new_for_string(iconPath);
-            log('debug', `Loaded icon for state ${state}: ${iconPath}`);
             return icon;
         } catch (e) {
             log('warn', `Failed to load icon for state ${state} at ${iconPath}: ${e}`);
@@ -169,56 +164,37 @@ export function determineLightState(lights, groups, visibleLightIds, visibleGrou
  * Get a custom or system icon by name
  * @param {string} iconName - The icon name (custom or system)
  * @param {object} [params] - Optional parameters for St.Icon
- * @returns {Gio.Icon|St.Icon}
+ * @returns {St.Icon}
  */
 export function getIcon(iconName, params = {}) {
-    const cacheKey = iconName + JSON.stringify(params);
-    if (_iconCache.has(cacheKey)) {
-        return _iconCache.get(cacheKey);
+    if (!iconName || typeof iconName !== 'string') {
+        log('warn', `Invalid icon name: ${iconName}`);
+        iconName = FALLBACK_SYSTEM_ICON;
     }
 
-    // 1. Try to resolve as a custom icon first
-    const customIconPath = getIconPath(iconName);
-    if (iconExists(customIconPath)) {
-        try {
-            const icon = Gio.icon_new_for_string(customIconPath);
-            log('debug', `Using cached custom icon: ${customIconPath}`);
-            _iconCache.set(cacheKey, icon);
-            return icon;
-        } catch (e) {
-            log('warn', `Failed to load custom icon at ${customIconPath}: ${e}`);
-        }
-    }
+    // Prepare icon properties
+    const iconProps = {
+        style_class: params.style_class || 'popup-menu-icon',
+        icon_size: params.icon_size || 16
+    };
+    if (params.x_align !== undefined) iconProps.x_align = params.x_align;
+    if (params.y_align !== undefined) iconProps.y_align = params.y_align;
 
-    // 2. Try to resolve as a system themed icon
+    // Always check for a custom icon first
     try {
-        let icon;
-        if (params.forGIcon === true) {
-            icon = Gio.ThemedIcon.new(iconName);
-        } else {
-            icon = new St.Icon({
-                icon_name: iconName,
-                ...params
-            });
+        const customIconPath = getIconPath(iconName);
+        if (iconExists(customIconPath)) {
+            const gicon = Gio.icon_new_for_string(customIconPath);
+            iconProps.gicon = gicon;
+            log('debug', `Loaded custom icon as gicon: ${customIconPath}`);
+            return new St.Icon(iconProps);
         }
-        _iconCache.set(cacheKey, icon);
-        return icon;
-    } catch (error) {
-        log('warn', `Error creating system icon ${iconName}:`, error);
+    } catch (e) {
+        log('warn', `Failed to load custom icon for ${iconName}: ${e}`);
     }
 
-    // 3. Fallback to the fallback system icon
-    log('warn', `Falling back to fallback system icon for ${iconName}`);
-    let fallbackIcon;
-    if (params.forGIcon === true) {
-        fallbackIcon = Gio.ThemedIcon.new(FALLBACK_SYSTEM_ICON);
-    } else {
-        fallbackIcon = new St.Icon({
-            icon_name: FALLBACK_SYSTEM_ICON,
-            style_class: params.style_class || 'popup-menu-icon',
-            icon_size: params.icon_size || 16
-        });
-    }
-    _iconCache.set(cacheKey, fallbackIcon);
-    return fallbackIcon;
+    // Fallback to system/themed icon
+    iconProps.icon_name = iconName;
+    log('debug', `getIcon(): using system/themed icon_name: ${iconName}`);
+    return new St.Icon(iconProps);
 } 

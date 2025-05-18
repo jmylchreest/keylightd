@@ -216,10 +216,9 @@ export class LightsController {
      * Check if any visible light is on
      * @returns {Promise<boolean>} - Promise resolving to true if any light is on
      */
-    async isAnyLightOn() {
+    async isAnyVisibleLightOn() {
         try {
             const visibleLights = await this.getVisibleLights();
-            
             for (const light of visibleLights) {
                 try {
                     const lightDetails = await this.getLight(light.id);
@@ -230,7 +229,6 @@ export class LightsController {
                     log('error', `LightsController: Error checking light ${light.id} status: ${error}`);
                 }
             }
-            
             return false;
         } catch (error) {
             log('error', `LightsController: Error checking if any light is on: ${error}`);

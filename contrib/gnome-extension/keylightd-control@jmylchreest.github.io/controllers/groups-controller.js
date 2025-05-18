@@ -1,16 +1,17 @@
 'use strict';
 
-import { fetchAPI } from '../utils.js';
+import { fetchAPI, getGroupLights } from '../utils.js';
 import { convertKelvinToDevice } from './lights-controller.js';
 import { log } from '../utils.js';
 
 export class GroupsController {
-    constructor(settings, stateManager) {
+    constructor(settings, stateManager, lightsController) {
         this._settings = settings;
         this._stateManager = stateManager;
         this._cachedGroups = null;
         this._lastFetchTime = 0;
         this._cacheTTL = 10000; // 10 seconds cache TTL
+        this._lightsController = lightsController;
     }
 
     /**
@@ -195,34 +196,37 @@ export class GroupsController {
     }
 
     /**
-     * Check if any visible group has lights that are on
-     * @returns {Promise<boolean>} - Promise resolving to true if any group has lights on
+     * Check if a group's lights are on.
+     * @param {string} groupId
+     * @param {'any'|'all'} mode - 'any' (default): true if any light is on; 'all': true if all lights are on.
+     * @returns {Promise<boolean>}
      */
-    async isAnyGroupLightOn() {
+    async isGroupOn(groupId, mode = 'any') {
+        try {
+            const lights = await getGroupLights(this, this._lightsController, groupId);
+            if (!lights || lights.length === 0) return false;
+            if (mode === 'all') return lights.every(light => light.on === true);
+            return lights.some(light => light.on === true);
+        } catch (error) {
+            log('error', `GroupsController: Error determining if group ${groupId} is on: ${error}`);
+            return false;
+        }
+    }
+
+    /**
+     * Check if any visible group is on (any or all, depending on mode)
+     * @param {'any'|'all'} mode
+     * @returns {Promise<boolean>}
+     */
+    async isAnyVisibleGroupOn(mode = 'any') {
         try {
             const visibleGroups = await this.getVisibleGroups();
-            
             for (const group of visibleGroups) {
-                try {
-                    const groupDetails = await this.getGroup(group.id);
-                    
-                    if (groupDetails.lights && groupDetails.lights.length > 0) {
-                        // Check the first light in the group
-                        const lightId = groupDetails.lights[0];
-                        const lightDetails = await fetchAPI(`lights/${lightId}`);
-                        
-                        if (lightDetails.on === true) {
-                            return true;
-                        }
-                    }
-                } catch (error) {
-                    log('error', `GroupsController: Error checking group ${group.id} status: ${error}`);
-                }
+                if (await this.isGroupOn(group.id, mode)) return true;
             }
-            
             return false;
         } catch (error) {
-            log('error', `GroupsController: Error checking if any group has lights on: ${error}`);
+            log('error', `GroupsController: Error checking visible groups: ${error}`);
             return false;
         }
     }
@@ -243,7 +247,7 @@ export class GroupsController {
             
             // If state is not provided, determine it by checking if any light is on
             if (state === null) {
-                const anyLightOn = await this.isAnyGroupLightOn();
+                const anyLightOn = await this.isAnyVisibleGroupOn();
                 state = !anyLightOn;
             }
             
@@ -259,42 +263,6 @@ export class GroupsController {
         } catch (error) {
             log('error', `GroupsController: Error toggling all groups: ${error}`);
             throw error;
-        }
-    }
-
-    /**
-     * Check if a specific group has any lights that are on
-     * @param {string} groupId - The group ID to check
-     * @returns {Promise<boolean>} - Promise resolving to true if any light in the group is on
-     */
-    async isGroupOn(groupId) {
-        try {
-            // Get group details
-            const groupDetails = await this.getGroup(groupId);
-            
-            // If the group has no lights, it's not considered "on"
-            if (!groupDetails.lights || !Array.isArray(groupDetails.lights) || groupDetails.lights.length === 0) {
-                return false;
-            }
-            
-            // Check each light in the group
-            for (const lightId of groupDetails.lights) {
-                try {
-                    const lightDetails = await fetchAPI(`lights/${lightId}`);
-                    if (lightDetails.on === true) {
-                        return true; // At least one light is on
-                    }
-                } catch (error) {
-                    log('error', `GroupsController: Error checking light ${lightId} in group ${groupId}: ${error}`);
-                    return false;
-                }
-            }
-            
-            // No lights are on
-            return false;
-        } catch (error) {
-            log('error', `GroupsController: Error determining if group ${groupId} is on: ${error}`);
-            return false; // Default to off in case of error
         }
     }
 } 

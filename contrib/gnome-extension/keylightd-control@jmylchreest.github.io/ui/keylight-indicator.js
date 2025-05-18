@@ -36,7 +36,6 @@ export const KeylightdControl = GObject.registerClass(
                 if (this._keylightdToggle.gicon) {
                     this._indicator.gicon = this._keylightdToggle.gicon;
                     this._indicator.visible = true;
-                    log('debug', 'Updated indicator icon from toggle gicon');
                 }
             });
             

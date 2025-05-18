@@ -21,6 +21,7 @@ pack: build
 		--extra-source=ui/ \
 		--extra-source=utils.js \
 		--extra-source=icons.js \
+		--extra-source=icon-names.js \
 		--out-dir $(DIST_DIR)
 
 clean:

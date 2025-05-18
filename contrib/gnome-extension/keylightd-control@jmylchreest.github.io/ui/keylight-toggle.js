@@ -9,7 +9,9 @@ import { StateEvents } from '../managers/state-manager.js';
 import { log } from '../utils.js';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import { getLightStateIcon, SYSTEM_ICON_POWER, LightState, determineLightState } from '../icons.js';
+import { getLightStateIcon, LightState, determineLightState } from '../icons.js';
+import { SYSTEM_ICON_POWER, SYSTEM_ICON_BRIGHTNESS, SYSTEM_ICON_TEMPERATURE } from '../icon-names.js';
+import { getGroupLights } from '../utils.js';
 
 // Light states enum
 export const LightStates = Object.freeze({
@@ -84,7 +86,7 @@ export const KeylightdControlToggle = GObject.registerClass({
         // Connect to state manager events
         this._stateSubscriptions = [];
         this._subscribeToStateEvents();
-
+        
         // Connect settings change signals
         this._connectSettings();
 
@@ -339,7 +341,7 @@ export const KeylightdControlToggle = GObject.registerClass({
             this._lightsContainer.remove_child(this._lightsContainer.get_first_child());
         }
     }
-    
+
     /**
      * Load controls into the menu (with guard against parallel execution)
      */
@@ -396,51 +398,30 @@ export const KeylightdControlToggle = GObject.registerClass({
             if (visibleGroups.length > 0) {
                 for (const group of visibleGroups) {
                     try {
-                        // Get full group details to get light info
-                        const groupDetails = await this._groupsController.getGroup(group.id);
-                        
-                        // Check if group has any lights
-                        if (!groupDetails.lights || groupDetails.lights.length === 0) {
+                        // Get all light objects for the group in one call
+                        const groupLights = await getGroupLights(this._groupsController, this._lightsController, group.id);
+                        if (!groupLights || groupLights.length === 0) {
                             log('info', `Group ${group.id} has no lights, skipping`);
                             continue;
                         }
-                        
-                        // Get first light in group to determine state
-                        const firstLightId = groupDetails.lights[0];
-                        const firstLight = await this._lightsController.getLight(firstLightId);
-                        
-                        // Check if we have an existing section for this group
-                        const sectionKey = `group:${group.id}`;
-                        const existingSection = existingSections.get(sectionKey);
-                        
-                        let groupSection;
-                        
-                        if (existingSection && !existingSection.is_finalized) {
-                            // Update existing section instead of creating new one
-                            this._uiBuilder.updateControlSection(existingSection, {
-                                name: group.name,
-                                on: firstLight.on === true,
-                                brightness: firstLight.brightness || 50,
-                                temperatureK: this._uiBuilder._convertDeviceToKelvin(firstLight.temperature || 200)
-                            });
-                            
-                            groupSection = existingSection;
-                        } else {
-                            // Create new section
-                            groupSection = this._uiBuilder.createControlSection({
-                                id: group.id,
-                                type: 'group',
-                                name: group.name,
-                                isOn: firstLight.on === true,
-                                brightness: firstLight.brightness || 50,
-                                temperature: this._uiBuilder._convertDeviceToKelvin(firstLight.temperature || 200),
-                                powerIconName: SYSTEM_ICON_POWER,
-                                toggleCallback: (state) => this._toggleGroupState(group.id, state),
-                                brightnessCallback: (value) => this._groupsController.setGroupBrightness(group.id, value),
-                                temperatureCallback: (value) => this._groupsController.setGroupTemperature(group.id, value)
-                            });
-                        }
-                        
+                        // Determine group state: on if any light is on
+                        const anyOn = groupLights.some(light => light && light.on === true);
+                        // Use the first light for brightness/temperature display
+                        const firstLight = groupLights[0];
+                        const groupSection = this._uiBuilder.createControlSection({
+                            id: group.id,
+                            type: 'group',
+                            name: group.name,
+                            isOn: anyOn,
+                            brightness: firstLight.brightness || 50,
+                            temperature: this._uiBuilder._convertDeviceToKelvin(firstLight.temperature || 200),
+                            powerIconName: SYSTEM_ICON_POWER,
+                            brightnessIconName: SYSTEM_ICON_BRIGHTNESS,
+                            temperatureIconName: SYSTEM_ICON_TEMPERATURE,
+                            toggleCallback: (state) => this._toggleGroupState(group.id, state),
+                            brightnessCallback: (value) => this._groupsController.setGroupBrightness(group.id, value),
+                            temperatureCallback: (value) => this._groupsController.setGroupTemperature(group.id, value)
+                        });
                         this._lightsContainer.add_child(groupSection);
                         itemCount++;
                     } catch (error) {
@@ -483,6 +464,8 @@ export const KeylightdControlToggle = GObject.registerClass({
                                 brightness: lightDetails.brightness || 50,
                                 temperature: this._uiBuilder._convertDeviceToKelvin(lightDetails.temperature || 200),
                                 powerIconName: SYSTEM_ICON_POWER,
+                                brightnessIconName: SYSTEM_ICON_BRIGHTNESS,
+                                temperatureIconName: SYSTEM_ICON_TEMPERATURE,
                                 toggleCallback: (state) => this._toggleLightState(light.id, state),
                                 brightnessCallback: (value) => this._lightsController.setLightBrightness(light.id, value),
                                 temperatureCallback: (value) => this._lightsController.setLightTemperature(light.id, value)
@@ -741,7 +724,6 @@ export const KeylightdControlToggle = GObject.registerClass({
         }
         
         const icon = getLightStateIcon(stateStr);
-        log('debug', `Using icon for state ${stateStr}`);
         return icon;
     }
     
@@ -960,11 +942,14 @@ export const KeylightdControlToggle = GObject.registerClass({
     async _toggleLights() {
         try {
             // First, determine the actual state of all lights (not just relying on UI state)
-            const groupLightsOn = await this._groupsController.isAnyGroupLightOn();
-            const lightsOn = await this._lightsController.isAnyLightOn();
-            
-            // Current combined state
-            const anyLightOn = groupLightsOn || lightsOn;
+            const visibleGroups = await this._groupsController.getVisibleGroups();
+            const visibleLights = await this._lightsController.getVisibleLights();
+            const allLights = this._stateManager.getAllLights();
+            const allGroups = this._stateManager.getAllGroups();
+            const visibleLightIds = visibleLights.map(light => light.id);
+            const visibleGroupIds = visibleGroups.map(group => group.id);
+            const state = determineLightState(allLights, allGroups, visibleLightIds, visibleGroupIds);
+            const anyLightOn = state === LightState.ENABLED;
             
             // The new state will be the opposite
             const newState = !anyLightOn;
@@ -975,10 +960,6 @@ export const KeylightdControlToggle = GObject.registerClass({
             
             // Log what we're doing
             log('debug', `Toggle all lights: Current state=${anyLightOn}, new state=${newState}`);
-            
-            const visibleGroups = await this._groupsController.getVisibleGroups();
-            const visibleLights = await this._lightsController.getVisibleLights();
-            let lightsToggled = false;
             
             // First toggle groups if any
             if (visibleGroups.length > 0) {
@@ -1020,7 +1001,6 @@ export const KeylightdControlToggle = GObject.registerClass({
                         await this._groupsController.setGroupState(group.id, false);
                     }
                 }
-                lightsToggled = true;
             }
             
             // Then toggle individual lights
@@ -1063,10 +1043,9 @@ export const KeylightdControlToggle = GObject.registerClass({
                         await this._lightsController.setLightState(light.id, false);
                     }
                 }
-                lightsToggled = true;
             }
             
-            if (!lightsToggled) {
+            if (visibleGroups.length === 0 && visibleLights.length === 0) {
                 log('info', 'No visible lights or groups to toggle');
             }
             
@@ -1138,7 +1117,7 @@ export const KeylightdControlToggle = GObject.registerClass({
             // Get all visible groups and lights
             const visibleGroups = await this._groupsController.getVisibleGroups();
             const visibleLights = await this._lightsController.getVisibleLights();
-            
+
             // Get all lights and groups for state checking
             const allLights = this._stateManager.getAllLights();
             const allGroups = this._stateManager.getAllGroups();
@@ -1163,7 +1142,7 @@ export const KeylightdControlToggle = GObject.registerClass({
                     newState = LightStates.UNKNOWN;
                     break;
             }
-            
+
             // Update icon and toggle state
             this._updateIcon(newState);
             this.checked = (newState === LightStates.ENABLED);
@@ -1213,7 +1192,7 @@ export const KeylightdControlToggle = GObject.registerClass({
                     newState = LightStates.UNKNOWN;
                     break;
             }
-            
+
             // Update icon and toggle state
             this._updateIcon(newState);
             this.checked = (newState === LightStates.ENABLED);
