@@ -1,0 +1,48 @@
+name: Build and Release GNOME Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make gnome-shell-extensions
+          
+      - name: Build extension
+        run: |
+          cd contrib/gnome-extension/keylightd-control@jmylchreest.github.io
+          make
+          
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-extension
+          path: contrib/gnome-extension/keylightd-control@jmylchreest.github.io/keylightd-control@jmylchreest.github.io.zip
+          
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gnome-extension
+          
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: keylightd-control@jmylchreest.github.io.zip
+          generate_release_notes: true 

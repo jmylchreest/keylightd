@@ -39,6 +39,10 @@ builds:
       - -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit={{.ShortCommit}}
       - -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate={{.Date}}
 
+release:
+  extra_files:
+    - dist/gnome-extension/**
+
 archives:
   - formats: [ 'tar.gz' ]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"

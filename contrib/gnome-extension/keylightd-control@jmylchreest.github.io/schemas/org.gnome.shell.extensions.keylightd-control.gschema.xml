@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.keylightd-control" path="/org/gnome/shell/extensions/keylightd-control/">
+    <!-- API -->
+    <key type="s" name="api-url">
+      <default>''</default>
+      <summary>API URL</summary>
+      <description>The URL of the keylightd API server</description>
+    </key>
+    <key type="s" name="api-key">
+      <default>''</default>
+      <summary>API Key</summary>
+      <description>The API key for authenticating with the keylightd server</description>
+    </key>
+    <!-- Refresh Settings -->
+    <key type="i" name="refresh-interval">
+      <default>30</default>
+      <summary>Refresh Interval</summary>
+      <description>How often to refresh light states in seconds</description>
+    </key>
+    <key type="i" name="debounce-delay">
+      <default>500</default>
+      <summary>Control Update Delay</summary>
+      <description>Delay in milliseconds before sending control updates to lights. Higher values reduce network traffic but make controls less responsive.</description>
+    </key>
+    <!-- Debug Settings -->
+    <key type="b" name="enable-logging">
+      <default>false</default>
+      <summary>Enable Logging</summary>
+      <description>Enable debug logging to the console</description>
+    </key>
+    <key type="s" name="log-level">
+      <default>'warning'</default>
+      <summary>Log Level</summary>
+      <description>The minimum log level to display (debug, info, warning, error)</description>
+    </key>
+    <!-- groups -->
+    <key type="as" name="groups">
+      <default>[]</default>
+      <summary>Groups</summary>
+      <description>List of group names to display.</description>
+    </key>
+    <key type="as" name="visible-groups">
+      <default>[]</default>
+      <summary>Visible Groups</summary>
+      <description>List of group IDs that should be visible in the quick settings menu.</description>
+    </key>
+    <!-- lights -->
+    <key type="as" name="visible-lights">
+      <default>[]</default>
+      <summary>Visible Lights</summary>
+      <description>List of light IDs that should be visible in the quick settings menu.</description>
+    </key>
+    <!-- UI Settings -->
+    <key type="b" name="use-animations">
+      <default>true</default>
+      <summary>Use Animations</summary>
+      <description>Enable animations for state changes</description>
+    </key>
+    <key type="i" name="animation-duration">
+      <default>300</default>
+      <summary>Animation Duration</summary>
+      <description>Duration of animations in milliseconds when toggling lights.</description>
+    </key>
+    <key type="b" name="compact-layout">
+      <default>false</default>
+      <summary>Compact Layout</summary>
+      <description>Use a more condensed UI layout.</description>
+    </key>
+    <!-- preferences -->
+    <key type="i" name="prefs-default-width">
+      <default>600</default>
+      <summary>Default width for the preferences window</summary>
+    </key>
+    <key type="i" name="prefs-default-height">
+      <default>800</default>
+      <summary>Default height for the preferences window</summary>
+    </key>
+    <key type="d" name="max-height-percent">
+      <default>0.5</default>
+      <summary>Max Height Percent</summary>
+      <description>Maximum percent of the screen height the lights scroll view can use (range: 0.25 to 0.75).</description>
+    </key>
+  </schema>
+</schemalist> 

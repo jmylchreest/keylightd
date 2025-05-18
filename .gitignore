@@ -9,6 +9,9 @@ dist/
 /keylightd
 /keylightctl
 
+# archives
+*.zip
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -30,3 +33,14 @@ go.work
 # OS specific files
 .DS_Store
 Thumbs.db 
+
+# temporary files
+*.tmp
+*.tmp~
+*.tmp.*
+*.tmp.*~
+*.tmp.*.*
+*.tmp.*.*~
+tmp/
+temp/
+contrib/gnome-extension/keylightd-control@jmylchreest.github.io/schemas/gschemas.compiled

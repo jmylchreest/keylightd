@@ -1,0 +1,258 @@
+/* Menu container */
+.keylightd-menu-box {
+    width: 290px;
+    min-width: 290px;
+    max-width: 290px;
+    padding: 1px;
+}
+
+/* Title styling */
+.keylightd-title-label {
+    font-size: 13px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+/* Container for lights/groups */
+.keylightd-lights-container {
+    margin: 0;
+    padding: 4px 10px;
+    spacing: 8px;
+}
+
+/* Control section styling */
+.keylightd-control-section {
+    margin: 0 0 4px 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background-color: rgba(50, 50, 50, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+/* Header box styling */
+.keylightd-header-box {
+    margin-bottom: 6px;
+    padding: 0px;
+    spacing: 8px;
+}
+
+/* Power button styling */
+.keylightd-power-button {
+    min-width: 28px;
+    min-height: 28px;
+    border-radius: 14px;
+    padding: 0;
+    margin: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background-color: rgba(80, 80, 80, 0.4);
+    transition: background-color 0.2s ease;
+}
+
+/* Power icon specific styling */
+.keylightd-power-icon {
+    icon-size: 14px;
+    color: #000000;
+    padding: 0;
+    margin: 0;
+}
+
+.keylightd-power-icon-container {
+    background-color: transparent;
+    min-width: 18px;
+    min-height: 18px;
+    margin: 0;
+    padding: 0;
+}
+
+.keylightd-power-off .keylightd-power-icon {
+    color: #ffffff;
+}
+
+.keylightd-power-button:hover {
+    background-color: rgba(100, 100, 100, 0.6);
+}
+
+.keylightd-power-button:active {
+    background-color: rgba(120, 120, 120, 0.8);
+}
+
+.keylightd-power-on {
+    background-color: rgb(255, 204, 51);
+    border-color: rgba(0, 0, 0, 0.2);
+}
+
+.keylightd-power-on:hover {
+    background-color: rgb(255, 217, 102);
+}
+
+.keylightd-power-on:active {
+    background-color: rgb(255, 230, 153);
+}
+
+/* Slider row styling */
+.keylightd-slider-row {
+    margin: 4px 0;
+    padding: 0;
+    spacing: 8px;
+    position: relative;
+    min-width: 220px;
+}
+
+/* Icon container for sliders */
+.keylightd-icon-container {
+    background-color: transparent;
+    min-width: 24px;
+    min-height: 24px;
+    margin: 0;
+    padding: 0;
+}
+
+/* Slider box container */
+.keylightd-slider-box {
+    spacing: 8px;
+    min-width: 120px;
+    position: relative;
+}
+
+/* Slider styling - supports both modern GNOME (45+) and legacy (≤44) */
+.keylightd-slider {
+    min-width: 100px;
+    height: 18px;
+    margin: 0 8px 0 0;
+    
+    /* Modern GNOME (45+) */
+    -slider-height: 8px;
+    -slider-background-color: rgba(80, 80, 80, 0.4);
+    -slider-active-background-color: rgb(255, 204, 51);
+    -slider-border-width: 1px;
+    -slider-border-color: rgba(255, 255, 255, 0.15);
+    -slider-overdrive-color: rgb(255, 128, 0);
+    -slider-overdrive-separator-width: 1px;
+    -slider-overflow-y: visible;
+    
+    /* Legacy GNOME (≤44) */
+    -barlevel-height: 8px;
+    -barlevel-background-color: rgba(80, 80, 80, 0.4);
+    -barlevel-active-background-color: rgb(255, 204, 51);
+    -barlevel-border-width: 1px;
+    -barlevel-border-color: rgba(255, 255, 255, 0.15);
+    -barlevel-overdrive-color: rgb(255, 128, 0);
+    -barlevel-overdrive-separator-width: 1px;
+    -barlevel-overflow-y: visible;
+}
+
+/* Slider icon */
+.keylightd-slider-icon {
+    icon-size: 18px;
+    padding: 0;
+    margin: 0;
+}
+
+/* Slider tooltip */
+.keylightd-slider-tooltip {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    position: absolute;
+    top: -28px;
+    pointer-events: none;
+    z-index: 10;
+    min-width: 40px;
+    max-width: 80px;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+
+/* Value label */
+.keylightd-value-label {
+    min-width: 45px;
+    text-align: right;
+    vertical-align: middle;
+    font-size: 13px;
+    color: #fff;
+    margin-left: 8px;
+}
+
+/* No lights message */
+.keylightd-no-lights-label {
+    padding: 16px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* Group and light count labels */
+.keylightd-group-count,
+.keylightd-light-count {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    font-style: italic;
+    padding: 4px 0;
+    margin-bottom: 6px;
+}
+
+/* Section header */
+.keylightd-section-header {
+    font-weight: bold;
+    font-size: 15px;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 2px;
+}
+
+/* Scroll view */
+.keylightd-scroll-view {
+    min-height: 120px;
+}
+
+.keylightd-scroll-view .vfade {
+    -st-vfade-offset: 32px;
+}
+
+.keylightd-scroll-view StScrollBar {
+    min-width: 8px;
+    padding: 0;
+    /* margin-right: -12px; */ /* Removed to ensure scrollbar is visible */
+    z-index: 2;
+}
+
+.keylightd-scroll-view StScrollBar StBin#trough {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.keylightd-scroll-view StScrollBar StBin#vhandle {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.keylightd-scroll-view StScrollBar StBin#vhandle:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+.keylightd-action-row {
+    margin: 10px 0 0 0;
+    padding: 0 10px 10px 10px;
+    spacing: 8px;
+    x-align: center;
+}
+
+.keylightd-action-button {
+    background-color: rgba(50, 50, 50, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 4px 0;
+    min-height: 28px;
+    min-width: 150px;
+    x-align: center;
+    transition: background-color 0.2s;
+}
+.keylightd-action-button:hover {
+    background-color: rgba(80, 80, 80, 0.5);
+} 

@@ -1,0 +1,22 @@
+[Unit]
+Description=Elgato Keylight Daemon
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/keylightd
+Restart=on-failure
+RestartSec=5s
+User=keylightd
+Group=keylightd
+Environment=KEYLIGHT_CONFIG=/etc/keylight/keylightd.yaml
+WorkingDirectory=/var/lib/keylightd
+
+# Security best practices
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target 
