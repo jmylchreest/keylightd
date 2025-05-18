@@ -4,7 +4,7 @@ DIST_DIR=../../dist/gnome-extension
 
 .PHONY: all build clean pack
 
-all: build
+all: clean build pack 
 
 build:
 	@echo "Building schemas..."

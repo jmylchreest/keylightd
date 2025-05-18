@@ -42,6 +42,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.txt
           fail_ci_if_error: true
+
   build-gnome-extension:
     runs-on: ubuntu-latest
     needs: test
@@ -57,13 +58,14 @@ jobs:
       - name: Build extension
         run: |
           cd contrib/gnome-extension
-          make
+          make all
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@v4
         with:
           name: gnome-extension
           path: dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
+
   release-keylightd:
     runs-on: ubuntu-latest
     needs: build-gnome-extension
