@@ -1,6 +1,6 @@
 EXT_UUID=keylightd-control@jmylchreest.github.io
 EXT_DIR=$(EXT_UUID)
-DIST_DIR=../../dist/gnome-extension
+DIST_DIR=../dist/gnome-extension
 
 .PHONY: all build clean pack
 
@@ -30,7 +30,7 @@ mkdist: clean
 
 zip: mkdist build
 	@echo "Zipping extension..."
-	zip -r $(DIST_DIR)/$(EXT_UUID).shell-extension.zip $(EXT_DIR)
+	@(cd $(EXT_DIR) && zip -r ../$(DIST_DIR)/$(EXT_UUID).shell-extension.zip .)
 
 clean:
 	rm -rf $(EXT_DIR)/schemas/gschemas.compiled
