@@ -264,6 +264,13 @@ func (c *Config) Save() error {
 	if configPath == "" {
 		return fmt.Errorf("no config file path set for saving")
 	}
+
+	// Create the directory if it doesn't exist
+	configDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return fmt.Errorf("error creating config directory %s: %w", configDir, err)
+	}
+
 	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return fmt.Errorf("error writing config file: %w", err)
 	}

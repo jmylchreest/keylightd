@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <radialGradient gradientUnits="userSpaceOnUse" cx="33.728" cy="11.039" r="5.2" id="gradient-1" gradientTransform="matrix(2.68814, -2.002224, 0.600614, 0.801032, -85.308396, 69.012588)" spreadMethod="pad">
+      <stop offset="0" style="stop-color: rgb(255, 255, 255);"/>
+      <stop offset="1" style="stop-color: rgb(111, 169, 245);"/>
+    </radialGradient>
+  </defs>
+  <rect x="9.5" y="17" width="5" height="3" rx="1.5" fill="none"/>
+  <circle cx="12" cy="10.5" r="6" fill="#fff"/>
+  <circle cx="11.988" cy="10.325" r="5.2" style="fill: url(#gradient-1); fill-rule: evenodd; paint-order: stroke;" transform="matrix(1.144783, 0, 0, 1.148593, -1.677966, -1.447917)"/>
+  <text style="fill: #fff; font-family: Arial, sans-serif; font-size: 28px; paint-order: stroke; white-space: pre;" transform="matrix(0.42405, 0, 0, 0.453381, -2.260531, 7.175197)" x="26.267" y="16.744">?</text>
+</svg> 
