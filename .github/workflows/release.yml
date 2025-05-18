@@ -56,7 +56,7 @@ jobs:
 
       - name: Build extension
         run: |
-          cd contrib/gnome-extension/keylightd-control@jmylchreest.github.io
+          cd contrib/gnome-extension
           make
 
       - name: Upload extension artifact
