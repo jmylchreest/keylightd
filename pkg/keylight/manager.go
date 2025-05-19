@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/errors"
 )
 
@@ -188,11 +189,11 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 		if !ok {
 			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
-		// Clamp to valid range (3-100)
-		if brightness < 3 {
-			brightness = 3
-		} else if brightness > 100 {
-			brightness = 100
+		// Clamp to valid range using constants from config package
+		if brightness < config.MinBrightness {
+			brightness = config.MinBrightness
+		} else if brightness > config.MaxBrightness {
+			brightness = config.MaxBrightness
 		}
 		state.Lights[0].Brightness = brightness
 	case "temperature":
@@ -328,8 +329,10 @@ func (m *Manager) AddLight(light Light) {
 func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.Duration, timeout time.Duration) {
 	m.logger.Debug("light: StartCleanupWorker called", "interval", cleanupInterval, "timeout", timeout)
 	if cleanupInterval <= 0 {
-		m.logger.Warn("Cleanup interval must be positive, not starting cleanup worker", "interval", cleanupInterval)
-		return
+		m.logger.Warn("Cleanup interval must be positive, using default instead", 
+			"interval", cleanupInterval, 
+			"default", config.DefaultCleanupInterval)
+		cleanupInterval = config.DefaultCleanupInterval
 	}
 	go func() {
 		ticker := time.NewTicker(cleanupInterval)
@@ -347,9 +350,18 @@ func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.D
 	}()
 }
 
+// cleanupStaleLights removes lights that haven't been seen for a while
 func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	
+	// Use default timeout if the provided one is invalid
+	if timeout <= 0 {
+		m.logger.Debug("Invalid cleanup timeout, using default", 
+			"provided", timeout, 
+			"default", config.DefaultStateTimeout)
+		timeout = config.DefaultStateTimeout
+	}
 
 	now := time.Now()
 	staleLights := []string{}

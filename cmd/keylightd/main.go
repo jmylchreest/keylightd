@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -38,7 +39,7 @@ func main() {
 			v.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
 
 			// Load configuration
-			cfg, err := config.Load("keylightd.yaml", v.GetString("config"))
+			cfg, err := config.Load(config.DaemonConfigFilename, v.GetString("config"))
 			if err != nil {
 				logger := utils.SetupErrorLogger()
 				logger.Error("failed to load configuration", "error", err)
@@ -62,8 +63,9 @@ func main() {
 			defer cancel()
 
 			go func() {
-				if err := manager.DiscoverLights(ctx, time.Duration(cfg.Config.Discovery.Interval)*time.Second); err != nil {
-					// Error is already logged by the DiscoverLights method
+				// Convert interval from seconds to duration
+				interval := time.Duration(cfg.Config.Discovery.Interval) * time.Second
+				if err := manager.DiscoverLights(ctx, interval); err != nil {
 					logger.Debug("Discovery routine terminated")
 				}
 			}()
@@ -84,10 +86,11 @@ func main() {
 	}
 
 	// Define flags using Cobra (pflag under the hood)
-	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
-	rootCmd.PersistentFlags().String("log-format", "text", "Log format (text, json)")
+	rootCmd.PersistentFlags().String("log-level", config.LogLevelInfo, "Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().String("log-format", config.LogFormatText, "Log format (text, json)")
 	rootCmd.PersistentFlags().String("config", "", "Path to config file")
-	rootCmd.PersistentFlags().Int("discovery-interval", 30, "Discovery interval in seconds")
+	rootCmd.PersistentFlags().Int("discovery-interval", int(config.DefaultDiscoveryInterval.Seconds()),
+		fmt.Sprintf("Discovery interval in seconds (minimum: %d)", int(config.MinDiscoveryInterval.Seconds())))
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

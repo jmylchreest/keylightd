@@ -3,10 +3,9 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jmylchreest/keylightd/internal/config"
 	"log/slog"
 	"net"
-	"os"
-	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -41,15 +40,9 @@ type Client struct {
 // New creates a new client
 func New(logger *slog.Logger, socket string) *Client {
 	if socket == "" {
-		// Use XDG runtime directory
-		if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-			socket = filepath.Join(dir, "keylightd.sock")
-			logger.Debug("Using XDG runtime directory for socket", "dir", dir, "socket", socket)
-		} else {
-			uid := os.Getuid()
-			socket = filepath.Join("/run/user", fmt.Sprintf("%d", uid), "keylightd.sock")
-			logger.Debug("Using /run/user for socket", "uid", uid, "socket", socket)
-		}
+		// Use the shared config utility to get the socket path
+		socket = config.GetRuntimeSocketPath()
+		logger.Debug("Using default socket path", "socket", socket)
 	} else {
 		logger.Debug("Using provided socket path", "socket", socket)
 	}

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,12 +14,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	// DefaultKeyLength is the default length for generated API keys.
-	DefaultKeyLength = 32
-	// DefaultKeyCharset is the characters used for API key generation.
-	DefaultKeyCharset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-)
+// Using constants defined in constants.go
 
 // APIKey holds the information for an API authentication key.
 type APIKey struct {
@@ -62,25 +56,7 @@ func GenerateKey(length int) (string, error) {
 }
 
 // XDG helpers
-func GetRuntimeSocketPath() string {
-	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
-		return filepath.Join(dir, "keylightd.sock")
-	}
-	uid := os.Getuid()
-	return filepath.Join("/run/user", strconv.Itoa(uid), "keylightd.sock")
-}
-
-func getConfigBaseDir() string {
-	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
-		return filepath.Join(dir, "keylight")
-	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "keylight")
-}
-
-func getConfigPath(filename string) string {
-	return filepath.Join(getConfigBaseDir(), filename)
-}
+// Using path utility functions from utils.go
 
 // State holds persistent data like API keys and groups
 type State struct {
@@ -142,12 +118,12 @@ func Load(configName, configFile string) (*Config, error) {
 
 	// Set default values
 	v.SetDefault("config.server.unix_socket", GetRuntimeSocketPath())
-	v.SetDefault("config.discovery.interval", 30)
-	v.SetDefault("config.logging.level", "info")
-	v.SetDefault("config.logging.format", "text")
-	v.SetDefault("config.discovery.cleanup_interval", 60)
-	v.SetDefault("config.discovery.cleanup_timeout", 180)
-	v.SetDefault("config.api.listen_address", ":9123")
+	v.SetDefault("config.discovery.interval", int(DefaultDiscoveryInterval.Seconds()))
+	v.SetDefault("config.logging.level", LogLevelInfo)
+	v.SetDefault("config.logging.format", LogFormatText)
+	v.SetDefault("config.discovery.cleanup_interval", int(DefaultCleanupInterval.Seconds()))
+	v.SetDefault("config.discovery.cleanup_timeout", int(DefaultStateTimeout.Seconds()))
+	v.SetDefault("config.api.listen_address", DefaultAPIListenAddress)
 	v.SetDefault("state.api_keys", []APIKey{})
 
 	// Add config paths
@@ -155,7 +131,7 @@ func Load(configName, configFile string) (*Config, error) {
 		v.SetConfigFile(configFile)
 		slog.Info("Using config file from command line", "path", configFile)
 	} else {
-		configPath := getConfigPath(configName)
+		configPath := GetConfigPath(configName)
 		v.SetConfigFile(configPath)
 	}
 
@@ -196,22 +172,27 @@ func Load(configName, configFile string) (*Config, error) {
 		cfg.Config.Server.UnixSocket = GetRuntimeSocketPath()
 	}
 	if cfg.Config.Discovery.Interval == 0 {
-		cfg.Config.Discovery.Interval = 30
+		cfg.Config.Discovery.Interval = int(DefaultDiscoveryInterval.Seconds())
+	} else {
+		cfg.Config.Discovery.Interval = ValidateDiscoveryInterval(cfg.Config.Discovery.Interval)
 	}
 	if cfg.Config.Discovery.CleanupInterval == 0 {
-		cfg.Config.Discovery.CleanupInterval = 60
+		cfg.Config.Discovery.CleanupInterval = int(DefaultCleanupInterval.Seconds())
 	}
 	if cfg.Config.Discovery.CleanupTimeout == 0 {
-		cfg.Config.Discovery.CleanupTimeout = 180
+		cfg.Config.Discovery.CleanupTimeout = int(DefaultStateTimeout.Seconds())
 	}
 	if cfg.Config.API.ListenAddress == "" {
-		cfg.Config.API.ListenAddress = ":9123"
+		cfg.Config.API.ListenAddress = DefaultAPIListenAddress
 	}
-	if cfg.Config.Logging.Level == "" {
-		cfg.Config.Logging.Level = "info"
+	// Use default values if logging configuration is invalid
+	if cfg.Config.Logging.Level != LogLevelDebug && cfg.Config.Logging.Level != LogLevelInfo && 
+	   cfg.Config.Logging.Level != LogLevelWarn && cfg.Config.Logging.Level != LogLevelError {
+		cfg.Config.Logging.Level = LogLevelInfo
 	}
-	if cfg.Config.Logging.Format == "" {
-		cfg.Config.Logging.Format = "text"
+	
+	if cfg.Config.Logging.Format != LogFormatText && cfg.Config.Logging.Format != LogFormatJSON {
+		cfg.Config.Logging.Format = LogFormatText
 	}
 	return cfg, nil
 }
@@ -249,7 +230,7 @@ func (c *Config) Save() error {
 	if !isDefaultLogging(c.Config.Logging) {
 		configMap["logging"] = c.Config.Logging
 	}
-	if c.Config.API.ListenAddress != ":9123" {
+	if c.Config.API.ListenAddress != DefaultAPIListenAddress {
 		configMap["api"] = c.Config.API
 	}
 	if len(configMap) > 0 {
@@ -288,7 +269,7 @@ func isDefaultDiscovery(d DiscoveryConfig) bool {
 }
 
 func isDefaultLogging(l LoggingConfig) bool {
-	return l.Level == "info" && l.Format == "text"
+	return l.Level == LogLevelInfo && l.Format == LogFormatText
 }
 
 // Get retrieves a value from the configuration

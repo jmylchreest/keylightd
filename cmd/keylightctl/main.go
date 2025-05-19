@@ -25,7 +25,7 @@ func main() {
 	var configFile string
 
 	// Load configuration first
-	cfg, err := config.Load("keylightctl.yaml", configFile)
+	cfg, err := config.Load(config.ClientConfigFilename, configFile)
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			logger := utils.SetupErrorLogger()
@@ -36,8 +36,8 @@ func main() {
 		cfg = &config.Config{
 			Config: config.ConfigBlock{
 				Logging: config.LoggingConfig{
-					Level:  "info",
-					Format: "text",
+					Level:  config.LogLevelInfo,
+					Format: config.LogFormatText,
 				},
 			},
 		}
@@ -52,10 +52,11 @@ func main() {
 	}
 
 	// Set up logging with configured level
+	// Set up logging with the configured level and format
 	logger := utils.SetupLogger(cfg.Config.Logging.Level, cfg.Config.Logging.Format)
 	utils.SetAsDefaultLogger(logger)
 
-	// Set socket path from config
+	// Set socket path using the new utility function
 	socket := config.GetRuntimeSocketPath()
 	if cfg.Config.Server.UnixSocket != "" {
 		socket = cfg.Config.Server.UnixSocket
