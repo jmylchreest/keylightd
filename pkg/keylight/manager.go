@@ -42,174 +42,92 @@ func (m *Manager) GetDiscoveredLights() []*Light {
 
 // GetLight returns a light by ID and updates its state
 func (m *Manager) GetLight(id string) (*Light, error) {
-	// Use RLock to safely read the light and client initially
-	m.mu.RLock()
-	light, exists := m.lights[id]
-	client, clientExists := m.clients[id]
-	m.mu.RUnlock()
-
-	if !exists {
-		return nil, errors.NotFoundf("light %s not found", id)
-	}
-
-	// If client doesn't exist (shouldn't happen after AddLight, but as a safeguard)
-	// create one. This might indicate a logic error elsewhere if it occurs often.
-	if !clientExists {
-		// Although creating the client is not blocking, acquiring a lock here briefly is fine.
-		m.mu.Lock()
-		// Double check exists after re-locking
-		light, exists = m.lights[id] // Re-read light in case it was removed while unlocked
-		if !exists {
-			m.mu.Unlock()
-			return nil, errors.NotFoundf("light %s not found", id)
-		}
-		client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
-		m.clients[id] = client
-		m.mu.Unlock()
-	}
-
-	var updatedLight Light = light // Work on a copy
-
-	// Get accessory info if not already set - happens OUTSIDE the lock
-	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" {
-		info, err := client.GetAccessoryInfo(context.Background())
-		if err != nil {
-			// Log error but continue without accessory info if fetching fails
-			errors.LogErrorAndReturn(m.logger, err, "failed to get accessory info during GetLight", "id", id)
-		} else {
-			updatedLight.ProductName = info.ProductName
-			updatedLight.HardwareBoardType = info.HardwareBoardType
-			updatedLight.FirmwareVersion = info.FirmwareVersion
-			updatedLight.FirmwareBuild = info.FirmwareBuildNumber
-			updatedLight.SerialNumber = info.SerialNumber
-			updatedLight.Name = info.DisplayName // Update name based on display name
-		}
-	}
-
-	// Get current state - happens OUTSIDE the lock
-	state, err := client.GetLightState(context.Background())
+	// Get client and light information
+	client, light, err := m.getOrCreateClient(id)
 	if err != nil {
-		// Return the error with proper wrapping and logging
-		return &updatedLight, errors.LogErrorAndReturn(
-			m.logger,
-			errors.DeviceUnavailablef("failed to get current state: %w", err),
-			"failed to get current state during GetLight",
-			"id", id,
-		)
+		return nil, err
 	}
 
-	// Update local state - acquire write lock briefly
+	// Fetch accessory info if needed
+	ctx := context.Background()
+	needsInfo := light.ProductName == "" || light.SerialNumber == ""
+	var info *AccessoryInfo
+	
+	if needsInfo {
+		info, err = m.fetchAccessoryInfo(ctx, client, id)
+		// Errors are already logged in fetchAccessoryInfo, continue without info
+	}
+	
+	// Fetch current state
+	state, err := m.fetchLightState(ctx, client, id)
+	if err != nil {
+		// If we have accessory info but state fetch failed, return partial information
+		if needsInfo && info != nil {
+			// Update light info with what we have
+			m.mu.Lock()
+			updatedLight, _ := m.updateLightInfo(id, info)
+			m.mu.Unlock()
+			return updatedLight, err
+		}
+		return light, err
+	}
+
+	// Update both state and info if needed
 	m.mu.Lock()
-	// Re-read light under lock just in case it was updated by another goroutine between RUnlock and Lock
-	if l, ok := m.lights[id]; ok {
-		// Update only the state fields
-		l.State = state
-		l.Temperature = state.Lights[0].Temperature
-		l.Brightness = state.Lights[0].Brightness
-		l.On = state.Lights[0].On == 1
-
-		// Merge updated info fields from the copy back into the stored light
-		l.ProductName = updatedLight.ProductName
-		l.HardwareBoardType = updatedLight.HardwareBoardType
-		l.FirmwareVersion = updatedLight.FirmwareVersion
-		l.FirmwareBuild = updatedLight.FirmwareBuild
-		l.SerialNumber = updatedLight.SerialNumber
-		l.Name = updatedLight.Name
-
-		// Update LastSeen on successful communication
-		l.LastSeen = time.Now()
-
-		m.lights[id] = l // Store the updated light back
-		updatedLight = l // Ensure the returned light has the latest combined data
-	} else {
-		// Light was removed while we were fetching data. Return not found error.
-		m.mu.Unlock()
-		return nil, errors.NotFoundf("light %s not found during update after fetch", id)
+	defer m.mu.Unlock()
+	
+	// First update state
+	updatedLight, err := m.updateLightState(id, state)
+	if err != nil {
+		return light, err
 	}
-	m.mu.Unlock()
+	
+	// Then update info if we fetched it
+	if needsInfo && info != nil {
+		updatedLight, err = m.updateLightInfo(id, info)
+		if err != nil {
+			return updatedLight, err
+		}
+	}
 
-	// Log the final light struct before returning
-	m.logger.Debug("GetLight returning light", slog.String("id", id), slog.Any("light", updatedLight))
+	// Log light information
+	m.logger.Debug("GetLight returning light", slog.String("id", id), slog.Any("light", *updatedLight))
 	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" || updatedLight.FirmwareVersion == "" {
-		m.logger.Warn("GetLight: missing key fields in returned light", slog.String("id", id), slog.String("productname", updatedLight.ProductName), slog.String("serialnumber", updatedLight.SerialNumber), slog.String("firmwareversion", updatedLight.FirmwareVersion))
+		m.logger.Warn("GetLight: missing key fields in returned light", 
+			slog.String("id", id), 
+			slog.String("productname", updatedLight.ProductName), 
+			slog.String("serialnumber", updatedLight.SerialNumber), 
+			slog.String("firmwareversion", updatedLight.FirmwareVersion))
 	}
-	return &updatedLight, nil
+	
+	return updatedLight, nil
 }
 
 // SetLightState sets the state of a light
 // It fetches the current state, updates the specified property, and sends the new state to the device.
 func (m *Manager) SetLightState(id string, property string, value any) error {
-	// Use RLock to safely read the light and client initially
-	m.mu.RLock()
-	light, exists := m.lights[id]
-	client, clientExists := m.clients[id]
-	m.mu.RUnlock()
-
-	if !exists {
-		return errors.NotFoundf("light %s not found", id)
-	}
-
-	// If client doesn't exist (shouldn't happen after AddLight, but as a safeguard)
-	// create one. This might indicate a logic error elsewhere if it occurs often.
-	// Note: Creating a client is not blocking, so a brief lock here is acceptable.
-	if !clientExists {
-		m.mu.Lock()
-		// Double check exists after re-locking
-		light, exists = m.lights[id] // Re-read light in case it was removed while unlocked
-		if !exists {
-			m.mu.Unlock()
-			return errors.NotFoundf("light %s not found", id)
-		}
-		client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
-		m.clients[id] = client
-		m.mu.Unlock()
-	}
-
-	// Get current state from the device - happens OUTSIDE the lock
-	state, err := client.GetLightState(context.Background())
+	// Get client and light information
+	client, _, err := m.getOrCreateClient(id)
 	if err != nil {
-		return errors.LogErrorAndReturn(
-			m.logger,
-			errors.DeviceUnavailablef("failed to get current state before setting: %w", err),
-			"failed to get light state",
-			"id", id,
-		)
+		return err
 	}
-
-	// Update state based on property - happens OUTSIDE the lock
-	switch property {
-	case "on":
-		on, ok := value.(bool)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for on: %T", value)
-		}
-		state.Lights[0].On = boolToInt(on)
-	case "brightness":
-		brightness, ok := value.(int)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for brightness: %T", value)
-		}
-		// Clamp to valid range using constants from config package
-		if brightness < config.MinBrightness {
-			brightness = config.MinBrightness
-		} else if brightness > config.MaxBrightness {
-			brightness = config.MaxBrightness
-		}
-		state.Lights[0].Brightness = brightness
-	case "temperature":
-		temp, ok := value.(int)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for temperature: %T", value)
-		}
-		// Convert from Kelvin to mireds
-		state.Lights[0].Temperature = convertTemperatureToDevice(temp)
-	default:
-		return errors.InvalidInputf("unknown property: %s", property)
+	
+	ctx := context.Background()
+	
+	// Get current state from the device
+	state, err := m.fetchLightState(ctx, client, id)
+	if err != nil {
+		return err
 	}
-
-	// Send updated state to device - happens OUTSIDE the lock
+	
+	// Validate and prepare state update
+	if err := m.validateAndPrepareStateUpdate(property, value, state); err != nil {
+		return err
+	}
+	
+	// Send updated state to device
 	if err := client.SetLightState(
-		context.Background(),
+		ctx,
 		state.Lights[0].On == 1,
 		state.Lights[0].Brightness,
 		state.Lights[0].Temperature,
@@ -223,24 +141,14 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 		)
 	}
 
-	// Update local state in the manager - acquire write lock briefly
+	// Update local state in the manager with a write lock
 	m.mu.Lock()
-	// Re-read light under lock just in case it was updated/removed by another goroutine
-	if l, ok := m.lights[id]; ok {
-		// Update only the state fields and LastSeen
-		l.State = state
-		l.Temperature = state.Lights[0].Temperature
-		l.Brightness = state.Lights[0].Brightness
-		l.On = state.Lights[0].On == 1
-		l.LastSeen = time.Now() // Update LastSeen on successful state set
-
-		m.lights[id] = l // Store the updated light back
-	} else {
-		// Light was removed while we were setting state.
-		m.mu.Unlock()
+	_, err = m.updateLightState(id, state)
+	m.mu.Unlock()
+	
+	if err != nil {
 		return errors.NotFoundf("light %s removed during state update", id)
 	}
-	m.mu.Unlock()
 
 	return nil
 }
@@ -279,23 +187,32 @@ func (m *Manager) GetLights() map[string]*Light {
 func (m *Manager) AddLight(light Light) {
 	// Create client for this light - not blocking, can be done before lock
 	client := NewKeyLightClient(light.IP.String(), light.Port, m.logger)
+	ctx := context.Background()
 
 	// Get current state - happens OUTSIDE the lock
-	state, err := client.GetLightState(context.Background())
+	state, err := m.fetchLightState(ctx, client, light.ID)
 	if err != nil {
-		errors.LogErrorAndReturn(
-			m.logger,
-			err,
-			"failed to get initial light state during AddLight",
-			"id", light.ID,
-		)
-		// Proceed adding the light even with error, but the error was logged
-	} else {
+		// Proceed adding the light even with error, error already logged
+	} else if state != nil {
+		// Update light with state information
 		light.State = state
-		if state != nil && len(state.Lights) > 0 {
+		if len(state.Lights) > 0 {
 			light.Temperature = state.Lights[0].Temperature
 			light.Brightness = state.Lights[0].Brightness
 			light.On = state.Lights[0].On == 1
+		}
+	}
+
+	// Try to get accessory info if needed
+	if light.ProductName == "" || light.SerialNumber == "" {
+		info, infoErr := m.fetchAccessoryInfo(ctx, client, light.ID)
+		if infoErr == nil && info != nil {
+			light.ProductName = info.ProductName
+			light.HardwareBoardType = info.HardwareBoardType
+			light.FirmwareVersion = info.FirmwareVersion
+			light.FirmwareBuild = info.FirmwareBuildNumber
+			light.SerialNumber = info.SerialNumber
+			light.Name = info.DisplayName
 		}
 	}
 
@@ -306,23 +223,27 @@ func (m *Manager) AddLight(light Light) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Check if light already exists (e.g., from a previous discovery run)
-	if _, exists := m.lights[light.ID]; exists {
+	// Check if light already exists
+	if existingLight, exists := m.lights[light.ID]; exists {
 		m.logger.Debug("light already exists, updating", slog.String("id", light.ID))
-		// You might want to merge or update existing light info here if needed
+		
+		// Preserve any fields that might be missing in the new light
+		if light.ProductName == "" {
+			light.ProductName = existingLight.ProductName
+		}
+		if light.SerialNumber == "" {
+			light.SerialNumber = existingLight.SerialNumber
+		}
+		if light.Name == "" {
+			light.Name = existingLight.Name
+		}
 	}
 
 	m.clients[light.ID] = client
 	m.lights[light.ID] = light // Add or update the light with fetched state
 
-	m.logger.Info("light: added",
-		slog.String("id", light.ID),
-		slog.String("ip", light.IP.String()),
-		slog.Int("port", light.Port),
-		slog.Int("brightness", light.Brightness),
-		slog.Bool("on", light.On),
-		slog.Int("temperature", light.Temperature),
-	)
+	// Log the light addition/update
+	m.logLightInfo(slog.LevelInfo, "light: added/updated", &light)
 }
 
 // StartCleanupWorker starts a background goroutine to remove stale lights.
@@ -352,9 +273,6 @@ func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.D
 
 // cleanupStaleLights removes lights that haven't been seen for a while
 func (m *Manager) cleanupStaleLights(timeout time.Duration) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
 	// Use default timeout if the provided one is invalid
 	if timeout <= 0 {
 		m.logger.Debug("Invalid cleanup timeout, using default", 
@@ -364,19 +282,36 @@ func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 	}
 
 	now := time.Now()
+	
+	// First identify stale lights with read lock to minimize lock duration
+	m.mu.RLock()
 	staleLights := []string{}
-
-	// Identify stale lights
 	for id, light := range m.lights {
 		if now.Sub(light.LastSeen) > timeout {
 			staleLights = append(staleLights, id)
 		}
 	}
+	m.mu.RUnlock()
+	
+	// If no stale lights, return quickly without acquiring write lock
+	if len(staleLights) == 0 {
+		return
+	}
 
-	// Remove stale lights
+	// Now remove the stale lights with write lock
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
+	// Double-check the lights are still stale after acquiring write lock
 	for _, id := range staleLights {
-		m.logger.Info("Removing stale light", "id", id)
-		delete(m.lights, id)
-		delete(m.clients, id)
+		if light, exists := m.lights[id]; exists {
+			// Re-check timeout condition to handle race condition
+			// where the light might have been updated while we were unlocked
+			if now.Sub(light.LastSeen) > timeout {
+				m.logger.Info("Removing stale light", "id", id)
+				delete(m.lights, id)
+				delete(m.clients, id)
+			}
+		}
 	}
 }
