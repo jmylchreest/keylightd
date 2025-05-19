@@ -10,6 +10,7 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/server"
+	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -45,7 +46,7 @@ func main() {
 			}
 
 			// Set up logging with configured level
-			level := getLogLevel(v.GetString("logging.level"))
+			level := utils.GetLogLevel(v.GetString("logging.level"))
 			format := v.GetString("logging.format")
 			var handler slog.Handler
 			if format == "json" {
@@ -101,17 +102,4 @@ func main() {
 	}
 }
 
-func getLogLevel(level string) slog.Level {
-	switch level {
-	case "debug":
-		return slog.LevelDebug
-	case "info":
-		return slog.LevelInfo
-	case "warn":
-		return slog.LevelWarn
-	case "error":
-		return slog.LevelError
-	default:
-		return slog.LevelInfo
-	}
-}
+// Using utils.GetLogLevel instead

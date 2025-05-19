@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"time"
 
 	"log/slog"
@@ -12,23 +13,54 @@ import (
 )
 
 const (
-	serviceName = "_elg._tcp"
-	domain      = "local."
+	// Default domain for mDNS discovery
+	domain = "local."
 )
 
-// validProductNames contains all valid Elgato Key Light product names
-var validProductNames = []string{"Elgato Key Light"}
-
-func isValidProductName(name string) bool {
-	for _, valid := range validProductNames {
-		if name == valid {
-			return true
-		}
+var (
+	// Default service names to discover
+	serviceNames = []string{
+		"_elg._tcp", // Elgato Key Light
 	}
-	return false
+
+	// validProductNames contains all valid Elgato Key Light product names
+	validProductNames = []string{
+		"Elgato Key Light",
+		"Elgato Key Light Air",
+	}
+
+	// Discovery parameters - tuned for reliability across platforms
+	defaultDiscoveryParams = DiscoveryParams{
+		browseAttempts:       3,
+		initialBrowseTimeout: 3 * time.Second,
+		browseDelay:          500 * time.Millisecond,
+	}
+)
+
+// No helper functions needed, using slices.Contains directly
+
+// DiscoveryParams holds platform-specific discovery configuration
+type DiscoveryParams struct {
+	browseAttempts       int
+	initialBrowseTimeout time.Duration
+	browseDelay          time.Duration
 }
 
-// ServiceEntry is a minimal struct for passing discovery info to validateLight
+// calculateMaxDiscoveryTime returns the maximum time a complete discovery cycle could take
+func (d DiscoveryParams) calculateMaxDiscoveryTime() time.Duration {
+	var total time.Duration
+	for i := range d.browseAttempts {
+		// Add exponential timeout for this attempt
+		total += d.initialBrowseTimeout * time.Duration(1<<uint(i))
+		// Add delay if this isn't the last attempt
+		if i < d.browseAttempts-1 {
+			total += d.browseDelay
+		}
+	}
+	return total
+}
+
+// ServiceEntry represents a discovered mDNS service entry
 type ServiceEntry struct {
 	Name   string
 	AddrV4 net.IP
@@ -37,14 +69,20 @@ type ServiceEntry struct {
 }
 
 // DiscoverLights discovers Key Light devices on the network periodically.
-// The interval must be at least 5 seconds. If a shorter interval is provided,
-// it will be automatically increased to 5 seconds and a warning will be logged.
-// Each discovery run will last (interval - 1) seconds to ensure a 1-second gap
-// between discovery runs.
+// It makes multiple discovery attempts with exponential timeouts:
+// - First attempt: 3 seconds
+// - Second attempt: 6 seconds
+// - Third attempt: 12 seconds
+// There is a 500ms delay between attempts.
+// The interval parameter determines how often this discovery process repeats.
+// If interval is less than the total discovery time, it will be automatically increased.
 func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) error {
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
-		m.logger.Warn("Discovery interval too short, using minimum of 5 seconds")
+	params := defaultDiscoveryParams
+	minInterval := params.calculateMaxDiscoveryTime() + time.Second
+	if interval < minInterval {
+		interval = minInterval
+		m.logger.Warn("Discovery interval too short, using minimum required interval",
+			"minInterval", minInterval)
 	}
 
 	// Create a ticker for periodic discovery
@@ -52,48 +90,110 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 	defer ticker.Stop()
 
 	discover := func() error {
-		discoverCtx, cancel := context.WithTimeout(ctx, interval-time.Second)
-		defer cancel()
+		for i := range params.browseAttempts {
+			attempt := i + 1 // convert to 1-based for logging
+			if attempt > 1 {
+				m.logger.Debug("Starting retry attempt", "attempt", attempt)
+				time.Sleep(params.browseDelay)
+			}
 
-		entries := make(chan *zeroconf.ServiceEntry, 10)
-		resolver, err := zeroconf.NewResolver(nil)
-		if err != nil {
-			return fmt.Errorf("failed to create zeroconf resolver: %w", err)
-		}
+			timeout := params.initialBrowseTimeout * time.Duration(1<<uint(i))
+			discoverCtx, cancel := context.WithTimeout(ctx, timeout)
 
-		go func() {
-			for entry := range entries {
-				m.logger.Debug("zeroconf: received entry", "instance", entry.Instance, "service", entry.Service, "addrIPv4", entry.AddrIPv4, "addrIPv6", entry.AddrIPv6, "port", entry.Port, "text", entry.Text)
-				if entry.Service != serviceName {
-					continue // Only process _elg._tcp
+			entries := make(chan *zeroconf.ServiceEntry, 10)
+			resolver, err := zeroconf.NewResolver(nil)
+			if err != nil {
+				cancel() // Ensure we cancel the context if we fail here
+				return fmt.Errorf("failed to create zeroconf resolver: %w", err)
+			}
+
+			discoveredLights := make(chan struct{})
+			go func() {
+				for entry := range entries {
+					m.logger.Debug("zeroconf: received entry",
+						"instance", entry.Instance,
+						"service", entry.Service,
+						"addrIPv4", entry.AddrIPv4,
+						"addrIPv6", entry.AddrIPv6,
+						"port", entry.Port,
+						"text", entry.Text,
+						"attempt", attempt)
+
+					if !slices.Contains(serviceNames, entry.Service) {
+						continue
+					}
+					// Convert zeroconf.ServiceEntry to mdns.ServiceEntry-like for validateLight
+					var ipv4 net.IP
+					if len(entry.AddrIPv4) > 0 {
+						ipv4 = entry.AddrIPv4[0]
+					}
+					localEntry := &ServiceEntry{
+						Name:   entry.Instance + "." + entry.Service + "." + entry.Domain,
+						AddrV4: ipv4,
+						Port:   entry.Port,
+						Info:   fmt.Sprint(entry.Text),
+					}
+					light, valid := validateLight(localEntry, m.logger)
+					if !valid {
+						m.logger.Debug("zeroconf: entry did not validate as key light",
+							"instance", entry.Instance,
+							"addrIPv4", entry.AddrIPv4,
+							"port", entry.Port,
+							"attempt", attempt)
+						continue
+					}
+					m.logger.Info("light: validated Light",
+						"name", light.Name,
+						"id", light.ID,
+						"addr", light.IP,
+						"port", light.Port,
+						"attempt", attempt)
+					m.AddLight(light)
+					select {
+					case <-discoveredLights:
+						// Channel already closed
+					default:
+						close(discoveredLights)
+					}
 				}
-				// Convert zeroconf.ServiceEntry to mdns.ServiceEntry-like for validateLight
-				var ipv4 net.IP
-				if len(entry.AddrIPv4) > 0 {
-					ipv4 = entry.AddrIPv4[0]
-				}
-				localEntry := &ServiceEntry{
-					Name:   entry.Instance + "." + entry.Service + "." + entry.Domain,
-					AddrV4: ipv4,
-					Port:   entry.Port,
-					Info:   fmt.Sprint(entry.Text),
-				}
-				light, valid := validateLight(localEntry, m.logger)
-				if !valid {
-					m.logger.Debug("zeroconf: entry did not validate as key light", "instance", entry.Instance, "addrIPv4", entry.AddrIPv4, "port", entry.Port)
+			}()
+
+			// Try each service name
+			for _, serviceName := range serviceNames {
+				err = resolver.Browse(discoverCtx, serviceName, domain, entries)
+				if err != nil {
+					m.logger.Warn("Browse attempt failed",
+						"attempt", attempt,
+						"service", serviceName,
+						"error", err)
+					// Don't cancel the context here as we want to continue with other services
 					continue
 				}
-				m.logger.Info("light: validated Light", "name", light.Name, "id", light.ID, "addr", light.IP, "port", light.Port)
-				m.AddLight(light)
-			}
-		}()
 
-		err = resolver.Browse(discoverCtx, serviceName, domain, entries)
-		if err != nil {
-			return fmt.Errorf("zeroconf browse failed: %w", err)
+				select {
+				case <-discoverCtx.Done():
+					m.logger.Debug("Browse attempt completed",
+						"attempt", attempt,
+						"timeout", timeout)
+				case <-discoveredLights:
+					m.logger.Debug("Lights discovered, stopping attempts",
+						"attempt", attempt)
+					cancel()
+					return nil
+				}
+
+				// If we found any lights, we can exit early
+				if len(m.GetLights()) > 0 {
+					m.logger.Debug("Found lights, stopping discovery attempts",
+						"attempt", attempt,
+						"lightCount", len(m.GetLights()))
+					cancel()
+					return nil
+				}
+			}
+			cancel() // Cancel context at end of each attempt
 		}
 
-		<-discoverCtx.Done()
 		return nil
 	}
 
@@ -117,7 +217,10 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	if entry == nil || entry.AddrV4 == nil || entry.Port == 0 {
 		if logger != nil {
-			logger.Debug("validateLight: skipping invalid service entry", "name", entry.Name, "addr", entry.AddrV4, "port", entry.Port)
+			logger.Debug("validateLight: skipping invalid service entry",
+				"name", entry.Name,
+				"addr", entry.AddrV4,
+				"port", entry.Port)
 		}
 		return Light{}, false
 	}
@@ -126,13 +229,19 @@ func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	info, err := client.GetAccessoryInfo()
 	if err != nil {
 		if logger != nil {
-			logger.Debug("validateLight: failed to get accessory info", "ip", entry.AddrV4, "port", entry.Port, "error", err)
+			logger.Debug("validateLight: failed to get accessory info",
+				"ip", entry.AddrV4,
+				"port", entry.Port,
+				"error", err)
 		}
 		return Light{}, false
 	}
-	if !isValidProductName(info.ProductName) {
+	if !slices.Contains(validProductNames, info.ProductName) {
 		if logger != nil {
-			logger.Debug("validateLight: discovered device is not a valid Elgato Key Light", "productName", info.ProductName, "name", entry.Name, "addr", entry.AddrV4)
+			logger.Debug("validateLight: discovered device is not a valid Elgato Key Light",
+				"productName", info.ProductName,
+				"name", entry.Name,
+				"addr", entry.AddrV4)
 		}
 		return Light{}, false
 	}
