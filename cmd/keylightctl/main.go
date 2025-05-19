@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 
 	"github.com/jmylchreest/keylightd/cmd/keylightctl/commands"
 	"github.com/jmylchreest/keylightd/internal/config"
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/jmylchreest/keylightd/internal/utils"
+	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/spf13/viper"
 )
 
@@ -29,7 +28,7 @@ func main() {
 	cfg, err := config.Load("keylightctl.yaml", configFile)
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+			logger := utils.SetupErrorLogger()
 			logger.Error("failed to load configuration", "error", err)
 			os.Exit(1)
 		}
@@ -53,15 +52,8 @@ func main() {
 	}
 
 	// Set up logging with configured level
-	level := utils.GetLogLevel(cfg.Config.Logging.Level)
-	var handler slog.Handler
-	if cfg.Config.Logging.Format == "json" {
-		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-	} else {
-		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-	}
-	logger := slog.New(handler)
-	slog.SetDefault(logger)
+	logger := utils.SetupLogger(cfg.Config.Logging.Level, cfg.Config.Logging.Format)
+	utils.SetAsDefaultLogger(logger)
 
 	// Set socket path from config
 	socket := config.GetRuntimeSocketPath()

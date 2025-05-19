@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -40,22 +39,14 @@ func main() {
 			// Load configuration
 			cfg, err := config.Load("keylightd.yaml", v.GetString("config"))
 			if err != nil {
-				logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+				logger := utils.SetupErrorLogger()
 				logger.Error("failed to load configuration", "error", err)
 				os.Exit(1)
 			}
 
 			// Set up logging with configured level
-			level := utils.GetLogLevel(v.GetString("logging.level"))
-			format := v.GetString("logging.format")
-			var handler slog.Handler
-			if format == "json" {
-				handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-			} else {
-				handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})
-			}
-			logger := slog.New(handler)
-			slog.SetDefault(logger)
+			logger := utils.SetupLogger(v.GetString("logging.level"), v.GetString("logging.format"))
+			utils.SetAsDefaultLogger(logger)
 
 			logger.Info("Starting keylightd",
 				"version", version,
