@@ -10,6 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/grandcat/zeroconf"
+	"github.com/jmylchreest/keylightd/internal/errors"
 )
 
 const (
@@ -104,7 +105,12 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			resolver, err := zeroconf.NewResolver(nil)
 			if err != nil {
 				cancel() // Ensure we cancel the context if we fail here
-				return fmt.Errorf("failed to create zeroconf resolver: %w", err)
+				return errors.LogErrorAndReturn(
+					m.logger,
+					errors.Internalf("failed to create zeroconf resolver: %w", err),
+					"discovery resolver creation failed",
+					"attempt", attempt,
+				)
 			}
 
 			discoveredLights := make(chan struct{})
@@ -162,10 +168,14 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			for _, serviceName := range serviceNames {
 				err = resolver.Browse(discoverCtx, serviceName, domain, entries)
 				if err != nil {
-					m.logger.Warn("Browse attempt failed",
+					// Log but continue with other services
+					errors.LogErrorAndReturn(
+						m.logger,
+						err,
+						"Browse attempt failed",
 						"attempt", attempt,
 						"service", serviceName,
-						"error", err)
+					)
 					// Don't cancel the context here as we want to continue with other services
 					continue
 				}
@@ -198,7 +208,11 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 	}
 
 	if err := discover(); err != nil {
-		return err
+		return errors.LogErrorAndReturn(
+			m.logger,
+			err,
+			"initial discovery failed",
+		)
 	}
 
 	for {
@@ -207,7 +221,11 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			return ctx.Err()
 		case <-ticker.C:
 			if err := discover(); err != nil {
-				m.logger.Info("light: stopping discovery", "reason", err)
+				errors.LogErrorAndReturn(
+					m.logger,
+					err,
+					"light: stopping discovery",
+				)
 			}
 		}
 	}
@@ -229,10 +247,13 @@ func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	info, err := client.GetAccessoryInfo()
 	if err != nil {
 		if logger != nil {
-			logger.Debug("validateLight: failed to get accessory info",
+			errors.LogErrorAndReturn(
+				logger,
+				errors.DeviceUnavailablef("failed to get accessory info: %w", err),
+				"validateLight: failed to get accessory info",
 				"ip", entry.AddrV4,
 				"port", entry.Port,
-				"error", err)
+			)
 		}
 		return Light{}, false
 	}

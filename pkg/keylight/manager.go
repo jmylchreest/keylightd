@@ -2,10 +2,11 @@ package keylight
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/jmylchreest/keylightd/internal/errors"
 )
 
 // Manager manages Key Light devices
@@ -47,7 +48,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	m.mu.RUnlock()
 
 	if !exists {
-		return nil, fmt.Errorf("light %s not found", id)
+		return nil, errors.NotFoundf("light %s not found", id)
 	}
 
 	// If client doesn't exist (shouldn't happen after AddLight, but as a safeguard)
@@ -59,7 +60,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 		light, exists = m.lights[id] // Re-read light in case it was removed while unlocked
 		if !exists {
 			m.mu.Unlock()
-			return nil, fmt.Errorf("light %s not found", id)
+			return nil, errors.NotFoundf("light %s not found", id)
 		}
 		client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
 		m.clients[id] = client
@@ -72,8 +73,8 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" {
 		info, err := client.GetAccessoryInfo()
 		if err != nil {
-			m.logger.Error("failed to get accessory info during GetLight", slog.String("id", id), slog.Any("error", err))
-			// Continue without accessory info if fetching fails
+			// Log error but continue without accessory info if fetching fails
+			errors.LogErrorAndReturn(m.logger, err, "failed to get accessory info during GetLight", "id", id)
 		} else {
 			updatedLight.ProductName = info.ProductName
 			updatedLight.HardwareBoardType = info.HardwareBoardType
@@ -87,11 +88,13 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	// Get current state - happens OUTSIDE the lock
 	state, err := client.GetLightState()
 	if err != nil {
-		// Log the error but we might still return the potentially stale light info
-		m.logger.Error("failed to get current state during GetLight", slog.String("id", id), slog.Any("error", err))
-		// Decide if you want to return an error here or just return the potentially stale light data
-		// For now, returning error if state cannot be fetched
-		return &updatedLight, fmt.Errorf("failed to get current state: %w", err)
+		// Return the error with proper wrapping and logging
+		return &updatedLight, errors.LogErrorAndReturn(
+			m.logger,
+			errors.DeviceUnavailablef("failed to get current state: %w", err),
+			"failed to get current state during GetLight",
+			"id", id,
+		)
 	}
 
 	// Update local state - acquire write lock briefly
@@ -120,7 +123,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	} else {
 		// Light was removed while we were fetching data. Return not found error.
 		m.mu.Unlock()
-		return nil, fmt.Errorf("light %s not found during update after fetch", id)
+		return nil, errors.NotFoundf("light %s not found during update after fetch", id)
 	}
 	m.mu.Unlock()
 
@@ -142,7 +145,7 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 	m.mu.RUnlock()
 
 	if !exists {
-		return fmt.Errorf("light %s not found", id)
+		return errors.NotFoundf("light %s not found", id)
 	}
 
 	// If client doesn't exist (shouldn't happen after AddLight, but as a safeguard)
@@ -154,7 +157,7 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 		light, exists = m.lights[id] // Re-read light in case it was removed while unlocked
 		if !exists {
 			m.mu.Unlock()
-			return fmt.Errorf("light %s not found", id)
+			return errors.NotFoundf("light %s not found", id)
 		}
 		client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
 		m.clients[id] = client
@@ -164,7 +167,12 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 	// Get current state from the device - happens OUTSIDE the lock
 	state, err := client.GetLightState()
 	if err != nil {
-		return fmt.Errorf("failed to get current state before setting: %w", err)
+		return errors.LogErrorAndReturn(
+			m.logger,
+			errors.DeviceUnavailablef("failed to get current state before setting: %w", err),
+			"failed to get light state",
+			"id", id,
+		)
 	}
 
 	// Update state based on property - happens OUTSIDE the lock
@@ -172,13 +180,13 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 	case "on":
 		on, ok := value.(bool)
 		if !ok {
-			return fmt.Errorf("invalid value type for on: %T", value)
+			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
 		state.Lights[0].On = boolToInt(on)
 	case "brightness":
 		brightness, ok := value.(int)
 		if !ok {
-			return fmt.Errorf("invalid value type for brightness: %T", value)
+			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
 		// Clamp to valid range (3-100)
 		if brightness < 3 {
@@ -190,12 +198,12 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 	case "temperature":
 		temp, ok := value.(int)
 		if !ok {
-			return fmt.Errorf("invalid value type for temperature: %T", value)
+			return errors.InvalidInputf("invalid value type for temperature: %T", value)
 		}
 		// Convert from Kelvin to mireds
 		state.Lights[0].Temperature = convertTemperatureToDevice(temp)
 	default:
-		return fmt.Errorf("unknown property: %s", property)
+		return errors.InvalidInputf("unknown property: %s", property)
 	}
 
 	// Send updated state to device - happens OUTSIDE the lock
@@ -204,7 +212,13 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 		state.Lights[0].Brightness,
 		state.Lights[0].Temperature,
 	); err != nil {
-		return fmt.Errorf("failed to send updated state: %w", err)
+		return errors.LogErrorAndReturn(
+			m.logger,
+			errors.DeviceUnavailablef("failed to send updated state: %w", err),
+			"failed to set light state",
+			"id", id,
+			"property", property,
+		)
 	}
 
 	// Update local state in the manager - acquire write lock briefly
@@ -220,9 +234,9 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 
 		m.lights[id] = l // Store the updated light back
 	} else {
-		// Light was removed while we were setting state. Log and continue, or return error.
+		// Light was removed while we were setting state.
 		m.mu.Unlock()
-		return fmt.Errorf("light %s removed during state update", id)
+		return errors.NotFoundf("light %s removed during state update", id)
 	}
 	m.mu.Unlock()
 
@@ -267,9 +281,13 @@ func (m *Manager) AddLight(light Light) {
 	// Get current state - happens OUTSIDE the lock
 	state, err := client.GetLightState()
 	if err != nil {
-		m.logger.Error("failed to get initial light state during AddLight", slog.String("id", light.ID), slog.Any("error", err))
-		// Decide how to handle failure to get initial state.
-		// For now, proceed adding the light but log the error.
+		errors.LogErrorAndReturn(
+			m.logger,
+			err,
+			"failed to get initial light state during AddLight",
+			"id", light.ID,
+		)
+		// Proceed adding the light even with error, but the error was logged
 	} else {
 		light.State = state
 		if state != nil && len(state.Lights) > 0 {

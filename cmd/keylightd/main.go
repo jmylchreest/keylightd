@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/internal/errors"
 	"github.com/jmylchreest/keylightd/internal/server"
 	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
@@ -62,13 +63,13 @@ func main() {
 
 			go func() {
 				if err := manager.DiscoverLights(ctx, time.Duration(cfg.Config.Discovery.Interval)*time.Second); err != nil {
-					logger.Error("Error discovering lights", "error", err)
+					// Error is already logged by the DiscoverLights method
+					logger.Debug("Discovery routine terminated")
 				}
 			}()
 
 			if err := srv.Start(); err != nil {
-				logger.Error("Failed to start server", "error", err)
-				return err
+				return errors.LogErrorAndReturn(logger, err, "Failed to start server")
 			}
 
 			sigChan := make(chan os.Signal, 1)
