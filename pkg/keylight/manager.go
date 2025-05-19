@@ -103,9 +103,9 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	return updatedLight, nil
 }
 
-// SetLightStateTyped sets the state of a light using type-safe property values
+// SetLightState sets the state of a light using type-safe property values
 // It fetches the current state, updates the specified property, and sends the new state to the device.
-func (m *Manager) SetLightStateTyped(id string, propertyValue LightPropertyValue) error {
+func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) error {
 	// Validate the property value first
 	if err := propertyValue.Validate(); err != nil {
 		return errors.InvalidInputf("invalid property value: %w", err)
@@ -159,9 +159,11 @@ func (m *Manager) SetLightStateTyped(id string, propertyValue LightPropertyValue
 	return nil
 }
 
-// SetLightState sets the state of a light (interface-compatible version)
-// It fetches the current state, updates the specified property, and sends the new state to the device.
-func (m *Manager) SetLightState(id string, property string, value any) error {
+// SetLightStateOld is the legacy version of SetLightState (deprecated)
+// Use the type-safe version with LightPropertyValue parameter instead.
+// This method is kept for backward compatibility with existing code.
+// Deprecated: Use SetLightState with LightPropertyValue instead.
+func (m *Manager) SetLightStateOld(id string, property string, value any) error {
 	// Convert the string property and interface value to our type-safe version
 	switch property {
 	case string(PropertyOn):
@@ -169,21 +171,21 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 		if !ok {
 			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
-		return m.SetLightStateTyped(id, OnValue(on))
+		return m.SetLightState(id, OnValue(on))
 		
 	case string(PropertyBrightness):
 		brightness, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
-		return m.SetLightStateTyped(id, BrightnessValue(brightness))
+		return m.SetLightState(id, BrightnessValue(brightness))
 		
 	case string(PropertyTemperature):
 		temp, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for temperature: %T", value)
 		}
-		return m.SetLightStateTyped(id, TemperatureValue(temp))
+		return m.SetLightState(id, TemperatureValue(temp))
 		
 	default:
 		return errors.InvalidInputf("unknown property: %s", property)
@@ -192,17 +194,17 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 
 // SetLightBrightness sets the brightness of a light
 func (m *Manager) SetLightBrightness(id string, brightness int) error {
-	return m.SetLightStateTyped(id, BrightnessValue(brightness))
+	return m.SetLightState(id, BrightnessValue(brightness))
 }
 
 // SetLightTemperature sets the temperature of a light
 func (m *Manager) SetLightTemperature(id string, temperature int) error {
-	return m.SetLightStateTyped(id, TemperatureValue(temperature))
+	return m.SetLightState(id, TemperatureValue(temperature))
 }
 
 // SetLightPower sets the power state of a light
 func (m *Manager) SetLightPower(id string, on bool) error {
-	return m.SetLightStateTyped(id, OnValue(on))
+	return m.SetLightState(id, OnValue(on))
 }
 
 // GetLights returns all discovered lights

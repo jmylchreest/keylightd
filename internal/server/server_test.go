@@ -80,35 +80,27 @@ func (m *mockLightManager) SetLightPower(id string, on bool) error {
 	return nil
 }
 
-func (m *mockLightManager) SetLightState(id string, property string, value any) error {
+func (m *mockLightManager) SetLightState(id string, propertyValue keylight.LightPropertyValue) error {
 	light, err := m.GetLight(id)
 	if err != nil {
 		return err
 	}
 
-	switch property {
-	case "on":
-		on, ok := value.(bool)
-		if !ok {
-			return fmt.Errorf("invalid value type for on: %T", value)
-		}
-		light.On = on
-	case "brightness":
-		brightness, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("invalid value type for brightness: %T", value)
-		}
-		light.Brightness = brightness
-	case "temperature":
-		temp, ok := value.(int)
-		if !ok {
-			return fmt.Errorf("invalid value type for temperature: %T", value)
-		}
-		light.Temperature = temp
-	default:
-		return fmt.Errorf("unknown property: %s", property)
+	// First validate the property value
+	if err := propertyValue.Validate(); err != nil {
+		return err
 	}
 
+	switch propertyValue.PropertyName() {
+	case keylight.PropertyOn:
+		light.On = propertyValue.Value().(bool)
+	case keylight.PropertyBrightness:
+		light.Brightness = propertyValue.Value().(int)
+	case keylight.PropertyTemperature:
+		light.Temperature = propertyValue.Value().(int)
+	default:
+		return fmt.Errorf("unknown property: %s", propertyValue.PropertyName())
+	}
 	return nil
 }
 

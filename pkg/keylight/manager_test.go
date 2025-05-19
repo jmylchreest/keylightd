@@ -82,37 +82,35 @@ func TestLightManagement(t *testing.T) {
 	manager.lights[light.ID] = light
 	manager.clients[light.ID] = NewKeyLightClient(light.IP.String(), light.Port, logger, mockHTTP)
 
-	// Test legacy interface
-	err := manager.SetLightState("test-light", "on", true)
+	// Test setting on/off state
+	err := manager.SetLightState("test-light", OnValue(true))
 	require.NoError(t, err)
 
-	// Test setting light brightness with legacy interface
-	err = manager.SetLightState("test-light", "brightness", 50)
+	// Test setting light brightness
+	err = manager.SetLightState("test-light", BrightnessValue(50))
 	require.NoError(t, err)
 
-	// Test setting light temperature with legacy interface
-	err = manager.SetLightState("test-light", "temperature", 5000)
+	// Test setting light temperature 
+	err = manager.SetLightState("test-light", TemperatureValue(5000))
 	require.NoError(t, err)
 
 	// Test setting state for non-existent light
-	err = manager.SetLightState("non-existent", "on", true)
+	err = manager.SetLightState("non-existent", OnValue(true))
 	assert.Error(t, err)
 
-	// Test type-safe interface
-	err = manager.SetLightStateTyped("test-light", OnValue(true))
-	require.NoError(t, err)
-
-	// Test setting light brightness with type-safe interface
-	err = manager.SetLightStateTyped("test-light", BrightnessValue(50))
-	require.NoError(t, err)
-
-	// Test setting light temperature with type-safe interface
-	err = manager.SetLightStateTyped("test-light", TemperatureValue(5000))
-	require.NoError(t, err)
-
-	// Test validation with type-safe interface - brightness too high
-	err = manager.SetLightStateTyped("test-light", BrightnessValue(500))
+	// Test input validation - brightness too high
+	err = manager.SetLightState("test-light", BrightnessValue(500))
 	assert.Error(t, err)
+
+	// Test helper methods (these call SetLightState internally)
+	err = manager.SetLightBrightness("test-light", 75)
+	require.NoError(t, err)
+	
+	err = manager.SetLightTemperature("test-light", 4500)
+	require.NoError(t, err)
+	
+	err = manager.SetLightPower("test-light", false)
+	require.NoError(t, err)
 }
 
 func TestDiscovery(t *testing.T) {

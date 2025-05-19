@@ -318,7 +318,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				if !ok {
 					errSet = fmt.Errorf("invalid value type for 'on', expected boolean")
 				} else {
-					errSet = s.lights.SetLightState(lightID, "on", onVal)
+					errSet = s.lights.SetLightState(lightID, keylight.OnValue(onVal))
 				}
 			case "brightness":
 				brightnessVal, ok := value.(float64) // JSON numbers are float64
@@ -804,17 +804,17 @@ func (s *Server) handleLightSetState() http.HandlerFunc {
 		var errs []string
 
 		if reqBody.On != nil {
-			if err := s.lights.SetLightState(lightID, "on", *reqBody.On); err != nil {
+			if err := s.lights.SetLightState(lightID, keylight.OnValue(*reqBody.On)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
 		if reqBody.Brightness != nil {
-			if err := s.lights.SetLightBrightness(lightID, *reqBody.Brightness); err != nil {
+			if err := s.lights.SetLightState(lightID, keylight.BrightnessValue(*reqBody.Brightness)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
 		if reqBody.Temperature != nil {
-			if err := s.lights.SetLightTemperature(lightID, *reqBody.Temperature); err != nil {
+			if err := s.lights.SetLightState(lightID, keylight.TemperatureValue(*reqBody.Temperature)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}

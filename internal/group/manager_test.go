@@ -28,7 +28,7 @@ func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
 	return light, nil
 }
 
-func (m *mockLightManager) SetLightState(id string, property string, value any) error {
+func (m *mockLightManager) SetLightState(id string, propertyValue keylight.LightPropertyValue) error {
 	_, exists := m.lights[id]
 	if !exists {
 		return keylight.ErrLightNotFound
@@ -37,15 +37,15 @@ func (m *mockLightManager) SetLightState(id string, property string, value any) 
 }
 
 func (m *mockLightManager) SetLightBrightness(id string, brightness int) error {
-	return m.SetLightState(id, "brightness", brightness)
+	return m.SetLightState(id, keylight.BrightnessValue(brightness))
 }
 
 func (m *mockLightManager) SetLightTemperature(id string, temperature int) error {
-	return m.SetLightState(id, "temperature", temperature)
+	return m.SetLightState(id, keylight.TemperatureValue(temperature))
 }
 
 func (m *mockLightManager) SetLightPower(id string, on bool) error {
-	return m.SetLightState(id, "on", on)
+	return m.SetLightState(id, keylight.OnValue(on))
 }
 
 func (m *mockLightManager) GetLights() map[string]*keylight.Light {

@@ -258,7 +258,7 @@ func (m *Manager) SetGroupState(groupID string, on bool) error {
 		wg.Add(1)
 		go func(lightID string) {
 			defer wg.Done()
-			if err := m.lights.SetLightState(lightID, "on", on); err != nil {
+			if err := m.lights.SetLightState(lightID, keylight.OnValue(on)); err != nil {
 				errCh <- fmt.Errorf("light %s: %w", lightID, err)
 			}
 		}(id)
