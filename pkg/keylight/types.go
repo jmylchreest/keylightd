@@ -34,7 +34,7 @@ type Light struct {
 type LightManager interface {
 	GetDiscoveredLights() []*Light
 	GetLight(id string) (*Light, error)
-	SetLightState(id string, property string, value interface{}) error
+	SetLightState(id string, property string, value any) error
 	SetLightBrightness(id string, brightness int) error
 	SetLightTemperature(id string, temperature int) error
 	SetLightPower(id string, on bool) error

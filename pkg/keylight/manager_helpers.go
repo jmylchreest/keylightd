@@ -126,26 +126,29 @@ func (m *Manager) fetchAccessoryInfo(ctx context.Context, client *KeyLightClient
 	return info, nil
 }
 
-// validateLightProperty validates a property value before sending it to the device.
-func (m *Manager) validateAndPrepareStateUpdate(property string, value interface{}, currentState *LightState) error {
+// validateAndPrepareStateUpdate validates a property value before sending it to the device.
+// Although we have type validation through the LightPropertyValue interface,
+// this method is needed to update the device state object.
+func (m *Manager) validateAndPrepareStateUpdate(property string, value any, currentState *LightState) error {
 	if currentState == nil || len(currentState.Lights) == 0 {
 		return errors.InvalidInputf("invalid current state")
 	}
 
-	switch property {
-	case "on":
+	switch PropertyName(property) {
+	case PropertyOn:
 		on, ok := value.(bool)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
 		currentState.Lights[0].On = boolToInt(on)
 		
-	case "brightness":
+	case PropertyBrightness:
 		brightness, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
-		// Validation and clamping is handled by constants in config package
+		// Validation is already done in LightPropertyValue.Validate()
+		// This is just a safety check
 		if brightness < config.MinBrightness {
 			brightness = config.MinBrightness
 		} else if brightness > config.MaxBrightness {
@@ -153,7 +156,7 @@ func (m *Manager) validateAndPrepareStateUpdate(property string, value interface
 		}
 		currentState.Lights[0].Brightness = brightness
 		
-	case "temperature":
+	case PropertyTemperature:
 		temp, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for temperature: %T", value)

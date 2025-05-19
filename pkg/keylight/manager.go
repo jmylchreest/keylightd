@@ -103,9 +103,14 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	return updatedLight, nil
 }
 
-// SetLightState sets the state of a light
+// SetLightStateTyped sets the state of a light using type-safe property values
 // It fetches the current state, updates the specified property, and sends the new state to the device.
-func (m *Manager) SetLightState(id string, property string, value any) error {
+func (m *Manager) SetLightStateTyped(id string, propertyValue LightPropertyValue) error {
+	// Validate the property value first
+	if err := propertyValue.Validate(); err != nil {
+		return errors.InvalidInputf("invalid property value: %w", err)
+	}
+
 	// Get client and light information
 	client, _, err := m.getOrCreateClient(id)
 	if err != nil {
@@ -121,7 +126,8 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 	}
 	
 	// Validate and prepare state update
-	if err := m.validateAndPrepareStateUpdate(property, value, state); err != nil {
+	propertyName := propertyValue.PropertyName()
+	if err := m.validateAndPrepareStateUpdate(string(propertyName), propertyValue.Value(), state); err != nil {
 		return err
 	}
 	
@@ -137,7 +143,7 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 			errors.DeviceUnavailablef("failed to send updated state: %w", err),
 			"failed to set light state",
 			"id", id,
-			"property", property,
+			"property", string(propertyName),
 		)
 	}
 
@@ -153,19 +159,50 @@ func (m *Manager) SetLightState(id string, property string, value any) error {
 	return nil
 }
 
+// SetLightState sets the state of a light (interface-compatible version)
+// It fetches the current state, updates the specified property, and sends the new state to the device.
+func (m *Manager) SetLightState(id string, property string, value any) error {
+	// Convert the string property and interface value to our type-safe version
+	switch property {
+	case string(PropertyOn):
+		on, ok := value.(bool)
+		if !ok {
+			return errors.InvalidInputf("invalid value type for on: %T", value)
+		}
+		return m.SetLightStateTyped(id, OnValue(on))
+		
+	case string(PropertyBrightness):
+		brightness, ok := value.(int)
+		if !ok {
+			return errors.InvalidInputf("invalid value type for brightness: %T", value)
+		}
+		return m.SetLightStateTyped(id, BrightnessValue(brightness))
+		
+	case string(PropertyTemperature):
+		temp, ok := value.(int)
+		if !ok {
+			return errors.InvalidInputf("invalid value type for temperature: %T", value)
+		}
+		return m.SetLightStateTyped(id, TemperatureValue(temp))
+		
+	default:
+		return errors.InvalidInputf("unknown property: %s", property)
+	}
+}
+
 // SetLightBrightness sets the brightness of a light
 func (m *Manager) SetLightBrightness(id string, brightness int) error {
-	return m.SetLightState(id, "brightness", brightness)
+	return m.SetLightStateTyped(id, BrightnessValue(brightness))
 }
 
 // SetLightTemperature sets the temperature of a light
 func (m *Manager) SetLightTemperature(id string, temperature int) error {
-	return m.SetLightState(id, "temperature", temperature)
+	return m.SetLightStateTyped(id, TemperatureValue(temperature))
 }
 
 // SetLightPower sets the power state of a light
 func (m *Manager) SetLightPower(id string, on bool) error {
-	return m.SetLightState(id, "on", on)
+	return m.SetLightStateTyped(id, OnValue(on))
 }
 
 // GetLights returns all discovered lights
