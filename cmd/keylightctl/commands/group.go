@@ -53,8 +53,8 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 				for _, group := range groups {
 					id := group["id"].(string)
 					groupName := group["name"].(string)
-					var lights []interface{}
-					if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+					var lights []any
+					if lightsVal, ok := group["lights"].([]any); ok && lightsVal != nil {
 						lights = lightsVal
 					}
 					lightIDs := make([]string, len(lights))
@@ -71,8 +71,8 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			for _, group := range groups {
-				var lights []interface{}
-				if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+				var lights []any
+				if lightsVal, ok := group["lights"].([]any); ok && lightsVal != nil {
 					lights = lightsVal
 				}
 				lightIDs := make([]string, len(lights))
@@ -269,8 +269,8 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 			if parseable {
 				id := group["id"].(string)
 				groupName := group["name"].(string)
-				var lights []interface{}
-				if lightsVal, ok := group["lights"].([]interface{}); ok && lightsVal != nil {
+				var lights []any
+				if lightsVal, ok := group["lights"].([]any); ok && lightsVal != nil {
 					lights = lightsVal
 				}
 				lightIDs := make([]string, len(lights))
@@ -281,7 +281,7 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 				return nil
 			}
 
-			lights := group["lights"].([]interface{})
+			lights := group["lights"].([]any)
 			if len(lights) == 0 {
 				pterm.Info.Println("No lights in group.")
 				return nil
@@ -321,7 +321,7 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 	var name string
 	var property string
-	var value interface{}
+	var value any
 
 	cmd := &cobra.Command{
 		Use:   "set",
@@ -503,10 +503,10 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 
 // valueFlag implements the flag.Value interface for the value flag
 type valueFlag struct {
-	value *interface{}
+	value *any
 }
 
-func newValueFlag(value *interface{}) *valueFlag {
+func newValueFlag(value *any) *valueFlag {
 	return &valueFlag{value: value}
 }
 
@@ -599,7 +599,7 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 
 			// Get current lights in group
 			currentLights := make(map[string]bool)
-			if lights, ok := group["lights"].([]interface{}); ok {
+			if lights, ok := group["lights"].([]any); ok {
 				for _, light := range lights {
 					currentLights[light.(string)] = true
 				}
@@ -618,7 +618,7 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 			// Create options for light selection
 			options := make([]string, 0, len(lights))
 			for id, light := range lights {
-				lightMap := light.(map[string]interface{})
+				lightMap := light.(map[string]any)
 				selected := ""
 				if currentLights[id] {
 					selected = " ✓"

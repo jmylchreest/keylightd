@@ -16,14 +16,14 @@ type mockAPIKeyClient struct {
 	client.ClientInterface
 	failAdd    bool
 	failDelete bool
-	apiKeys    map[string]map[string]interface{}
+	apiKeys    map[string]map[string]any
 }
 
-func (m *mockAPIKeyClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error) {
+func (m *mockAPIKeyClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]any, error) {
 	if m.failAdd || m.apiKeys[name] != nil {
 		return nil, errors.New("duplicate or failed to add API key")
 	}
-	key := map[string]interface{}{"key": name + "-key", "name": name}
+	key := map[string]any{"key": name + "-key", "name": name}
 	m.apiKeys[name] = key
 	return key, nil
 }
@@ -36,8 +36,8 @@ func (m *mockAPIKeyClient) DeleteAPIKey(key string) error {
 	return nil
 }
 
-func (m *mockAPIKeyClient) ListAPIKeys() ([]map[string]interface{}, error) {
-	var out []map[string]interface{}
+func (m *mockAPIKeyClient) ListAPIKeys() ([]map[string]any, error) {
+	var out []map[string]any
 	for _, v := range m.apiKeys {
 		out = append(out, v)
 	}
@@ -59,8 +59,8 @@ func parseKeyValueOutput(out string) map[string]string {
 }
 
 func TestAPIKeyAddCommand_Duplicate(t *testing.T) {
-	mock := &mockAPIKeyClient{apiKeys: map[string]map[string]interface{}{}}
-	mock.apiKeys["dupe"] = map[string]interface{}{"key": "dupe-key", "name": "dupe"}
+	mock := &mockAPIKeyClient{apiKeys: map[string]map[string]any{}}
+	mock.apiKeys["dupe"] = map[string]any{"key": "dupe-key", "name": "dupe"}
 	ctx := context.WithValue(context.Background(), clientContextKey, mock)
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	cmd := newAPIKeyAddCommand(logger)
@@ -76,7 +76,7 @@ func TestAPIKeyAddCommand_Duplicate(t *testing.T) {
 }
 
 func TestAPIKeyDeleteCommand_NotFound(t *testing.T) {
-	mock := &mockAPIKeyClient{apiKeys: map[string]map[string]interface{}{}}
+	mock := &mockAPIKeyClient{apiKeys: map[string]map[string]any{}}
 	ctx := context.WithValue(context.Background(), clientContextKey, mock)
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	cmd := newAPIKeyDeleteCommand(logger)

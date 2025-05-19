@@ -54,7 +54,7 @@ func newLightListCommand() *cobra.Command {
 
 			if parseable {
 				for id, light := range lights {
-					lightMap := light.(map[string]interface{})
+					lightMap := light.(map[string]any)
 					fmt.Println(LightParseable(id, lightMap))
 				}
 				return nil
@@ -62,7 +62,7 @@ func newLightListCommand() *cobra.Command {
 
 			// Create a table for each light
 			for id, light := range lights {
-				lightMap := light.(map[string]interface{})
+				lightMap := light.(map[string]any)
 				table := LightTableData(id, lightMap)
 				pterm.DefaultTable.WithData(table).Render()
 				pterm.Println() // Add a blank line between lights
@@ -101,7 +101,7 @@ func newLightGetCommand() *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(ids))
 				for i, id := range ids {
-					lightMap := lights[id].(map[string]interface{})
+					lightMap := lights[id].(map[string]any)
 					options[i] = fmt.Sprintf("%s (%v)", id, lightMap["productname"])
 				}
 
@@ -180,7 +180,7 @@ func newLightSetCommand(_ *slog.Logger) *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(ids))
 				for i, id := range ids {
-					lightMap := lights[id].(map[string]interface{})
+					lightMap := lights[id].(map[string]any)
 					options[i] = fmt.Sprintf("%s (%v)", id, lightMap["productname"])
 				}
 
@@ -223,7 +223,7 @@ func newLightSetCommand(_ *slog.Logger) *cobra.Command {
 			propertyLower := strings.ToLower(property)
 
 			// Get value
-			var value interface{}
+			var value any
 			switch propertyLower {
 			case "on":
 				if len(args) > 2 {

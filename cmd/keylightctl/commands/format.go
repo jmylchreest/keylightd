@@ -10,7 +10,7 @@ import (
 )
 
 // LightTableData returns the table data for a light, with bold ID and value
-func LightTableData(id string, light map[string]interface{}) pterm.TableData {
+func LightTableData(id string, light map[string]any) pterm.TableData {
 	id = keylight.UnescapeRFC6763Label(id)
 	tempDevice := 0
 	if v, ok := light["temperature"].(int); ok {
@@ -32,7 +32,7 @@ func LightTableData(id string, light map[string]interface{}) pterm.TableData {
 }
 
 // formatLastSeen formats the LastSeen time for display
-func formatLastSeen(lastSeen interface{}) string {
+func formatLastSeen(lastSeen any) string {
 	if t, ok := lastSeen.(time.Time); ok && !t.IsZero() {
 		// Format the time in a human-readable format, e.g., RFC1123Z
 		return t.Format(time.RFC1123Z)
@@ -41,7 +41,7 @@ func formatLastSeen(lastSeen interface{}) string {
 }
 
 // LightParseable returns the parseable key=value string for a light
-func LightParseable(id string, light map[string]interface{}) string {
+func LightParseable(id string, light map[string]any) string {
 	id = keylight.UnescapeRFC6763Label(id)
 	lastSeenUnix := "0"
 	if t, ok := light["lastseen"].(time.Time); ok && !t.IsZero() {
@@ -70,10 +70,10 @@ func LightParseable(id string, light map[string]interface{}) string {
 }
 
 // GroupParseable returns the parseable string for a group (id, name, lights as comma-separated)
-func GroupParseable(group map[string]interface{}) string {
+func GroupParseable(group map[string]any) string {
 	id := group["id"].(string)
 	name := group["name"].(string)
-	lights := group["lights"].([]interface{})
+	lights := group["lights"].([]any)
 	lightIDs := make([]string, len(lights))
 	for i, light := range lights {
 		lightIDs[i] = light.(string)

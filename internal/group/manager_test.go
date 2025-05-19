@@ -28,7 +28,7 @@ func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
 	return light, nil
 }
 
-func (m *mockLightManager) SetLightState(id string, property string, value interface{}) error {
+func (m *mockLightManager) SetLightState(id string, property string, value any) error {
 	_, exists := m.lights[id]
 	if !exists {
 		return keylight.ErrLightNotFound

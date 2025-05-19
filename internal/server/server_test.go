@@ -80,7 +80,7 @@ func (m *mockLightManager) SetLightPower(id string, on bool) error {
 	return nil
 }
 
-func (m *mockLightManager) SetLightState(id string, property string, value interface{}) error {
+func (m *mockLightManager) SetLightState(id string, property string, value any) error {
 	light, err := m.GetLight(id)
 	if err != nil {
 		return err

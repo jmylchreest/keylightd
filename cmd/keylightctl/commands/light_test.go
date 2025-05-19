@@ -18,31 +18,35 @@ type mockClient struct{}
 
 var _ client.ClientInterface = (*mockClient)(nil)
 
-func (m *mockClient) GetLight(id string) (map[string]interface{}, error) {
+func (m *mockClient) GetLight(id string) (map[string]any, error) {
 	// Use a fixed time for predictable test output
 	lastSeenTime := time.Date(2023, time.October, 26, 10, 0, 0, 0, time.UTC)
-	return map[string]interface{}{
+	light := map[string]any{
 		"id":              id,
 		"productname":     "Test Light",
 		"serialnumber":    "123456",
-		"firmwareversion": "1.0.0",
+		"hardware_board":  1,
 		"firmwarebuild":   1,
+		"firmwareversion": "1.0.0",
+		"name":            "Test Light",
 		"on":              true,
 		"brightness":      50,
 		"temperature":     5000,
 		"ip":              "192.168.1.1",
 		"port":            9123,
 		"lastseen":        lastSeenTime,
-	}, nil
+	}
+	return light, nil
 }
 
-func (m *mockClient) GetLights() (map[string]interface{}, error) {
+func (m *mockClient) GetLights() (map[string]any, error) {
 	// Use a fixed time for predictable test output
 	lastSeenTime1 := time.Date(2023, time.October, 26, 10, 0, 0, 0, time.UTC)
 	lastSeenTime2 := time.Date(2023, time.October, 26, 10, 5, 0, 0, time.UTC)
 
-	return map[string]interface{}{
-		"light1": map[string]interface{}{
+	// Return a map of id -> light object
+	lights := map[string]any{
+		"light1": map[string]any{
 			"id":              "light1",
 			"productname":     "Light 1",
 			"serialnumber":    "SN1",
@@ -55,7 +59,7 @@ func (m *mockClient) GetLights() (map[string]interface{}, error) {
 			"port":            9123,
 			"lastseen":        lastSeenTime1,
 		},
-		"light2": map[string]interface{}{
+		"light2": map[string]any{
 			"id":              "light2",
 			"productname":     "Light 2",
 			"serialnumber":    "SN2",
@@ -68,10 +72,11 @@ func (m *mockClient) GetLights() (map[string]interface{}, error) {
 			"port":            9123,
 			"lastseen":        lastSeenTime2,
 		},
-	}, nil
+	}
+	return lights, nil
 }
 
-func (m *mockClient) SetLightState(id string, property string, value interface{}) error {
+func (m *mockClient) SetLightState(id string, property string, value any) error {
 	return nil
 }
 
@@ -79,15 +84,15 @@ func (m *mockClient) CreateGroup(name string) error {
 	return nil
 }
 
-func (m *mockClient) GetGroup(name string) (map[string]interface{}, error) {
-	return map[string]interface{}{}, nil
+func (m *mockClient) GetGroup(name string) (map[string]any, error) {
+	return map[string]any{"id": name}, nil
 }
 
-func (m *mockClient) GetGroups() ([]map[string]interface{}, error) {
-	return []map[string]interface{}{}, nil
+func (m *mockClient) GetGroups() ([]map[string]any, error) {
+	return []map[string]any{}, nil
 }
 
-func (m *mockClient) SetGroupState(name string, property string, value interface{}) error {
+func (m *mockClient) SetGroupState(name string, property string, value any) error {
 	return nil
 }
 
@@ -100,21 +105,21 @@ func (m *mockClient) SetGroupLights(groupID string, lightIDs []string) error {
 }
 
 // API Key Management Mocks (satisfy client.ClientInterface)
-func (m *mockClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]interface{}, error) {
+func (m *mockClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]any, error) {
 	// Simple mock: doesn't actually store/return a real key structure for light tests
-	return map[string]interface{}{"key": "mockapikey", "name": name}, nil
+	return map[string]any{"key": "mockapikey", "name": name}, nil
 }
 
-func (m *mockClient) ListAPIKeys() ([]map[string]interface{}, error) {
-	return []map[string]interface{}{}, nil // Return empty list for light tests
+func (m *mockClient) ListAPIKeys() ([]map[string]any, error) {
+	return []map[string]any{}, nil // Return empty list for light tests
 }
 
 func (m *mockClient) DeleteAPIKey(key string) error {
 	return nil
 }
 
-func (m *mockClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]interface{}, error) {
-	return map[string]interface{}{"key": keyOrName, "disabled": disabled}, nil
+func (m *mockClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[string]any, error) {
+	return map[string]any{"key": keyOrName, "disabled": disabled}, nil
 }
 
 func TestLightGetCommandParseable(t *testing.T) {
