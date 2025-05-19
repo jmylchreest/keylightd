@@ -71,7 +71,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 
 	// Get accessory info if not already set - happens OUTSIDE the lock
 	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" {
-		info, err := client.GetAccessoryInfo()
+		info, err := client.GetAccessoryInfo(context.Background())
 		if err != nil {
 			// Log error but continue without accessory info if fetching fails
 			errors.LogErrorAndReturn(m.logger, err, "failed to get accessory info during GetLight", "id", id)
@@ -86,7 +86,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	}
 
 	// Get current state - happens OUTSIDE the lock
-	state, err := client.GetLightState()
+	state, err := client.GetLightState(context.Background())
 	if err != nil {
 		// Return the error with proper wrapping and logging
 		return &updatedLight, errors.LogErrorAndReturn(
@@ -137,7 +137,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 
 // SetLightState sets the state of a light
 // It fetches the current state, updates the specified property, and sends the new state to the device.
-func (m *Manager) SetLightState(id string, property string, value interface{}) error {
+func (m *Manager) SetLightState(id string, property string, value any) error {
 	// Use RLock to safely read the light and client initially
 	m.mu.RLock()
 	light, exists := m.lights[id]
@@ -165,7 +165,7 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 	}
 
 	// Get current state from the device - happens OUTSIDE the lock
-	state, err := client.GetLightState()
+	state, err := client.GetLightState(context.Background())
 	if err != nil {
 		return errors.LogErrorAndReturn(
 			m.logger,
@@ -208,6 +208,7 @@ func (m *Manager) SetLightState(id string, property string, value interface{}) e
 
 	// Send updated state to device - happens OUTSIDE the lock
 	if err := client.SetLightState(
+		context.Background(),
 		state.Lights[0].On == 1,
 		state.Lights[0].Brightness,
 		state.Lights[0].Temperature,
@@ -279,7 +280,7 @@ func (m *Manager) AddLight(light Light) {
 	client := NewKeyLightClient(light.IP.String(), light.Port, m.logger)
 
 	// Get current state - happens OUTSIDE the lock
-	state, err := client.GetLightState()
+	state, err := client.GetLightState(context.Background())
 	if err != nil {
 		errors.LogErrorAndReturn(
 			m.logger,

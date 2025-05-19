@@ -2,6 +2,7 @@ package keylight
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,9 +58,13 @@ func NewKeyLightClient(ip string, port int, logger *slog.Logger, httpClient ...*
 }
 
 // GetAccessoryInfo retrieves basic device information
-func (c *KeyLightClient) GetAccessoryInfo() (*AccessoryInfo, error) {
+func (c *KeyLightClient) GetAccessoryInfo(ctx context.Context) (*AccessoryInfo, error) {
 	url := c.baseURL + "/accessory-info"
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.logger.Error("light: /accessory-info request failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to get accessory info: %w", err)
@@ -83,9 +88,13 @@ func (c *KeyLightClient) GetAccessoryInfo() (*AccessoryInfo, error) {
 }
 
 // GetLightState retrieves the current state of the light
-func (c *KeyLightClient) GetLightState() (*LightState, error) {
+func (c *KeyLightClient) GetLightState(ctx context.Context) (*LightState, error) {
 	url := c.baseURL + "/lights"
-	resp, err := c.httpClient.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		c.logger.Error("light: /lights request failed", "url", url, "error", err)
 		return nil, fmt.Errorf("failed to get light state: %w", err)
@@ -109,7 +118,7 @@ func (c *KeyLightClient) GetLightState() (*LightState, error) {
 }
 
 // SetLightState updates the state of the light
-func (c *KeyLightClient) SetLightState(on bool, brightness, temperature int) error {
+func (c *KeyLightClient) SetLightState(ctx context.Context, on bool, brightness, temperature int) error {
 	// Validate brightness range (3-100)
 	if brightness < 3 {
 		brightness = 3
@@ -145,7 +154,7 @@ func (c *KeyLightClient) SetLightState(on bool, brightness, temperature int) err
 		"mireds", temperature,
 		"payload", string(jsonData))
 
-	req, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

@@ -244,7 +244,7 @@ func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	}
 
 	client := NewKeyLightClient(entry.AddrV4.String(), entry.Port, logger)
-	info, err := client.GetAccessoryInfo()
+	info, err := client.GetAccessoryInfo(context.Background())
 	if err != nil {
 		if logger != nil {
 			errors.LogErrorAndReturn(
