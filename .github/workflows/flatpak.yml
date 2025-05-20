@@ -58,8 +58,7 @@ jobs:
           sed -i "s/GIT_COMMIT=unknown/GIT_COMMIT=$GIT_COMMIT/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
           sed -i "s/BUILD_DATE=unknown/BUILD_DATE=$BUILD_DATE/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
 
-      - name: Build Flatpak
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: keylightd-${{ env.VERSION }}.flatpak
           manifest-path: contrib/flatpak/io.github.jmylchreest.keylightd.yml

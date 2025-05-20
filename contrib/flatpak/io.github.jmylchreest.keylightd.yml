@@ -18,6 +18,7 @@ build-options:
     - GOPATH=/run/build/keylightd/go
     - GOCACHE=/run/build/keylightd/go-cache
     - GOBIN=/app/bin
+    - GOPROXY=direct
   append-path: /usr/lib/sdk/golang/bin
 modules:
   - name: keylightd
