@@ -1,0 +1,40 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+  workflow_run:
+    workflows: ["Test", "Release"]
+    types:
+      - completed
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    container:
+      image: squidfunk/mkdocs-material:latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Git identity
+        run: |
+          git config --global --add safe.directory $GITHUB_WORKSPACE
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Deploy documentation
+        run: |
+          cd docs
+          # [skip ci] in the commit message prevents triggering another CI run when docs are deployed
+          mkdocs gh-deploy --force --config-file ./mkdocs.yml --message "Deploy docs [skip ci]"
