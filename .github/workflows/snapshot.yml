@@ -72,3 +72,4 @@ jobs:
           args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: "snapshot-{{.Timestamp}}"

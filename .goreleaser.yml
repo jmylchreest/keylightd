@@ -40,9 +40,9 @@ builds:
       - -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate={{.Date}}
 
 release:
-  draft: "{{if .IsSnapshot}}true{{else}}false{{end}}"
-  prerelease: "{{if .IsSnapshot}}true{{else}}false{{end}}"
-  name_template: "{{if .IsSnapshot}}Snapshot {{.Timestamp}}{{else}}Release {{.Tag}}{{end}}"
+  draft: false
+  prerelease: "false"
+  name_template: "{{ .Tag }}"
   disable: false
   extra_files:
     - glob: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
