@@ -46,6 +46,16 @@ jobs:
         run: |
           cd contrib/gnome-extension
           make zip
+          echo "Extension built successfully"
+          echo "=== Checking what was created ==="
+          find $(pwd)/../../dist -name "*gnome-extension*" -o -name "*.zip" | sort
+
+      - name: Upload GNOME extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-extension
+          path: dist/gnome-extension/*.zip
+          retention-days: 1
 
   goreleaser:
     name: Run GoReleaser
@@ -63,6 +73,19 @@ jobs:
         with:
           go-version: stable
           cache: true
+
+      - name: Download GNOME extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gnome-extension
+          path: dist/gnome-extension
+
+      - name: Check for GNOME extension files
+        run: |
+          echo "=== Listing all directories ==="
+          find . -type d | sort
+          echo "=== Looking for gnome-extension files ==="
+          find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
