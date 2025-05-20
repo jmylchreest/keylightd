@@ -3,23 +3,18 @@
 [![Build Status](https://github.com/jmylchreest/keylightd/actions/workflows/release.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
 [![Codecov](https://codecov.io/gh/jmylchreest/keylightd/branch/main/graph/badge.svg)](https://codecov.io/gh/jmylchreest/keylightd)
 
-**keylightd** is a daemon and CLI tool for managing Elgato Keylights on your local network. It discovers lights via mDNS, allows grouping, and provides a robust CLI for automation and scripting.
-
----
+**keylightd** is a daemon and CLI tool for managing Elgato Key Lights on your local network. While designed primarily for Elgato Key Lights, it may also support other HTTP-based lights with similar interfaces (if you have a compatible device not explicitly supported, please open a ticket).
 
 ## Features
-- Automatic discovery of Elgato Keylights via mDNS
-- Local daemon (`keylightd`) exposes a Unix socket for CLI/API access
-- CLI tool (`keylightctl`) for managing lights and groups
+- Automatic discovery of lights via mDNS
 - Grouping of lights for batch control
+- HTTP REST API for remote control
+- Unix socket and CLI interface for local control
 - Configurable discovery interval and logging
-- HTTP REST API and Unix socket/CLI for local and remote control
 
----
-
-## Architecture
-- **keylightd**: Runs as a background daemon, discovers and manages lights, persists configuration, and exposes a Unix socket for local control.
-- **keylightctl**: CLI tool that communicates with the daemon via the Unix socket. All user interaction and scripting is done through this CLI.
+## Components
+- **keylightd**: Daemon that discovers lights, persists configuration, and exposes APIs
+- **keylightctl**: CLI tool for managing lights and groups
 
 ```
 +-----------+      Unix Socket      +-----------+      mDNS/HTTP      +-------------------+
@@ -27,121 +22,39 @@
 +-----------+                      +-----------+                    +-------------------+
 ```
 
----
+## Quick Start
 
-## Installation & Building
-
-### Prerequisites
-- Go 1.24 or later
-- [goreleaser](https://goreleaser.com/)
-
-### Building with GoReleaser
-
-To create a snapshot:
+Download the latest [release binaries](https://github.com/jmylchreest/keylightd/releases) and run:
 
 ```bash
-goreleaser build --clean --snapshot
-```
-
-To create a full release (for maintainers):
-
-```bash
-goreleaser release --clean
-```
-
-Binaries for `linux/amd64` and `linux/arm64` will be produced.
-
----
-
-## Usage
-
-### Running the Daemon
-
-```bash
+# Start the daemon
 ./keylightd
-```
 
-- The daemon will discover lights and listen on a Unix socket (default: `$XDG_RUNTIME_DIR/keylightd.sock` or `/run/user/<uid>/keylightd.sock`).
-- Configuration is stored in `$XDG_CONFIG_HOME/keylight/keylightd.yaml` or `~/.config/keylight/keylightd.yaml`.
-
-### Using the CLI
-
-```bash
+# List discovered lights
 ./keylightctl light list
-./keylightctl group add "My Group"
-./keylightctl group set <group-id> on true
+
+# Create a light group
+./keylightctl group add "Office"
+
+# Control a light group
+./keylightctl group set Office on true
 ```
 
-- The CLI will connect to the daemon via the Unix socket.
-- CLI config is stored in `$XDG_CONFIG_HOME/keylight/keylightctl.yaml` or `~/.config/keylight/keylightctl.yaml`.
+Configuration files are automatically generated on first save in `~/.config/keylight/`.
 
-### Running as a systemd Service
+## Systemd Service
+A systemd service file is available in `contrib/systemd/keylightd.service` for running the daemon as a system service.
 
-You can run `keylightd` as a systemd service for automatic startup and management:
+## GNOME Extension
+An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory.
 
-1. **Copy the unit file:**
-   ```sh
-   sudo cp contrib/systemd/keylightd.service /etc/systemd/system/
-   ```
+## Documentation
+For detailed documentation, see the [docs](./docs) directory.
 
-2. **Create the user and directories:**
-   ```sh
-   sudo useradd --system --no-create-home --shell /usr/sbin/nologin keylightd
-   sudo mkdir -p /var/lib/keylightd
-   sudo chown keylightd:keylightd /var/lib/keylightd
-   sudo mkdir -p /etc/keylight
-   sudo chown keylightd:keylightd /etc/keylight
-   ```
-
-3. **Reload systemd and enable the service:**
-   ```sh
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now keylightd
-   ```
-
-4. **Check status:**
-   ```sh
-   sudo systemctl status keylightd
-   ```
-
-The default config path is `/etc/keylight/keylightd.yaml`. You can override this with the `KEYLIGHT_CONFIG` environment variable in the unit file or your environment.
-
-> **Note:**
-> Environment variables for configuration must use the `KEYLIGHT_` prefix (e.g., `KEYLIGHT_CONFIG` for the config file path), due to the use of `SetEnvPrefix("KEYLIGHT")` in the code. Using `KEYLIGHTD_CONFIG` (as previously shown) will **not** work unless the code is changed to use a different prefix. Always use `KEYLIGHT_` for environment variable overrides.
-
----
-
-## Configuration
-- Config files are YAML and are auto-generated on first run.
-- You can override config locations with environment variables (`XDG_CONFIG_HOME`, etc).
-- See the `internal/config` package for details.
-
----
-
-## Testing
-
-Run all tests:
-
-```bash
-go test ./...
-```
-
-Generate a coverage report:
-
-```bash
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
----
+The `docs/mkdocs-build.sh` and `docs/mkdocs-serve.sh` scripts are provided for local documentation development and preview. They allow you to build and serve the documentation locally using Docker or Podman, but are not used in the CI/CD process.
 
 ## Contributing
-- PRs and issues are welcome!
-- Please ensure all tests pass and code is formatted (`gofmt`, `goimports`).
-- See [CONTRIBUTING.md](CONTRIBUTING.md) if present.
-
----
+PRs and issues are welcome! Please ensure all tests pass and code is formatted.
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. 
+MIT License - see the [LICENSE](LICENSE) file for details.

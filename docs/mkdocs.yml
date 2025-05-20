@@ -1,0 +1,47 @@
+site_name: KeylightD API Documentation
+site_description: Documentation for the KeylightD API for Elgato Key Light devices.
+site_author: KeylightD Team
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui-bundle.js
+
+extra_css:
+  - https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui.css
+  - stylesheets/extra.css
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API Reference:
+    - HTTP REST API: api/index.md
+    - Unix Socket API: socket-api.md
+  - Authentication: authentication.md
+  - Lights: lights.md
+  - Groups: groups.md
