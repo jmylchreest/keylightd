@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jmylchreest.keylightd</id>
+  <name>Keylight Control</name>
+  <summary>Control Elgato Key Lights and similar HTTP-based lighting devices</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>
+      Keylight Control provides a daemon and command-line interface for managing Elgato Key Lights and similar HTTP-based lighting devices on your local network.
+    </p>
+    <p>
+      Features:
+    </p>
+    <ul>
+      <li>Automatic discovery of Elgato Key Lights via mDNS</li>
+      <li>Grouping of lights for batch control</li>
+      <li>HTTP REST API for remote control</li>
+      <li>Unix socket and CLI interface for local control</li>
+      <li>Configurable discovery interval and logging</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.jmylchreest.keylightd.desktop</launchable>
+  <icon type="stock">io.github.jmylchreest.keylightd</icon>
+  <url type="homepage">https://github.com/jmylchreest/keylightd</url>
+  <url type="bugtracker">https://github.com/jmylchreest/keylightd/issues</url>
+  <developer_name>James Mylchreest</developer_name>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2023-10-01">
+      <description>
+        <p>Initial release of Keylight Control</p>
+      </description>
+    </release>
+  </releases>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Controlling Key Lights via CLI</caption>
+      <image>https://raw.githubusercontent.com/jmylchreest/keylightd/main/docs/assets/screenshot.png</image>
+    </screenshot>
+  </screenshots>
+</component>

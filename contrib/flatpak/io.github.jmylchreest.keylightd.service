@@ -1,0 +1,14 @@
+[Unit]
+Description=Elgato Key Light Daemon (Flatpak)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/app/bin/keylightd
+Restart=on-failure
+RestartSec=10
+Environment="XDG_CONFIG_HOME=%h/.var/app/io.github.jmylchreest.keylightd/config"
+Environment="XDG_RUNTIME_DIR=%t/app/io.github.jmylchreest.keylightd"
+
+[Install]
+WantedBy=default.target

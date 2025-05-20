@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Keylight Control
+Comment=Control Elgato Key Lights
+Exec=/app/bin/keylightctl
+Icon=io.github.jmylchreest.keylightd
+Terminal=false
+Categories=Utility;Settings;
+Keywords=keylight;elgato;light;control;
+StartupNotify=true

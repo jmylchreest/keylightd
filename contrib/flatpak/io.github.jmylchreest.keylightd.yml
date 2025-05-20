@@ -1,0 +1,59 @@
+app-id: io.github.jmylchreest.keylightd
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.golang
+command: keylightctl
+finish-args:
+  - --share=network
+  - --socket=x11
+  - --socket=wayland
+  - --own-name=io.github.jmylchreest.keylightd
+  - --filesystem=home
+  - --talk-name=org.freedesktop.systemd1
+build-options:
+  env:
+    - GO111MODULE=on
+    - GOPATH=/run/build/keylightd/go
+    - GOCACHE=/run/build/keylightd/go-cache
+    - GOBIN=/app/bin
+  append-path: /usr/lib/sdk/golang/bin
+modules:
+  - name: keylightd
+    buildsystem: simple
+    build-commands:
+      # Build keylightd and keylightctl binaries
+      - cd $FLATPAK_BUILDER_BUILDDIR && go build -o keylightd -ldflags="-s -w -X github.com/jmylchreest/keylightd/cmd/keylightd.version=${VERSION} -X github.com/jmylchreest/keylightd/cmd/keylightd.commit=${GIT_COMMIT} -X github.com/jmylchreest/keylightd/cmd/keylightd.buildDate=${BUILD_DATE}" ./cmd/keylightd
+      - cd $FLATPAK_BUILDER_BUILDDIR && go build -o keylightctl -ldflags="-s -w -X github.com/jmylchreest/keylightd/cmd/keylightctl.version=${VERSION} -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit=${GIT_COMMIT} -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate=${BUILD_DATE}" ./cmd/keylightctl
+      
+      # Install binaries
+      - install -Dm755 keylightd /app/bin/keylightd
+      - install -Dm755 keylightctl /app/bin/keylightctl
+      
+      # Create default configuration directory
+      - mkdir -p /app/share/keylightd
+      
+      # Install systemd user service file
+      - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.service /app/share/systemd/user/io.github.jmylchreest.keylightd.service
+      
+      # Install desktop autostart file
+      - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd-autostart.desktop /app/share/applications/io.github.jmylchreest.keylightd-autostart.desktop
+      
+      # Install desktop entry
+      - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.desktop /app/share/applications/io.github.jmylchreest.keylightd.desktop
+      
+      # Install icon
+      - install -Dm644 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg /app/share/icons/hicolor/scalable/apps/io.github.jmylchreest.keylightd.svg
+      
+      # Install appstream metadata
+      - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
+    sources:
+      - type: git
+        url: https://github.com/jmylchreest/keylightd.git
+        branch: main
+    build-options:
+      env:
+        - VERSION=flatpak
+        - GIT_COMMIT=unknown
+        - BUILD_DATE=unknown
