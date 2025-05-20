@@ -100,6 +100,7 @@ func (m *Manager) updateLightInfo(id string, info *AccessoryInfo) (*Light, error
 
 // fetchLightState retrieves the current state of a light from the device.
 func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, id string) (*LightState, error) {
+	
 	state, err := client.GetLightState(ctx)
 	if err != nil {
 		return nil, errors.LogErrorAndReturn(
@@ -114,6 +115,7 @@ func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, i
 
 // fetchAccessoryInfo retrieves accessory information for a light from the device.
 func (m *Manager) fetchAccessoryInfo(ctx context.Context, client *KeyLightClient, id string) (*AccessoryInfo, error) {
+	
 	info, err := client.GetAccessoryInfo(ctx)
 	if err != nil {
 		return nil, errors.LogErrorAndReturn(

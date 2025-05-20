@@ -111,7 +111,7 @@ func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) err
 		return errors.InvalidInputf("invalid property value: %w", err)
 	}
 
-	// Get client and light information
+	// Get client for this light
 	client, _, err := m.getOrCreateClient(id)
 	if err != nil {
 		return err
@@ -294,6 +294,7 @@ func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.D
 			"default", config.DefaultCleanupInterval)
 		cleanupInterval = config.DefaultCleanupInterval
 	}
+	
 	go func() {
 		ticker := time.NewTicker(cleanupInterval)
 		defer ticker.Stop()
@@ -325,6 +326,7 @@ func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 	// First identify stale lights with read lock to minimize lock duration
 	m.mu.RLock()
 	staleLights := []string{}
+	
 	for id, light := range m.lights {
 		if now.Sub(light.LastSeen) > timeout {
 			staleLights = append(staleLights, id)
