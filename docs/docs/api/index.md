@@ -4,14 +4,14 @@ This section provides detailed information about the KeylightD API endpoints, re
 
 ## OpenAPI Specification
 
-The KeylightD API follows the OpenAPI 3.1.0 specification. You can explore the interactive documentation below or [download the OpenAPI specification](../../openapi.yaml) for use with other tools.
+The KeylightD API follows the OpenAPI 3.1.0 specification. You can explore the interactive documentation below or [download the OpenAPI specification](spec/openapi.yaml) for use with other tools.
 
 <div id="swagger-ui"></div>
 
 <script>
   window.onload = function() {
     const ui = SwaggerUIBundle({
-      url: "../../openapi.yaml",
+      url: "spec/openapi.yaml",
       dom_id: '#swagger-ui',
       presets: [
         SwaggerUIBundle.presets.apis,
