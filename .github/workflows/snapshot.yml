@@ -64,6 +64,12 @@ jobs:
           go-version: stable
           cache: true
 
+      - name: Generate snapshot version
+        id: snapshot-version
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          echo "VERSION=0.0.0-SNAPSHOT-${TIMESTAMP}" >> $GITHUB_OUTPUT
+
       - name: Run GoReleaser snapshot
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -72,4 +78,4 @@ jobs:
           args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: "snapshot-{{.Timestamp}}"
+          GORELEASER_CURRENT_TAG: ${{ steps.snapshot-version.outputs.VERSION }}
