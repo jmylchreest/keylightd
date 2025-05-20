@@ -79,3 +79,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.snapshot-version.outputs.VERSION }}
+          GORELEASER_PRERELEASE: "true"
+          GORELEASER_DRAFT: "true"
