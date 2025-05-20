@@ -41,9 +41,121 @@ func TestClient_AllMethods(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	c := New(logger, "/tmp/fake.sock")
 
+	t.Run("AddAPIKey", func(t *testing.T) {
+		resp := map[string]any{
+			"key": map[string]any{
+				"name":         "test-key",
+				"key":          "abcd1234",
+				"created_at":   time.Now().Format(time.RFC3339Nano),
+				"expires_at":   time.Now().Add(time.Hour * 24).Format(time.RFC3339Nano),
+				"last_used_at": time.Time{}.Format(time.RFC3339Nano),
+				"disabled":     false,
+			},
+		}
+		buf := &bytes.Buffer{}
+		_ = json.NewEncoder(buf).Encode(resp)
+		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
+		oldDial := dial
+		dial = mockDialer(conn)
+		defer func() { dial = oldDial }()
+
+		key, err := c.AddAPIKey("test-key", 86400)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if key["name"] != "test-key" || key["key"] != "abcd1234" {
+			t.Fatalf("unexpected result: %v", key)
+		}
+	})
+
+	t.Run("ListAPIKeys", func(t *testing.T) {
+		resp := map[string]any{
+			"keys": []any{
+				map[string]any{
+					"name":         "key1",
+					"key":          "abcd1234",
+					"created_at":   time.Now().Format(time.RFC3339Nano),
+					"expires_at":   time.Now().Add(time.Hour * 24).Format(time.RFC3339Nano),
+					"last_used_at": time.Time{}.Format(time.RFC3339Nano),
+					"disabled":     false,
+				},
+				map[string]any{
+					"name":         "key2",
+					"key":          "efgh5678",
+					"created_at":   time.Now().Format(time.RFC3339Nano),
+					"expires_at":   time.Now().Add(time.Hour * 48).Format(time.RFC3339Nano),
+					"last_used_at": time.Now().Format(time.RFC3339Nano),
+					"disabled":     true,
+				},
+			},
+		}
+		buf := &bytes.Buffer{}
+		_ = json.NewEncoder(buf).Encode(resp)
+		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
+		oldDial := dial
+		dial = mockDialer(conn)
+		defer func() { dial = oldDial }()
+
+		keys, err := c.ListAPIKeys()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(keys) != 2 {
+			t.Fatalf("expected 2 keys, got %d", len(keys))
+		}
+		if keys[0]["name"] != "key1" || keys[1]["name"] != "key2" {
+			t.Fatalf("unexpected keys: %v", keys)
+		}
+	})
+
+	t.Run("DeleteAPIKey", func(t *testing.T) {
+		// For DeleteAPIKey, we need to handle the client.request usage differently
+		// since it passes nil as the response parameter
+		// Instead, create a valid response the client can process even with nil
+		resp := map[string]any{"status": "ok"}
+		buf := &bytes.Buffer{}
+		_ = json.NewEncoder(buf).Encode(resp)
+		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
+		oldDial := dial
+		dial = mockDialer(conn)
+		defer func() { dial = oldDial }()
+
+		err := c.DeleteAPIKey("abcd1234")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("SetAPIKeyDisabledStatus", func(t *testing.T) {
+		resp := map[string]any{
+			"key": map[string]any{
+				"name":         "test-key",
+				"key":          "abcd1234",
+				"created_at":   time.Now().Format(time.RFC3339Nano),
+				"expires_at":   time.Now().Add(time.Hour * 24).Format(time.RFC3339Nano),
+				"last_used_at": time.Time{}.Format(time.RFC3339Nano),
+				"disabled":     true,
+			},
+		}
+		buf := &bytes.Buffer{}
+		_ = json.NewEncoder(buf).Encode(resp)
+		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
+		oldDial := dial
+		dial = mockDialer(conn)
+		defer func() { dial = oldDial }()
+
+		key, err := c.SetAPIKeyDisabledStatus("test-key", true)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if key["name"] != "test-key" || key["disabled"] != true {
+			t.Fatalf("unexpected result: %v", key)
+		}
+	})
+
 	t.Run("GetLights", func(t *testing.T) {
-		resp := map[string]interface{}{
-			"lights": map[string]interface{}{"light1": map[string]interface{}{"id": "light1"}},
+		resp := map[string]any{
+			"lights": map[string]any{"light1": map[string]any{"id": "light1"}},
 		}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
@@ -53,13 +165,13 @@ func TestClient_AllMethods(t *testing.T) {
 		defer func() { dial = oldDial }()
 
 		lights, err := c.GetLights()
-		if err != nil || lights["light1"].(map[string]interface{})["id"] != "light1" {
+		if err != nil || lights["light1"].(map[string]any)["id"] != "light1" {
 			t.Fatalf("unexpected result: %v %v", lights, err)
 		}
 	})
 
 	t.Run("GetLight", func(t *testing.T) {
-		resp := map[string]interface{}{"id": "light1"}
+		resp := map[string]any{"id": "light1"}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -74,7 +186,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("SetLightState", func(t *testing.T) {
-		resp := map[string]interface{}{"ok": true}
+		resp := map[string]any{"ok": true}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -89,7 +201,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("CreateGroup", func(t *testing.T) {
-		resp := map[string]interface{}{"ok": true}
+		resp := map[string]any{"ok": true}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -104,7 +216,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("GetGroup", func(t *testing.T) {
-		resp := map[string]interface{}{"id": "g1"}
+		resp := map[string]any{"id": "g1"}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -119,10 +231,10 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("GetGroups", func(t *testing.T) {
-		resp := map[string]interface{}{
-			"groups": map[string]interface{}{
-				"g1": map[string]interface{}{"name": "G1"},
-				"g2": map[string]interface{}{"name": "G2"},
+		resp := map[string]any{
+			"groups": map[string]any{
+				"g1": map[string]any{"name": "G1"},
+				"g2": map[string]any{"name": "G2"},
 			},
 		}
 		buf := &bytes.Buffer{}
@@ -139,7 +251,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("SetGroupState", func(t *testing.T) {
-		resp := map[string]interface{}{"ok": true}
+		resp := map[string]any{"ok": true}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -154,7 +266,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("DeleteGroup", func(t *testing.T) {
-		resp := map[string]interface{}{"ok": true}
+		resp := map[string]any{"ok": true}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}
@@ -169,7 +281,7 @@ func TestClient_AllMethods(t *testing.T) {
 	})
 
 	t.Run("SetGroupLights", func(t *testing.T) {
-		resp := map[string]interface{}{"ok": true}
+		resp := map[string]any{"ok": true}
 		buf := &bytes.Buffer{}
 		_ = json.NewEncoder(buf).Encode(resp)
 		conn := &mockConn{readBuf: buf, writeBuf: &bytes.Buffer{}}

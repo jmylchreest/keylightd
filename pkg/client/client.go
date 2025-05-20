@@ -72,20 +72,37 @@ func (c *Client) request(req any, resp any) error {
 	}
 
 	c.logger.Debug("Waiting for response")
-	// Decode response
-	if err := json.NewDecoder(conn).Decode(resp); err != nil {
-		c.logger.Error("Failed to decode response", "error", err)
-		return fmt.Errorf("failed to decode response: %w", err)
-	}
-	c.logger.Debug("Received response", "response", resp)
+	// Decode response only if resp is not nil
+	if resp != nil {
+		if err := json.NewDecoder(conn).Decode(resp); err != nil {
+			c.logger.Error("Failed to decode response", "error", err)
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+		c.logger.Debug("Received response", "response", resp)
 
-	// Check for error in response
-	if respMap, ok := resp.(map[string]interface{}); ok {
-		if err, ok := respMap["error"].(string); ok {
+		// Check for error in response
+		if respMap, ok := resp.(map[string]any); ok {
+			if err, ok := respMap["error"].(string); ok {
+				c.logger.Error("Server returned error", "error", err)
+				return fmt.Errorf("server error: %s", err)
+			}
+			c.logger.Debug("Response processed successfully")
+		}
+	} else {
+		// When resp is nil, we still need to read and check for errors
+		var tempResp map[string]any
+		if err := json.NewDecoder(conn).Decode(&tempResp); err != nil {
+			c.logger.Error("Failed to decode response", "error", err)
+			return fmt.Errorf("failed to decode response: %w", err)
+		}
+		c.logger.Debug("Received response (nil target)", "response", tempResp)
+		
+		// Check for error in response
+		if err, ok := tempResp["error"].(string); ok {
 			c.logger.Error("Server returned error", "error", err)
 			return fmt.Errorf("server error: %s", err)
 		}
-		c.logger.Debug("Response processed successfully")
+		c.logger.Debug("Response processed successfully (nil target)")
 	}
 
 	return nil
@@ -103,14 +120,14 @@ func (c *Client) GetLights() (map[string]any, error) {
 	if !ok {
 		return nil, fmt.Errorf("no lights field in response")
 	}
-	lightsMap, ok := lightsField.(map[string]interface{})
+	lightsMap, ok := lightsField.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid lights format in response")
 	}
 
 	// Iterate through lights and convert lastseen string to time.Time
 	for _, lightData := range lightsMap {
-		if lightMap, ok := lightData.(map[string]interface{}); ok {
+		if lightMap, ok := lightData.(map[string]any); ok {
 			if lastSeenStr, ok := lightMap["lastseen"].(string); ok {
 				if t, err := time.Parse(time.RFC3339, lastSeenStr); err == nil {
 					lightMap["lastseen"] = t
@@ -127,9 +144,9 @@ func (c *Client) GetLights() (map[string]any, error) {
 // GetLight returns the state of a specific light
 func (c *Client) GetLight(id string) (map[string]any, error) {
 	var resp map[string]any
-	if err := c.request(map[string]interface{}{
+	if err := c.request(map[string]any{
 		"action": "get_light",
-		"data":   map[string]interface{}{"id": id},
+		"data":   map[string]any{"id": id},
 	}, &resp); err != nil {
 		return nil, err
 	}
@@ -153,7 +170,7 @@ func (c *Client) GetLight(id string) (map[string]any, error) {
 
 // SetLightState sets the state of a specific light
 func (c *Client) SetLightState(id string, property string, value any) error {
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := c.request(map[string]any{
 		"action": "set_light_state",
 		"data": map[string]any{
@@ -169,7 +186,7 @@ func (c *Client) SetLightState(id string, property string, value any) error {
 
 // CreateGroup creates a new group of lights
 func (c *Client) CreateGroup(name string) error {
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := c.request(map[string]any{
 		"action": "create_group",
 		"data":   map[string]any{"name": name},
@@ -203,7 +220,7 @@ func (c *Client) GetGroup(id string) (map[string]any, error) {
 	}
 
 	// If the response is wrapped in a "group" field, extract it
-	if group, ok := resp["group"].(map[string]interface{}); ok {
+	if group, ok := resp["group"].(map[string]any); ok {
 		resp = group
 	}
 
@@ -228,7 +245,7 @@ func (c *Client) GetGroups() ([]map[string]any, error) {
 		return nil, fmt.Errorf("invalid groups format in response")
 	}
 
-	groups := make([]map[string]interface{}, 0, len(groupsMap))
+	groups := make([]map[string]any, 0, len(groupsMap))
 	for id, group := range groupsMap {
 		if groupMap, ok := group.(map[string]any); ok {
 			groupMap["id"] = id
@@ -240,7 +257,7 @@ func (c *Client) GetGroups() ([]map[string]any, error) {
 
 // SetGroupState sets the state of all lights in a group
 func (c *Client) SetGroupState(id string, property string, value any) error {
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := c.request(map[string]any{
 		"action": "set_group_state",
 		"data": map[string]any{
@@ -256,7 +273,7 @@ func (c *Client) SetGroupState(id string, property string, value any) error {
 
 // DeleteGroup deletes a group of lights
 func (c *Client) DeleteGroup(id string) error {
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := c.request(map[string]any{
 		"action": "delete_group",
 		"data":   map[string]any{"id": id},
@@ -268,7 +285,7 @@ func (c *Client) DeleteGroup(id string) error {
 
 // SetGroupLights sets the lights in a group
 func (c *Client) SetGroupLights(groupID string, lightIDs []string) error {
-	var resp map[string]interface{}
+	var resp map[string]any
 	if err := c.request(map[string]any{
 		"action": "set_group_lights",
 		"data": map[string]any{
@@ -304,7 +321,7 @@ func (c *Client) AddAPIKey(name string, expiresInSeconds float64) (map[string]an
 		"data":   reqData,
 	}
 
-	var serverResponse map[string]interface{}
+	var serverResponse map[string]any
 	if err := c.request(apiRequest, &serverResponse); err != nil {
 		return nil, err
 	}
@@ -357,7 +374,7 @@ func (c *Client) ListAPIKeys() ([]map[string]any, error) {
 	}
 
 	// Extract the actual list of keys from the "keys" field
-	keysData, ok := serverResponse["keys"].([]interface{})
+	keysData, ok := serverResponse["keys"].([]any)
 	if !ok {
 		if errMsg, hasErr := serverResponse["error"].(string); hasErr {
 			return nil, fmt.Errorf("server error: %s", errMsg)
@@ -410,7 +427,8 @@ func (c *Client) DeleteAPIKey(key string) error {
 	}
 	// We expect a response like {"status": "ok"} or an error response.
 	// The generic response handling in c.request will return an error if the server sends one.
-	return c.request(payload, nil) // No specific data needed from a successful delete response beyond status.
+	var resp map[string]any
+	return c.request(payload, &resp) // Using a concrete type for response to avoid Unmarshal(nil) error
 }
 
 // SetAPIKeyDisabledStatus sends a request to enable or disable an API key.
@@ -428,9 +446,9 @@ func (c *Client) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (map[s
 	}
 
 	// Based on server.go, the response for this action is:
-	// s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": updatedKey})
+	// s.sendResponse(conn, id, map[string]any{"status": "ok", "key": updatedKey})
 	// The c.request method handles the outer envelope, so respData here should be the map sent as the third arg to sendResponse.
-	// Thus, respData should be map[string]interface{}{"status":"ok", "key": map[string]interface{...}}
+	// Thus, respData should be map[string]any{"status":"ok", "key": map[string]any{...}}
 	// We need to extract the nested "key" map which contains the actual APIKey fields.
 	updatedKeyData, ok := respData["key"].(map[string]any)
 	if !ok {

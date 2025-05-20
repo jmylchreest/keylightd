@@ -70,7 +70,7 @@ func (m *Manager) loadGroups() error {
 
 	groups := make(map[string]*Group)
 	for id, groupData := range groupsMap {
-		groupMap, ok := groupData.(map[string]interface{})
+		groupMap, ok := groupData.(map[string]any)
 		if !ok {
 			return fmt.Errorf("invalid group data for %s", id)
 		}
@@ -81,7 +81,7 @@ func (m *Manager) loadGroups() error {
 		}
 
 		// Convert lights array
-		lightsArray, ok := groupMap["lights"].([]interface{})
+		lightsArray, ok := groupMap["lights"].([]any)
 		if !ok {
 			return fmt.Errorf("invalid lights data for group %s", id)
 		}
@@ -109,9 +109,9 @@ func (m *Manager) saveGroups() error {
 
 	m.logger.Debug("Converting groups to map for config")
 	// Convert groups to map for config
-	groupsMap := make(map[string]interface{})
+	groupsMap := make(map[string]any)
 	for id, group := range groups {
-		groupsMap[id] = map[string]interface{}{
+		groupsMap[id] = map[string]any{
 			"name":   group.Name,
 			"lights": group.Lights,
 		}

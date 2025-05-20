@@ -241,7 +241,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			return // Exit handler on read error or EOF
 		}
 
-		var req map[string]interface{}
+		var req map[string]any
 		if err := json.Unmarshal(line, &req); err != nil {
 			s.logger.Error("Failed to unmarshal request", "error", err, "request", string(line))
 			s.sendError(conn, "", fmt.Sprintf("invalid JSON request: %s", err))
@@ -250,31 +250,31 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		action, _ := req["action"].(string)
 		id, _ := req["id"].(string)                     // Optional request ID for client tracking
-		data, _ := req["data"].(map[string]interface{}) // Data payload
+		data, _ := req["data"].(map[string]any) // Data payload
 
 		s.logger.Debug("Received request", "action", action, "id", id, "data", data)
 
 		switch action {
 		case "ping":
-			s.sendResponse(conn, id, map[string]interface{}{"message": "pong"})
+			s.sendResponse(conn, id, map[string]any{"message": "pong"})
 		case "list_lights":
 			lights := s.lights.GetLights()
-			result := make(map[string]interface{}, len(lights))
+			result := make(map[string]any, len(lights))
 			for id, light := range lights {
-				// Marshal to JSON and then unmarshal to map[string]interface{}
+				// Marshal to JSON and then unmarshal to map[string]any
 				b, err := json.Marshal(light)
 				if err != nil {
 					s.logger.Error("Failed to marshal light for socket response", "id", id, "error", err)
 					continue
 				}
-				var m map[string]interface{}
+				var m map[string]any
 				if err := json.Unmarshal(b, &m); err != nil {
 					s.logger.Error("Failed to unmarshal light for socket response", "id", id, "error", err)
 					continue
 				}
 				result[id] = m
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"lights": result})
+			s.sendResponse(conn, id, map[string]any{"lights": result})
 		case "get_light":
 			lightID, _ := data["id"].(string)
 			if lightID == "" {
@@ -286,25 +286,25 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to get light %s: %s", lightID, err))
 				return
 			}
-			// Marshal to JSON and then unmarshal to map[string]interface{}
+			// Marshal to JSON and then unmarshal to map[string]any
 			b, err := json.Marshal(light)
 			if err != nil {
 				s.logger.Error("Failed to marshal light for socket response", "id", lightID, "error", err)
 				s.sendError(conn, id, "internal error marshaling light")
 				return
 			}
-			var m map[string]interface{}
+			var m map[string]any
 			if err := json.Unmarshal(b, &m); err != nil {
 				s.logger.Error("Failed to unmarshal light for socket response", "id", lightID, "error", err)
 				s.sendError(conn, id, "internal error unmarshaling light")
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"light": m})
+			s.sendResponse(conn, id, map[string]any{"light": m})
 		case "set_light_state":
 			// Always extract from 'data' map
 			lightID, _ := data["id"].(string)
 			property, _ := data["property"].(string)
-			value := data["value"] // Keep as interface{} for flexibility
+			value := data["value"] // Keep as any for flexibility
 
 			if lightID == "" || property == "" || value == nil {
 				s.sendError(conn, id, "missing id, property, or value for set_light_state")
@@ -342,11 +342,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to set light %s state %s: %s", lightID, property, errSet))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "create_group":
 			name, _ := data["name"].(string)
-			lightIDsReq, _ := data["lights"].([]interface{})
+			lightIDsReq, _ := data["lights"].([]any)
 			lightIDs := make([]string, len(lightIDsReq))
 			for i, v := range lightIDsReq {
 				lightIDs[i], _ = v.(string)
@@ -360,7 +360,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to create group: %s", err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"group": group})
+			s.sendResponse(conn, id, map[string]any{"group": group})
 
 		case "delete_group":
 			groupID, _ := data["id"].(string)
@@ -372,7 +372,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to delete group %s: %s", groupID, err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "get_group":
 			groupID, _ := data["id"].(string)
@@ -389,26 +389,26 @@ func (s *Server) handleConnection(conn net.Conn) {
 			if lights == nil {
 				lights = []string{}
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"group": map[string]interface{}{"id": group.ID, "name": group.Name, "lights": lights}})
+			s.sendResponse(conn, id, map[string]any{"group": map[string]any{"id": group.ID, "name": group.Name, "lights": lights}})
 
 		case "list_groups":
 			groups := s.groups.GetGroups()
-			groupMap := make(map[string]interface{}, len(groups))
+			groupMap := make(map[string]any, len(groups))
 			for _, g := range groups {
 				lights := g.Lights
 				if lights == nil {
 					lights = []string{}
 				}
-				groupMap[g.ID] = map[string]interface{}{
+				groupMap[g.ID] = map[string]any{
 					"name":   g.Name,
 					"lights": lights,
 				}
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"groups": groupMap})
+			s.sendResponse(conn, id, map[string]any{"groups": groupMap})
 
 		case "set_group_lights":
 			groupID, _ := data["id"].(string)
-			lightIDsReq, _ := data["lights"].([]interface{})
+			lightIDsReq, _ := data["lights"].([]any)
 			lightIDs := make([]string, len(lightIDsReq))
 			for i, v := range lightIDsReq {
 				lightIDs[i], _ = v.(string)
@@ -421,7 +421,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to set lights for group %s: %s", groupID, err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "set_group_state":
 			groupKeys, _ := data["id"].(string)
@@ -469,10 +469,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 				}
 			}
 			if len(errs) > 0 {
-				s.sendResponse(conn, id, map[string]interface{}{"status": "partial", "errors": errs})
+				s.sendResponse(conn, id, map[string]any{"status": "partial", "errors": errs})
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "apikey_add":
 			name, _ := data["name"].(string)
@@ -496,7 +496,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				return
 			}
 			// Construct a map with lowercase keys for the client
-			apiKeyResponse := map[string]interface{}{
+			apiKeyResponse := map[string]any{
 				"name":         apiKey.Name,
 				"key":          apiKey.Key,
 				"created_at":   apiKey.CreatedAt.Format(time.RFC3339Nano),
@@ -505,15 +505,15 @@ func (s *Server) handleConnection(conn net.Conn) {
 				"disabled":     apiKey.IsDisabled(),
 				// Permissions are not included for now
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": apiKeyResponse})
+			s.sendResponse(conn, id, map[string]any{"status": "ok", "key": apiKeyResponse})
 
 		case "apikey_list":
 			keys := s.apikeyManager.ListAPIKeys() // Returns []config.APIKey
 			// For socket response, we might not want to send the full key string.
 			// Let's send Name, CreatedAt, ExpiresAt, LastUsedAt, Disabled and a partial key.
-			responseKeys := make([]map[string]interface{}, len(keys))
+			responseKeys := make([]map[string]any, len(keys))
 			for i, k := range keys {
-				responseKeys[i] = map[string]interface{}{
+				responseKeys[i] = map[string]any{
 					"name":         k.Name,
 					"key":          k.Key, // Client side will decide on obfuscation if needed for display
 					"created_at":   k.CreatedAt.Format(time.RFC3339Nano),
@@ -522,7 +522,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 					"disabled":     k.IsDisabled(),
 				}
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "keys": responseKeys})
+			s.sendResponse(conn, id, map[string]any{"status": "ok", "keys": responseKeys})
 
 		case "apikey_delete":
 			key, _ := data["key"].(string)
@@ -534,7 +534,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to delete API key: %s", err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok"})
+			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "apikey_set_disabled_status":
 			keyOrName, _ := data["key_or_name"].(string) // Corrected: use data, not req
@@ -560,17 +560,17 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, fmt.Sprintf("failed to set API key disabled status: %s", err))
 				return
 			}
-			s.sendResponse(conn, id, map[string]interface{}{"status": "ok", "key": updatedKey})
+			s.sendResponse(conn, id, map[string]any{"status": "ok", "key": updatedKey})
 
 		default:
 			s.logger.Warn("received unknown action", "action", action)
-			encoder.Encode(map[string]interface{}{"id": id, "error": "unknown action: " + action})
+			encoder.Encode(map[string]any{"id": id, "error": "unknown action: " + action})
 		}
 	}
 }
 
-func (s *Server) sendResponse(conn net.Conn, id string, data map[string]interface{}) {
-	response := map[string]interface{}{"status": "ok"}
+func (s *Server) sendResponse(conn net.Conn, id string, data map[string]any) {
+	response := map[string]any{"status": "ok"}
 	if id != "" {
 		response["id"] = id
 	}
@@ -584,7 +584,7 @@ func (s *Server) sendResponse(conn net.Conn, id string, data map[string]interfac
 
 func (s *Server) sendError(conn net.Conn, id string, message string) {
 	s.logger.Error("Sending error response to client", "id", id, "message", message)
-	response := map[string]interface{}{"error": message}
+	response := map[string]any{"error": message}
 	if id != "" {
 		response["id"] = id
 	}
@@ -973,7 +973,7 @@ func (s *Server) handleGroupSetState() http.HandlerFunc {
 
 		if len(errs) > 0 {
 			w.WriteHeader(http.StatusMultiStatus) // 207
-			writeJSONResponse(w, map[string]interface{}{"status": "partial", "errors": errs})
+			writeJSONResponse(w, map[string]any{"status": "partial", "errors": errs})
 			return
 		}
 		writeJSONResponse(w, map[string]string{"status": "ok"})
@@ -981,7 +981,7 @@ func (s *Server) handleGroupSetState() http.HandlerFunc {
 }
 
 // writeJSONResponse is a helper to write JSON responses
-func writeJSONResponse(w http.ResponseWriter, data interface{}) {
+func writeJSONResponse(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		// If encoding fails, it's too late to send a different status code normally.

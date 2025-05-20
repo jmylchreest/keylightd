@@ -49,8 +49,8 @@ func GenerateKey(length int) (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("failed to read random bytes: %w", err)
 	}
-	for i := 0; i < length; i++ {
-		b[i] = DefaultKeyCharset[int(b[i])%len(DefaultKeyCharset)]
+	for i, v := range b {
+		b[i] = DefaultKeyCharset[int(v)%len(DefaultKeyCharset)]
 	}
 	return string(b), nil
 }
@@ -60,8 +60,8 @@ func GenerateKey(length int) (string, error) {
 
 // State holds persistent data like API keys and groups
 type State struct {
-	APIKeys []APIKey               `yaml:"api_keys"`
-	Groups  map[string]interface{} `yaml:"groups"`
+	APIKeys []APIKey          `yaml:"api_keys"`
+	Groups  map[string]any `yaml:"groups"`
 }
 
 // ConfigBlock holds operational/configuration settings
@@ -152,12 +152,12 @@ func Load(configName, configFile string) (*Config, error) {
 		return nil, fmt.Errorf("unable to unmarshal config: %w", err)
 	}
 
-	// Viper seems to fill map[string]interface{} fine, but doesnt seem reliable at all for []APIKey?
+	// Viper seems to fill map[string]any fine, but doesnt seem reliable at all for []APIKey?
 	configPath := v.ConfigFileUsed()
 	if configPath != "" {
 		data, err := os.ReadFile(configPath)
 		if err == nil {
-			var raw map[string]interface{}
+			var raw map[string]any
 			if err := yaml.Unmarshal(data, &raw); err == nil {
 				if stateRaw, ok := raw["state"]; ok {
 					stateBytes, _ := yaml.Marshal(stateRaw)
@@ -205,10 +205,10 @@ func (c *Config) Save() error {
 	logger := slog.Default()
 	logger.Info("Saving configuration", "path", c.v.ConfigFileUsed())
 
-	settings := map[string]interface{}{}
+	settings := map[string]any{}
 
 	// Only write state if api_keys or groups are non-empty
-	stateMap := map[string]interface{}{}
+	stateMap := map[string]any{}
 	if len(c.State.APIKeys) > 0 {
 		stateMap["api_keys"] = c.State.APIKeys
 	}
@@ -220,7 +220,7 @@ func (c *Config) Save() error {
 	}
 
 	// Only write config if any sub-block is non-default
-	configMap := map[string]interface{}{}
+	configMap := map[string]any{}
 	if !isDefaultServer(c.Config.Server) {
 		configMap["server"] = c.Config.Server
 	}
@@ -273,7 +273,7 @@ func isDefaultLogging(l LoggingConfig) bool {
 }
 
 // Get retrieves a value from the configuration
-func (c *Config) Get(key string) interface{} {
+func (c *Config) Get(key string) any {
 	if c.v == nil {
 		return nil
 	}
@@ -281,7 +281,7 @@ func (c *Config) Get(key string) interface{} {
 }
 
 // Set sets a value in the configuration
-func (c *Config) Set(key string, value interface{}) {
+func (c *Config) Set(key string, value any) {
 	if c.v == nil {
 		return
 	}
