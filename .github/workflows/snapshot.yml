@@ -1,16 +1,16 @@
-name: Release
+name: Snapshot
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
   workflow_run:
     workflows: ["Test"]
     types:
       - completed
     branches:
-      - "refs/tags/v*"
+      - main
 
 jobs:
   check-test-status:
@@ -23,7 +23,7 @@ jobs:
           if [ "${{ github.event_name }}" == "workflow_run" ]; then
             echo "Test workflow has completed successfully."
           else
-            echo "Direct workflow trigger. Proceeding with release."
+            echo "Direct workflow trigger. Proceeding with snapshot."
           fi
 
   build-gnome-extension:
@@ -64,11 +64,20 @@ jobs:
           go-version: stable
           cache: true
 
-      - name: Run GoReleaser
+      - name: Generate snapshot version
+        id: snapshot-version
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          echo "VERSION=0.0.0-SNAPSHOT-${TIMESTAMP}" >> $GITHUB_OUTPUT
+
+      - name: Run GoReleaser snapshot
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
-          version: latest
-          args: release --clean --timeout 30m
+          version: "latest"
+          args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.snapshot-version.outputs.VERSION }}
+          GORELEASER_PRERELEASE: "true"
+          GORELEASER_DRAFT: "true"

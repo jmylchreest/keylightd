@@ -39,12 +39,13 @@ builds:
       - -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit={{.ShortCommit}}
       - -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate={{.Date}}
 
-# release:
-#   extra_files:
-#     - glob: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
+release:
+  disable: false
+  extra_files:
+    - glob: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
 
 archives:
-  - formats: [ 'tar.gz' ]
+  - formats: ["tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
@@ -54,8 +55,8 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
       - Merge pull request
-      - Merge branch 
+      - Merge branch
