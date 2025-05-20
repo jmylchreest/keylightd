@@ -41,8 +41,6 @@ builds:
 
 release:
   disable: false
-  extra_files:
-    - glob: ./dist/gnome-extension/*.zip
 
 archives:
   - formats: ["tar.gz"]
