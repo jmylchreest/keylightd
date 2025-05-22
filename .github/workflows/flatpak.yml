@@ -41,6 +41,17 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Go Mod Vendor
+        run: |
+          go mod tidy
+          go mod vendor
+
       - name: Get Version
         id: get-version
         run: |
@@ -52,7 +63,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_ENV
-          
+
           # Update the manifest with our version info
           sed -i "s/VERSION=flatpak/VERSION=$VERSION/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
           sed -i "s/GIT_COMMIT=unknown/GIT_COMMIT=$GIT_COMMIT/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
