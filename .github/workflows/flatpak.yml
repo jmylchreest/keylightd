@@ -4,24 +4,21 @@ on:
   workflow_call:
     inputs:
       tag_name:
-        description: 'The tag name for the release'
+        description: "The tag name for the release"
         required: true
         type: string
       version:
-        description: 'The version number (without v prefix)'
+        description: "The version number (without v prefix)"
         required: true
         type: string
       release_type:
-        description: 'Type of release: release or snapshot'
+        description: "Type of release: release or snapshot"
         required: true
         type: string
       release_id:
-        description: 'The ID of the release (only required for GitHub API operations)'
+        description: "The ID of the release workflow run"
         required: false
         type: string
-    secrets:
-      GITHUB_TOKEN:
-        required: true
 
 jobs:
   flatpak:
@@ -39,103 +36,70 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download Binaries from Release
+      - name: Create directories
+        run: mkdir -p binaries
+
+      - name: Download binaries from artifacts
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          name: goreleaser-${{ matrix.arch }}
+          workflow: release.yml
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          run_id: ${{ inputs.release_id != '' && inputs.release_id || github.run_id }}
+          repo: ${{ github.repository }}
+          path: artifacts
+          
+      - name: Debug downloaded artifacts
         run: |
-          # Set up variables
-          TAG_NAME="${{ inputs.tag_name }}"
+          echo "=== Listing downloaded artifacts ==="
+          find artifacts -type f | sort
+          echo "=== Detailed listing of artifacts directory ==="
+          find artifacts -type f -exec ls -la {} \;
+          
+      - name: Extract binaries from artifacts
+        run: |
+          ARCH="${{ matrix.arch }}"
           VERSION="${{ inputs.version }}"
-          echo "Using tag: ${TAG_NAME}, version: ${VERSION}"
+          TAG="${{ inputs.tag_name }}"
           
-          # Create directories
-          mkdir -p extracted binaries
+          echo "=== Searching for tarball for architecture: ${ARCH} ==="
           
-          # Wait for the release to be available
-          for i in {1..10}; do
-            if curl -s -o /dev/null -w "%{http_code}" "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG_NAME}" | grep -q "200"; then
-              echo "Release found, continuing..."
-              break
-            fi
-            echo "Waiting for release to be available... (attempt $i)"
-            sleep 3
-            if [ $i -eq 10 ]; then
-              echo "Timed out waiting for release, will try direct download methods"
-            fi
-          done
-          
-          # Try to download from the release
-          ARCHIVE_DOWNLOADED=false
-          if [ "${{ matrix.arch }}" = "amd64" ]; then
-            curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightd_${VERSION}_linux_amd64.tar.gz" -o linux_amd64.tar.gz
-            if [ -f linux_amd64.tar.gz ] && [ -s linux_amd64.tar.gz ]; then
-              tar -xzf linux_amd64.tar.gz -C extracted
-              ARCHIVE_DOWNLOADED=true
-            fi
-          elif [ "${{ matrix.arch }}" = "arm64" ]; then
-            curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightd_${VERSION}_linux_arm64.tar.gz" -o linux_arm64.tar.gz
-            if [ -f linux_arm64.tar.gz ] && [ -s linux_arm64.tar.gz ]; then
-              tar -xzf linux_arm64.tar.gz -C extracted
-              ARCHIVE_DOWNLOADED=true
+          # Find and extract from tarball
+          TARBALL=$(find artifacts -name "keylightd*_linux_${ARCH}.tar.gz" | head -n 1)
+          if [ -n "$TARBALL" ]; then
+            echo "Found tarball: $TARBALL"
+            mkdir -p extracted
+            tar -xf "$TARBALL" -C extracted
+            
+            # Copy binaries to the binaries directory
+            if [ -f "extracted/keylightd" ] && [ -f "extracted/keylightctl" ]; then
+              cp extracted/keylightd binaries/
+              cp extracted/keylightctl binaries/
+              echo "Successfully extracted binaries from tarball"
+            else
+              echo "ERROR: Tarball did not contain expected binaries"
+              exit 1
             fi
           else
-            echo "Unsupported architecture: ${{ matrix.arch }}"
+            echo "ERROR: Could not find tarball for architecture ${ARCH}"
             exit 1
           fi
           
-          # If archive download failed, try alternatives
-          if [ "$ARCHIVE_DOWNLOADED" = "false" ]; then
-            echo "Failed to download or extract archive, trying alternative methods"
-            
-            # Try to download individual binaries instead
-            if [ "${{ matrix.arch }}" = "amd64" ]; then
-              curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightd_linux_amd64_v1/keylightd" -o extracted/keylightd
-              curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightctl_linux_amd64_v1/keylightctl" -o extracted/keylightctl
-            elif [ "${{ matrix.arch }}" = "arm64" ]; then
-              curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightd_linux_arm64_v8.0/keylightd" -o extracted/keylightd
-              curl -sL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/keylightctl_linux_arm64_v8.0/keylightctl" -o extracted/keylightctl
-            fi
-            
-            # Try to get artifacts from the workflow if direct download failed
-            if [ ! -f extracted/keylightd ] || [ ! -s extracted/keylightd ]; then
-              echo "Failed to download individual binaries, trying workflow artifacts"
-              
-              # Get the workflow run ID from the GitHub API if we have a release ID
-              if [ -n "${{ inputs.release_id }}" ]; then
-                ARTIFACT_URL=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-                  "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${{ inputs.release_id }}/artifacts" | \
-                  jq -r '.artifacts[] | select(.name | contains("goreleaser")) | .archive_download_url' | head -n 1)
-                
-                if [ -n "$ARTIFACT_URL" ] && [ "$ARTIFACT_URL" != "null" ]; then
-                  echo "Downloading artifact from $ARTIFACT_URL"
-                  curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$ARTIFACT_URL" -o artifacts.zip
-                  unzip -q -o artifacts.zip -d artifacts
-                  
-                  # Find binaries in the artifacts
-                  find artifacts -name "keylightd*_linux_${{ matrix.arch }}*" -type f -exec cp {} extracted/keylightd \; || echo "Failed to find keylightd binary"
-                  find artifacts -name "keylightctl*_linux_${{ matrix.arch }}*" -type f -exec cp {} extracted/keylightctl \; || echo "Failed to find keylightctl binary"
-                fi
-              fi
-            fi
-            
-            if [ -f extracted/keylightd ] && [ -s extracted/keylightd ]; then
-              echo "Successfully downloaded binaries"
-            else
-              echo "Failed to download binaries, creating placeholders"
-              
-              # Create placeholder binaries as a last resort
-              echo '#!/bin/sh' > extracted/keylightd
-              echo 'echo "This is a placeholder binary for keylightd (${{ inputs.release_type }} build)"' >> extracted/keylightd
-              
-              echo '#!/bin/sh' > extracted/keylightctl
-              echo 'echo "This is a placeholder binary for keylightctl (${{ inputs.release_type }} build)"' >> extracted/keylightctl
-            fi
-          fi
-          
-          # Copy binaries to expected location
-          cp extracted/keylightd binaries/
-          cp extracted/keylightctl binaries/
+          # Make binaries executable
           chmod +x binaries/keylightd binaries/keylightctl
           
+          # List the binaries and verify they exist
+          echo "=== Final binaries for Flatpak build ==="
           ls -la binaries/
+          if [ -f "binaries/keylightd" ] && [ -x "binaries/keylightd" ] && \
+             [ -f "binaries/keylightctl" ] && [ -x "binaries/keylightctl" ]; then
+            echo "Both binaries exist and are executable"
+            file binaries/keylightd
+            file binaries/keylightctl
+          else
+            echo "ERROR: Missing or non-executable binaries"
+            exit 1
+          fi
 
       - name: Update Flatpak Manifest
         run: |
