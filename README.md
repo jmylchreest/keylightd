@@ -24,7 +24,7 @@
 
 ## Quick Start
 
-Download the latest [release binaries](https://github.com/jmylchreest/keylightd/releases) or [snapshot builds](https://github.com/jmylchreest/keylightd/releases) (tagged with `snapshot-`) and run:
+Download the latest [release binaries](https://github.com/jmylchreest/keylightd/releases) or [snapshot builds](https://github.com/jmylchreest/keylightd/releases) (look for pre-releases) and run:
 
 ```bash
 # Start the daemon
@@ -55,7 +55,7 @@ The `docs/mkdocs-build.sh` and `docs/mkdocs-serve.sh` scripts are provided for l
 
 ## Development Versions
 
-Snapshot builds are automatically generated on each commit to the main branch. These builds are available as pre-releases in the [releases section](https://github.com/jmylchreest/keylightd/releases) with tags starting with `snapshot-`. The version is determined by GoReleaser's snapshot mode, which adds `-SNAPSHOT-{commit_hash}` to the version. These builds contain the latest features and fixes but may not be as stable as formal releases.
+Snapshot builds are automatically generated on each commit to the main branch. These builds are available as pre-releases in the [releases section](https://github.com/jmylchreest/keylightd/releases) with version tags like `0.0.0-SNAPSHOT-{hash}`. The version is determined by GoReleaser's snapshot mode. These builds contain the latest features and fixes but may not be as stable as formal releases.
 
 ## Contributing
 PRs and issues are welcome! Please ensure all tests pass and code is formatted.

@@ -94,14 +94,24 @@ jobs:
           args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Extract version from metadata
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Extract version information
         id: extract-version
         run: |
-          VERSION=$(cat ./dist/metadata.json | grep version | head -n 1 | sed 's/.*: "\(.*\)",/\1/')
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "=== Content of metadata.json ==="
+          cat ./dist/metadata.json
+
+          # Extract version using jq
+          VERSION=$(jq -r .version ./dist/metadata.json)
           echo "Extracted version: ${VERSION}"
-          echo "This will be used for GitHub release tagging"
+
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Final version: ${VERSION}"
+        # This  gets used to tag the snapshot in the create release step
+        # but if it has v* it'll do improper things with the workflow so dont include those
 
       - name: Download GNOME extension artifact
         uses: actions/download-artifact@v4
@@ -125,19 +135,30 @@ jobs:
           find ./dist -type f | sort
 
           echo "=== GoReleaser artifacts.json content ==="
-          cat ./dist/artifacts.json || echo "artifacts.json not found"
+          if [ -f ./dist/artifacts.json ]; then
+            jq . ./dist/artifacts.json
+          else
+            echo "artifacts.json not found"
+          fi
 
           echo "=== GoReleaser metadata.json content ==="
-          cat ./dist/metadata.json || echo "metadata.json not found"
+          if [ -f ./dist/metadata.json ]; then
+            jq . ./dist/metadata.json
+          else
+            echo "metadata.json not found"
+          fi
 
           echo "=== GNOME extension files ==="
           find ./dist/gnome-extension -type f | sort
+
+          echo "=== Archive contents ==="
+          ls -la ./dist/*.tar.gz || echo "No archives found"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: "Snapshot ${{ steps.extract-version.outputs.VERSION }}"
-          tag_name: snapshot-${{ steps.extract-version.outputs.VERSION }}
+          tag_name: "${{ steps.extract-version.outputs.TAG_VERSION }}"
           body: |
             Automated snapshot build from commit ${{ github.sha }}
 
@@ -149,5 +170,6 @@ jobs:
             ./dist/gnome-extension/*.zip
           prerelease: true
           draft: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
