@@ -203,7 +203,7 @@ func (c *Config) Save() error {
 	defer c.saveMutex.Unlock()
 
 	logger := slog.Default()
-	logger.Info("Saving configuration", "path", c.v.ConfigFileUsed())
+	logger.Debug("Saving configuration", "path", c.v.ConfigFileUsed())
 
 	settings := map[string]any{}
 
@@ -256,7 +256,7 @@ func (c *Config) Save() error {
 		return fmt.Errorf("error writing config file: %w", err)
 	}
 
-	logger.Info("Configuration saved successfully", "path", configPath)
+	logger.Debug("Configuration saved successfully", "path", configPath)
 	return nil
 }
 
