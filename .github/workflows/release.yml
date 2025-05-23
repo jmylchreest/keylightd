@@ -107,5 +107,3 @@ jobs:
       version: ${{ github.ref_name | replace('v', '') }}
       release_type: release
       release_id: ${{ github.run_id }}
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
