@@ -150,7 +150,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 							"attempt", attempt)
 						continue
 					}
-					m.logger.Info("light: validated Light",
+					m.logger.Debug("light: validated Light",
 						"name", light.Name,
 						"id", light.ID,
 						"addr", light.IP,
