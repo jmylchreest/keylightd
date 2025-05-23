@@ -87,6 +87,53 @@ jobs:
           echo "Commit hash: ${COMMIT_HASH}"
           echo "Commit message: ${COMMIT_MSG}"
 
+      - name: Find previous and current versions
+        id: version
+        run: |
+          # Get all tags
+          git fetch --tags
+          
+          # List all tags for diagnostics
+          echo "=== All tags (newest first) ==="
+          git tag --sort=-v:refname
+          
+          # Find the latest non-snapshot tag (for base version)
+          LATEST_RELEASE_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
+          if [ -z "$LATEST_RELEASE_TAG" ]; then
+            LATEST_RELEASE_TAG="0.0.0"
+          fi
+          echo "Latest release tag: ${LATEST_RELEASE_TAG}"
+          
+          # Get the most recent tag overall (could be a snapshot)
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
+          echo "Previous tag: ${PREVIOUS_TAG}"
+          
+          # If previous tag is a snapshot, strip the snapshot part for new tag base
+          if [[ "$PREVIOUS_TAG" == *"-SNAPSHOT-"* ]]; then
+            # Extract the base part (before -SNAPSHOT)
+            BASE_VERSION=${PREVIOUS_TAG%%-SNAPSHOT*}
+            echo "Using base version from previous snapshot: ${BASE_VERSION}"
+          else
+            # Use the latest release tag
+            BASE_VERSION=${LATEST_RELEASE_TAG}
+            echo "Using latest release tag as base: ${BASE_VERSION}"
+          fi
+          
+          # Add v prefix if it doesn't exist
+          if [[ ! "$BASE_VERSION" == v* ]]; then
+            BASE_VERSION="v${BASE_VERSION}"
+            echo "Added v prefix to base version: ${BASE_VERSION}"
+          fi
+          
+          echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+          echo "CURRENT_TAG=${BASE_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Debug GoReleaser environment
+        run: |
+          echo "=== GoReleaser Environment ==="
+          echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
+          echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
+          
       - name: Run GoReleaser snapshot
         id: goreleaser
         uses: goreleaser/goreleaser-action@v6
@@ -96,6 +143,8 @@ jobs:
           args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
