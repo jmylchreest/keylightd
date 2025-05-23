@@ -102,6 +102,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			discoverCtx, cancel := context.WithTimeout(ctx, timeout)
 
 			entries := make(chan *zeroconf.ServiceEntry, 10)
+			discoveredLights := make(chan struct{})
 			resolver, err := zeroconf.NewResolver(nil)
 			if err != nil {
 				cancel() // Ensure we cancel the context if we fail here
@@ -113,8 +114,9 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 				)
 			}
 
-			discoveredLights := make(chan struct{})
+			entriesDone := make(chan struct{})
 			go func() {
+				defer close(entriesDone)
 				for entry := range entries {
 					m.logger.Debug("zeroconf: received entry",
 						"instance", entry.Instance,
@@ -166,7 +168,10 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 
 			// Try each service name
 			for _, serviceName := range serviceNames {
-				err = resolver.Browse(discoverCtx, serviceName, domain, entries)
+				// Use a context with timeout to ensure Browse doesn't hang indefinitely
+				browseCtx, browseCancel := context.WithTimeout(discoverCtx, 2*time.Second)
+
+				err = resolver.Browse(browseCtx, serviceName, domain, entries)
 				if err != nil {
 					// Log but continue with other services
 					errors.LogErrorAndReturn(
@@ -177,6 +182,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 						"service", serviceName,
 					)
 					// Don't cancel the context here as we want to continue with other services
+					browseCancel()
 					continue
 				}
 
@@ -185,10 +191,18 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					m.logger.Debug("Browse attempt completed",
 						"attempt", attempt,
 						"timeout", timeout)
+					browseCancel()
 				case <-discoveredLights:
 					m.logger.Debug("Lights discovered, stopping attempts",
 						"attempt", attempt)
+					browseCancel()
 					cancel()
+					// Wait for the entries goroutine to finish processing remaining entries
+					select {
+					case <-entriesDone:
+					case <-time.After(100 * time.Millisecond):
+						m.logger.Debug("Timed out waiting for entries processing to complete")
+					}
 					return nil
 				}
 
@@ -197,11 +211,26 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					m.logger.Debug("Found lights, stopping discovery attempts",
 						"attempt", attempt,
 						"lightCount", len(m.GetLights()))
+					browseCancel()
 					cancel()
+					// Wait for the entries goroutine to finish processing remaining entries
+					select {
+					case <-entriesDone:
+					case <-time.After(100 * time.Millisecond):
+						m.logger.Debug("Timed out waiting for entries processing to complete")
+					}
 					return nil
 				}
+				// Make sure to cancel the browse context at the end of each iteration
+				browseCancel()
 			}
-			cancel() // Cancel context at end of each attempt
+			cancel() // Cancel discovery context at end of each attempt
+			// Wait for the entries goroutine to finish processing remaining entries
+			select {
+			case <-entriesDone:
+			case <-time.After(100 * time.Millisecond):
+				m.logger.Debug("Timed out waiting for entries processing to complete")
+			}
 		}
 
 		return nil
