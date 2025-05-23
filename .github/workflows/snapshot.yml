@@ -63,6 +63,8 @@ jobs:
     name: Run GoReleaser
     needs: build-gnome-extension
     runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.extract-version.outputs.VERSION }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -155,10 +157,12 @@ jobs:
           ls -la ./dist/*.tar.gz || echo "No archives found"
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           name: "Snapshot ${{ steps.extract-version.outputs.VERSION }}"
-          tag_name: "${{ steps.extract-version.outputs.TAG_VERSION }}"
+          tag_name: "${{ steps.extract-version.outputs.VERSION }}"
+          # Ensure this is always a prerelease and is clearly marked as a snapshot
           body: |
             Automated snapshot build from commit ${{ github.sha }}
 
@@ -173,3 +177,15 @@ jobs:
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  flatpak:
+    name: Build Flatpak
+    needs: goreleaser
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      tag_name: ${{ needs.goreleaser.outputs.VERSION }}
+      version: ${{ needs.goreleaser.outputs.VERSION | replace('v', '') }}
+      release_type: snapshot
+      release_id: ${{ github.run_id }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
