@@ -39,9 +39,6 @@ jobs:
       - name: Create directories
         run: mkdir -p binaries
 
-      - name: Install dependencies
-        run: dnf install -y jq curl
-
       - name: Download release assets
         run: |
           mkdir -p artifacts
