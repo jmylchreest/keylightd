@@ -98,12 +98,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  extract-version:
+    name: Extract Version
+    runs-on: ubuntu-latest
+    outputs:
+      CLEAN_VERSION: ${{ steps.clean-version.outputs.CLEAN_VERSION }}
+    steps:
+      - name: Extract clean version
+        id: clean-version
+        run: |
+          # Extract version without v prefix
+          REF_NAME="${{ github.ref_name }}"
+          VERSION=${REF_NAME#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
   flatpak:
     name: Build Flatpak
-    needs: goreleaser
+    needs: [goreleaser, extract-version]
     uses: ./.github/workflows/flatpak.yml
     with:
       tag_name: ${{ github.ref_name }}
-      version: ${{ github.ref_name | replace('v', '') }}
+      version: ${{ needs.extract-version.outputs.VERSION }}
       release_type: release
       release_id: ${{ github.run_id }}
