@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
   workflow_dispatch:
   workflow_run:
     workflows: ["Test"]
@@ -35,7 +38,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Install dependencies
         run: |
@@ -66,7 +68,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -77,8 +78,12 @@ jobs:
       - name: Generate snapshot version
         id: snapshot-version
         run: |
-          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
-          echo "VERSION=0.0.0-SNAPSHOT-${TIMESTAMP}" >> $GITHUB_OUTPUT
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          echo "VERSION=0.0.0-SNAPSHOT-${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "COMMIT_MSG=${COMMIT_MSG}" >> $GITHUB_OUTPUT
+          echo "Generated snapshot version: 0.0.0-SNAPSHOT-${COMMIT_HASH}"
+          echo "Commit message: ${COMMIT_MSG}"
 
       - name: Run GoReleaser snapshot
         uses: goreleaser/goreleaser-action@v6
@@ -90,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.snapshot-version.outputs.VERSION }}
           GORELEASER_PRERELEASE: "true"
-          GORELEASER_DRAFT: "true"
+          GORELEASER_DRAFT: "false"
 
       - name: Download GNOME extension artifact
         uses: actions/download-artifact@v4
@@ -105,10 +110,22 @@ jobs:
           echo "=== Looking for gnome-extension files ==="
           find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
 
-      - name: Upload to Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ./dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
+          name: "Snapshot ${{ steps.snapshot-version.outputs.VERSION }}"
+          tag_name: snapshot-${{ steps.snapshot-version.outputs.VERSION }}
+          body: |
+            Automated snapshot build from commit ${{ github.sha }}
+            
+            Commit message: ${{ steps.snapshot-version.outputs.COMMIT_MSG }}
+            
+            This is an automated snapshot build and is not intended for production use.
+          files: |
+            ./dist/keylightd_*.tar.gz
+            ./dist/keylightctl_*.tar.gz
+            ./dist/gnome-extension/*.zip
+          prerelease: true
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

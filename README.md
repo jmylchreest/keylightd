@@ -24,7 +24,7 @@
 
 ## Quick Start
 
-Download the latest [release binaries](https://github.com/jmylchreest/keylightd/releases) and run:
+Download the latest [release binaries](https://github.com/jmylchreest/keylightd/releases) or [snapshot builds](https://github.com/jmylchreest/keylightd/releases) (tagged with `snapshot-`) and run:
 
 ```bash
 # Start the daemon
@@ -52,6 +52,10 @@ An experimental GNOME extension for controlling lights from your desktop is avai
 For detailed documentation, see the [docs](./docs) directory.
 
 The `docs/mkdocs-build.sh` and `docs/mkdocs-serve.sh` scripts are provided for local documentation development and preview. They allow you to build and serve the documentation locally using Docker or Podman, but are not used in the CI/CD process.
+
+## Development Versions
+
+Snapshot builds are automatically generated on each commit to the main branch. These builds are available as pre-releases in the [releases section](https://github.com/jmylchreest/keylightd/releases) with version numbers like `0.0.0-SNAPSHOT-{commit_hash}`. They contain the latest features and fixes but may not be as stable as formal releases.
 
 ## Contributing
 PRs and issues are welcome! Please ensure all tests pass and code is formatted.
