@@ -619,7 +619,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		s.logger.Info("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
+		s.logger.Debug("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
 		next.ServeHTTP(w, r)
 	})
 }
