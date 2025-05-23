@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths-ignore:
-      - 'docs/**'
-      - '**.md'
+      - "docs/**"
+      - "**.md"
   workflow_dispatch:
   workflow_run:
     workflows: ["Test"]
@@ -75,17 +75,18 @@ jobs:
           go-version: stable
           cache: true
 
-      - name: Generate snapshot version
-        id: snapshot-version
+      - name: Generate commit info
+        id: commit-info
         run: |
           COMMIT_HASH=$(git rev-parse --short HEAD)
           COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
-          echo "VERSION=0.0.0-SNAPSHOT-${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_OUTPUT
           echo "COMMIT_MSG=${COMMIT_MSG}" >> $GITHUB_OUTPUT
-          echo "Generated snapshot version: 0.0.0-SNAPSHOT-${COMMIT_HASH}"
+          echo "Commit hash: ${COMMIT_HASH}"
           echo "Commit message: ${COMMIT_MSG}"
 
       - name: Run GoReleaser snapshot
+        id: goreleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -93,9 +94,14 @@ jobs:
           args: release --clean --snapshot --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_CURRENT_TAG: ${{ steps.snapshot-version.outputs.VERSION }}
-          GORELEASER_PRERELEASE: "true"
-          GORELEASER_DRAFT: "false"
+          
+      - name: Extract version from metadata
+        id: extract-version
+        run: |
+          VERSION=$(cat ./dist/metadata.json | grep version | head -n 1 | sed 's/.*: "\(.*\)",/\1/')
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Extracted version: ${VERSION}"
+          echo "This will be used for GitHub release tagging"
 
       - name: Download GNOME extension artifact
         uses: actions/download-artifact@v4
@@ -110,20 +116,36 @@ jobs:
           echo "=== Looking for gnome-extension files ==="
           find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
 
+      - name: Debug GoReleaser output
+        run: |
+          echo "=== GoReleaser output directories ==="
+          find ./dist -type d | sort
+
+          echo "=== GoReleaser output files ==="
+          find ./dist -type f | sort
+
+          echo "=== GoReleaser artifacts.json content ==="
+          cat ./dist/artifacts.json || echo "artifacts.json not found"
+
+          echo "=== GoReleaser metadata.json content ==="
+          cat ./dist/metadata.json || echo "metadata.json not found"
+
+          echo "=== GNOME extension files ==="
+          find ./dist/gnome-extension -type f | sort
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          name: "Snapshot ${{ steps.snapshot-version.outputs.VERSION }}"
-          tag_name: snapshot-${{ steps.snapshot-version.outputs.VERSION }}
+          name: "Snapshot ${{ steps.extract-version.outputs.VERSION }}"
+          tag_name: snapshot-${{ steps.extract-version.outputs.VERSION }}
           body: |
             Automated snapshot build from commit ${{ github.sha }}
-            
-            Commit message: ${{ steps.snapshot-version.outputs.COMMIT_MSG }}
-            
+
+            Commit message: ${{ steps.commit-info.outputs.COMMIT_MSG }}
+
             This is an automated snapshot build and is not intended for production use.
           files: |
-            ./dist/keylightd_*.tar.gz
-            ./dist/keylightctl_*.tar.gz
+            ./dist/*.tar.gz
             ./dist/gnome-extension/*.zip
           prerelease: true
           draft: false
