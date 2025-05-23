@@ -39,19 +39,56 @@ jobs:
       - name: Create directories
         run: mkdir -p binaries
 
-      - name: Download binaries from artifacts
-        uses: dawidd6/action-download-artifact@v3
-        with:
-          name: goreleaser-${{ matrix.arch }}
-          workflow: release.yml
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          run_id: ${{ inputs.release_id != '' && inputs.release_id || github.run_id }}
-          repo: ${{ github.repository }}
-          path: artifacts
+      - name: Install jq
+        run: apt-get update && apt-get install -y jq curl
           
-      - name: Debug downloaded artifacts
+      - name: Download release assets
         run: |
-          echo "=== Listing downloaded artifacts ==="
+          mkdir -p artifacts
+          ARCH="${{ matrix.arch }}"
+          TAG="${{ inputs.tag_name }}"
+          REPO="${{ github.repository }}"
+          
+          echo "Downloading release assets for tag: ${TAG}, architecture: ${ARCH}"
+          
+          # Download the tarball for this architecture
+          RELEASE_JSON=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${REPO}/releases/tags/${TAG}")
+            
+          if [ $? -ne 0 ]; then
+            echo "ERROR: Failed to fetch release information"
+            exit 1
+          fi
+          
+          # Check if release exists
+          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
+          if [ "$RELEASE_ID" = "null" ]; then
+            echo "ERROR: Release with tag ${TAG} not found"
+            exit 1
+          fi
+          
+          ASSET_URL=$(echo "$RELEASE_JSON" | \
+            jq -r '.assets[] | select(.name | contains("linux_'${ARCH}'")) | .browser_download_url')
+          
+          if [ -n "$ASSET_URL" ]; then
+            echo "Found asset URL: $ASSET_URL"
+            FILENAME=$(basename "$ASSET_URL")
+            curl -L \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/octet-stream" \
+              "$ASSET_URL" --output "artifacts/$FILENAME"
+            echo "Downloaded to artifacts/$FILENAME"
+          else
+            echo "ERROR: No matching release asset found for architecture ${ARCH} in tag ${TAG}"
+            echo "Available assets:"
+            echo "$RELEASE_JSON" | jq -r '.assets[] | .name'
+            exit 1
+          fi
+          
+      - name: Debug downloaded assets
+        run: |
+          echo "=== Listing downloaded assets ==="
           find artifacts -type f | sort
           echo "=== Detailed listing of artifacts directory ==="
           find artifacts -type f -exec ls -la {} \;
@@ -65,7 +102,7 @@ jobs:
           echo "=== Searching for tarball for architecture: ${ARCH} ==="
           
           # Find and extract from tarball
-          TARBALL=$(find artifacts -name "keylightd*_linux_${ARCH}.tar.gz" | head -n 1)
+          TARBALL=$(find artifacts -name "*linux_${ARCH}*.tar.gz" | head -n 1)
           if [ -n "$TARBALL" ]; then
             echo "Found tarball: $TARBALL"
             mkdir -p extracted

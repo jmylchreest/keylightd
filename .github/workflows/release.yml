@@ -64,6 +64,8 @@ jobs:
     name: Run GoReleaser
     needs: build-gnome-extension
     runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.extract-version.outputs.VERSION }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -97,27 +99,29 @@ jobs:
           args: release --clean --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
-  extract-version:
-    name: Extract Version
-    runs-on: ubuntu-latest
-    outputs:
-      CLEAN_VERSION: ${{ steps.clean-version.outputs.CLEAN_VERSION }}
-    steps:
-      - name: Extract clean version
-        id: clean-version
+      - name: Extract version information
+        id: extract-version
         run: |
-          # Extract version without v prefix
-          REF_NAME="${{ github.ref_name }}"
-          VERSION=${REF_NAME#v}
+          echo "=== Content of metadata.json ==="
+          cat ./dist/metadata.json
+
+          # Extract version using jq and remove v prefix if present
+          VERSION=$(jq -r .version ./dist/metadata.json | sed 's/^v//')
+          echo "Extracted version (without v prefix): ${VERSION}"
+
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Final version: ${VERSION}"
 
   flatpak:
     name: Build Flatpak
-    needs: [goreleaser, extract-version]
+    needs: goreleaser
     uses: ./.github/workflows/flatpak.yml
     with:
       tag_name: ${{ github.ref_name }}
-      version: ${{ needs.extract-version.outputs.VERSION }}
+      version: ${{ needs.goreleaser.outputs.VERSION }}
       release_type: release
       release_id: ${{ github.run_id }}
