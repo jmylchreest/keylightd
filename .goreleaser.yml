@@ -52,7 +52,7 @@ archives:
     files:
       - LICENSE
       - README.md
-      - contrib/systemd/keylightd.service
+      - keylightd.service
 
 changelog:
   sort: asc
@@ -84,12 +84,12 @@ brews:
       # Install systemd service file for Linux users
       if OS.linux?
         (etc/"systemd/user").mkpath
-        (etc/"systemd/user").install "contrib/systemd/keylightd.service"
+        (etc/"systemd/user").install "keylightd.service"
       end
 
       # Make service file available on all platforms for reference
       (share/"keylightd").mkpath
-      (share/"keylightd").install "contrib/systemd/keylightd.service"
+      (share/"keylightd").install "keylightd.service"
     test: |
       system "#{bin}/keylightd", "-h"
       system "#{bin}/keylightctl", "version"
