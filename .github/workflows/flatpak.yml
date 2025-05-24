@@ -61,21 +61,6 @@ jobs:
           echo "Git commit hash: ${COMMIT_HASH}"
           echo "Build date: ${BUILD_DATE}"
 
-      - name: Create source archive
-        run: |
-          echo "=== Creating source archive ==="
-          # Create a clean source archive without .git
-          git config --global --add safe.directory "$(pwd)"
-          git archive --format=tar.gz --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar.gz
-          ls -la source.tar.gz
-
-      - name: Calculate source archive hash
-        id: source-hash
-        run: |
-          SOURCE_SHA256=$(sha256sum source.tar.gz | cut -d' ' -f1)
-          echo "SOURCE_SHA256=${SOURCE_SHA256}" >> $GITHUB_OUTPUT
-          echo "Source archive SHA256: ${SOURCE_SHA256}"
-
       - name: Install jq for JSON processing
         run: sudo apt-get update && sudo apt-get install -y jq
 
@@ -170,9 +155,28 @@ jobs:
               </screenshots>
             </component>`;
             
-            // Write to file
+            # Write to file
             fs.writeFileSync('io.github.jmylchreest.keylightd.metainfo.xml', metainfoContent);
             console.log('Generated metainfo.xml with releases:', validReleases.length);
+
+      - name: Create source archive
+        run: |
+          echo "=== Creating source archive ==="
+          # Create a clean source archive without .git, including the generated metainfo.xml
+          git config --global --add safe.directory "$(pwd)"
+          git archive --format=tar.gz --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar.gz
+          
+          # Add the generated metainfo.xml to the archive
+          tar --transform 's,^,keylightd-${{ inputs.version }}/,' -rf source.tar.gz io.github.jmylchreest.keylightd.metainfo.xml
+          gzip -f source.tar
+          ls -la source.tar.gz
+
+      - name: Calculate source archive hash
+        id: source-hash
+        run: |
+          SOURCE_SHA256=$(sha256sum source.tar.gz | cut -d' ' -f1)
+          echo "SOURCE_SHA256=${SOURCE_SHA256}" >> $GITHUB_OUTPUT
+          echo "Source archive SHA256: ${SOURCE_SHA256}"
 
       - name: Generate Flatpak manifest
         run: |
@@ -251,9 +255,6 @@ jobs:
                 - type: file
                   path: vendor.tar.gz
                   dest-filename: vendor.tar.gz
-                - type: file
-                  path: io.github.jmylchreest.keylightd.metainfo.xml
-                  dest-filename: io.github.jmylchreest.keylightd.metainfo.xml
                 - type: shell
                   commands:
                     - tar -xzf source.tar.gz --strip-components=1
