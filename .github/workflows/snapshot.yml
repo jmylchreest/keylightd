@@ -157,10 +157,25 @@ jobs:
 
           # Extract version using jq
           VERSION=$(jq -r .version ./dist/metadata.json)
-          echo "Extracted version: ${VERSION}"
-
-          echo "VERSION=${VERSION#v}" >> $GITHUB_OUTPUT
-          echo "Final version: ${VERSION}"
+          echo "Raw extracted version from GoReleaser: ${VERSION}"
+          
+          # Check if the version has cascading SNAPSHOT tags
+          if [[ "$VERSION" == *"-SNAPSHOT"*"-SNAPSHOT"* ]]; then
+            echo "WARNING: Detected cascading SNAPSHOT tags in version"
+            # Extract the base part (before first -SNAPSHOT)
+            BASE_VERSION=${VERSION%%-SNAPSHOT*}
+            # Extract the last snapshot suffix
+            SNAPSHOT_SUFFIX=$(echo "$VERSION" | grep -o -- "-SNAPSHOT[^-]*$" || echo "")
+            VERSION="${BASE_VERSION}${SNAPSHOT_SUFFIX}"
+            echo "Corrected version: ${VERSION}"
+          fi
+          
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+          
+          # Print debug info
+          echo "Final version for release: ${VERSION}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
         # This  gets used to tag the snapshot in the create release step
         # but if it has v* it'll do improper things with the workflow so dont include those
 

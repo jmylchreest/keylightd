@@ -146,7 +146,7 @@ jobs:
 
           # Install the SDK if needed
           echo "=== Installing SDK if needed ==="
-          flatpak install -y --noninteractive flathub org.freedesktop.Sdk || true
+          flatpak install -y --noninteractive flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 || true
 
           echo "=== Available runtimes ==="
           flatpak list --runtime
@@ -157,19 +157,21 @@ jobs:
       - name: Update Flatpak Manifest
         run: |
           # Ensure the tag is valid for the manifest
-          SAFE_TAG="${{ inputs.tag_name }}"
-          # if [[ "$SAFE_TAG" == *SNAPSHOT* ]]; then
-          #   # For snapshot builds, use a tag that won't cause issues with version parsing
-          #   echo "Using safe tag format for snapshot build"
-          #   sed -i "s/tag: v1.0.0/tag: v0.0.0-snapshot/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
-          # else
-          #   # For regular releases, use the actual tag
-          #   sed -i "s/tag: v1.0.0/tag: $SAFE_TAG/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
-          # fi
+          sed -i "s/tag: v1.0.0/tag: ${{ inputs.tag_name }}/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
 
           # Display the updated manifest for debugging
           echo "=== Updated Flatpak Manifest ==="
           grep -A 5 "tag:" contrib/flatpak/io.github.jmylchreest.keylightd.yml
+
+      # Debugging information before build
+      - name: Debug flatpak environment
+        run: |
+          echo "=== Flatpak remotes ==="
+          flatpak remotes || true
+          echo "=== Available SDK versions ==="
+          flatpak list | grep org.freedesktop.Sdk || true
+          echo "=== Manifest runtime version ==="
+          grep -A 2 "runtime-version" contrib/flatpak/io.github.jmylchreest.keylightd.yml
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
@@ -177,6 +179,7 @@ jobs:
           manifest-path: contrib/flatpak/io.github.jmylchreest.keylightd.yml
           cache-key: flatpak-builder-${{ github.sha }}-${{ matrix.arch }}
           arch: ${{ matrix.arch }}
+          runtime-version: "23.08"
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v1
