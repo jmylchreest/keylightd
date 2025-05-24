@@ -154,19 +154,6 @@ jobs:
           echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
           echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
 
-      - name: Download GNOME extension artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: gnome-extension
-          path: dist/gnome-extension
-
-      - name: Check for GNOME extension files
-        run: |
-          echo "=== Listing all directories ==="
-          find . -type d | sort
-          echo "=== Looking for gnome-extension files ==="
-          find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
-
       - name: Run GoReleaser
         id: goreleaser
         uses: goreleaser/goreleaser-action@v6
@@ -215,9 +202,6 @@ jobs:
             echo "metadata.json not found"
           fi
 
-          echo "=== GNOME extension files ==="
-          find ./dist/gnome-extension -type f | sort
-
           echo "=== Archive contents ==="
           ls -la ./dist/*.tar.gz || echo "No archives found"
 
@@ -254,6 +238,21 @@ jobs:
           echo "Found release ID: ${RELEASE_ID}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download GNOME extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gnome-extension
+          path: dist/gnome-extension
+
+      - name: Check for GNOME extension files after GoReleaser
+        run: |
+          echo "=== Looking for gnome-extension files after GoReleaser ==="
+          find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
+          echo "=== Contents of dist/gnome-extension/ ==="
+          ls -la dist/gnome-extension/ || echo "Directory does not exist"
+          echo "=== All zip files in dist/ ==="
+          find dist/ -name "*.zip" -type f | sort
 
       - name: Upload GNOME extension to release
         run: |
