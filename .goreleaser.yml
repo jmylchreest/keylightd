@@ -52,7 +52,7 @@ archives:
     files:
       - LICENSE
       - README.md
-      - contrib/systemd/*
+      - contrib/systemd/keylightd.service
 
 changelog:
   sort: asc
@@ -78,10 +78,6 @@ brews:
       name: goreleaserbot
       email: bot@goreleaser.com
     install: |
-      # Debug: see what files are actually present
-      system "find", ".", "-name", "*.service"
-      system "ls", "-la"
-
       bin.install "keylightd"
       bin.install "keylightctl"
 
