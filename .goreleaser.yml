@@ -62,3 +62,25 @@ changelog:
       - "^ci:"
       - Merge pull request
       - Merge branch
+
+brews:
+  - name: keylightd
+    description: "Daemon and CLI tool for managing Elgato Key Lights on your local network"
+    homepage: "https://github.com/jmylchreest/keylightd"
+    license: "MIT"
+    repository:
+      owner: jmylchreest
+      name: homebrew-keylightd
+      branch: main
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    install: |
+      bin.install "keylightd"
+      bin.install "keylightctl"
+    test: |
+      system "#{bin}/keylightd", "--version"
+      system "#{bin}/keylightctl", "--version"
+    skip_upload: "{{ .IsSnapshot }}"
+
+

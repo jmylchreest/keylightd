@@ -163,6 +163,7 @@ jobs:
           args: release --clean ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && '--snapshot' || '' }} --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
           GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
           GORELEASER_PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}
 

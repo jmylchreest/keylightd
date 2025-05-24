@@ -44,6 +44,24 @@ Configuration files are automatically generated on first save in `~/.config/keyl
 
 ## Installation Methods
 
+### Homebrew (macOS/Linux)
+Install via Homebrew using our official tap:
+
+```bash
+# Add the tap
+brew tap jmylchreest/keylightd
+
+# Install keylightd
+brew install keylightd
+```
+
+Or install directly:
+```bash
+brew install jmylchreest/keylightd/keylightd
+```
+
+This installs both `keylightd` and `keylightctl` binaries.
+
 ### Flatpak
 Flatpak packages are automatically built for each release and are available from the [releases page](https://github.com/jmylchreest/keylightd/releases). Packages are built for both amd64 and arm64 architectures.
 
