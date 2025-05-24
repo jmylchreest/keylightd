@@ -92,22 +92,22 @@ jobs:
         run: |
           # Get all tags
           git fetch --tags
-          
+
           # List all tags for diagnostics
           echo "=== All tags (newest first) ==="
           git tag --sort=-v:refname
-          
+
           # Find the latest non-snapshot tag (for base version)
           LATEST_RELEASE_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
           if [ -z "$LATEST_RELEASE_TAG" ]; then
             LATEST_RELEASE_TAG="0.0.0"
           fi
           echo "Latest release tag: ${LATEST_RELEASE_TAG}"
-          
+
           # Get the most recent tag overall (could be a snapshot)
           PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
           echo "Previous tag: ${PREVIOUS_TAG}"
-          
+
           # If previous tag is a snapshot, strip the snapshot part for new tag base
           if [[ "$PREVIOUS_TAG" == *"-SNAPSHOT-"* ]]; then
             # Extract the base part (before -SNAPSHOT)
@@ -118,13 +118,13 @@ jobs:
             BASE_VERSION=${LATEST_RELEASE_TAG}
             echo "Using latest release tag as base: ${BASE_VERSION}"
           fi
-          
+
           # Add v prefix if it doesn't exist
           if [[ ! "$BASE_VERSION" == v* ]]; then
             BASE_VERSION="v${BASE_VERSION}"
             echo "Added v prefix to base version: ${BASE_VERSION}"
           fi
-          
+
           echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
           echo "CURRENT_TAG=${BASE_VERSION}" >> $GITHUB_OUTPUT
 
@@ -133,7 +133,7 @@ jobs:
           echo "=== GoReleaser Environment ==="
           echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
           echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
-          
+
       - name: Run GoReleaser snapshot
         id: goreleaser
         uses: goreleaser/goreleaser-action@v6
@@ -158,7 +158,7 @@ jobs:
           # Extract version using jq
           VERSION=$(jq -r .version ./dist/metadata.json)
           echo "Raw extracted version from GoReleaser: ${VERSION}"
-          
+
           # Check if the version has cascading SNAPSHOT tags
           if [[ "$VERSION" == *"-SNAPSHOT"*"-SNAPSHOT"* ]]; then
             echo "WARNING: Detected cascading SNAPSHOT tags in version"
@@ -169,10 +169,10 @@ jobs:
             VERSION="${BASE_VERSION}${SNAPSHOT_SUFFIX}"
             echo "Corrected version: ${VERSION}"
           fi
-          
+
           # Remove 'v' prefix if present
           VERSION=${VERSION#v}
-          
+
           # Print debug info
           echo "Final version for release: ${VERSION}"
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
@@ -248,6 +248,4 @@ jobs:
     uses: ./.github/workflows/flatpak.yml
     with:
       tag_name: ${{ needs.goreleaser.outputs.VERSION }}
-      version: ${{ needs.goreleaser.outputs.VERSION }}
-      release_type: snapshot
-      release_id: ${{ github.run_id }}
+      version: "v${{ needs.goreleaser.outputs.VERSION }}"

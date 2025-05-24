@@ -2,10 +2,14 @@ name: Deploy Documentation
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+    tags:
+      - "v*"
+      - "!*SNAPSHOT*"
     paths:
-      - 'docs/**'
-      - '.github/workflows/docs.yml'
+      - "docs/**"
+      - ".github/workflows/docs.yml"
   workflow_run:
     workflows: ["Test", "Release"]
     types:

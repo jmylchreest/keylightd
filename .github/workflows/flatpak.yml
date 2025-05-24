@@ -8,16 +8,8 @@ on:
         required: true
         type: string
       version:
-        description: "The version number (without v prefix)"
+        description: "The version number"
         required: true
-        type: string
-      release_type:
-        description: "Type of release: release or snapshot"
-        required: true
-        type: string
-      release_id:
-        description: "The ID of the release workflow run"
-        required: false
         type: string
 
 jobs:
@@ -31,144 +23,162 @@ jobs:
       image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-48
       options: --privileged
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Create directories
-        run: mkdir -p binaries
-
-      - name: Download release assets
-        run: |
-          mkdir -p artifacts
-          ARCH="${{ matrix.arch }}"
-          TAG="${{ inputs.tag_name }}"
-          REPO="${{ github.repository }}"
-
-          echo "Downloading release assets for tag: ${TAG}, architecture: ${ARCH}"
-
-          # Download the tarball for this architecture
-          RELEASE_JSON=$(curl -s \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${REPO}/releases/tags/${TAG}")
-
-          if [ $? -ne 0 ]; then
-            echo "ERROR: Failed to fetch release information"
-            exit 1
-          fi
-
-          # Check if release exists
-          RELEASE_ID=$(echo "$RELEASE_JSON" | jq -r '.id')
-          if [ "$RELEASE_ID" = "null" ]; then
-            echo "ERROR: Release with tag ${TAG} not found"
-            exit 1
-          fi
-
-          ASSET_URL=$(echo "$RELEASE_JSON" | \
-            jq -r '.assets[] | select(.name | contains("linux_'${ARCH}'")) | .browser_download_url')
-
-          if [ -n "$ASSET_URL" ]; then
-            echo "Found asset URL: $ASSET_URL"
-            FILENAME=$(basename "$ASSET_URL")
-            curl -L \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/octet-stream" \
-              "$ASSET_URL" --output "artifacts/$FILENAME"
-            echo "Downloaded to artifacts/$FILENAME"
-          else
-            echo "ERROR: No matching release asset found for architecture ${ARCH} in tag ${TAG}"
-            echo "Available assets:"
-            echo "$RELEASE_JSON" | jq -r '.assets[] | .name'
-            exit 1
-          fi
-
-      - name: Debug downloaded assets
-        run: |
-          echo "=== Listing downloaded assets ==="
-          find artifacts -type f | sort
-          echo "=== Detailed listing of artifacts directory ==="
-          find artifacts -type f -exec ls -la {} \;
-
-      - name: Extract binaries from artifacts
-        run: |
-          ARCH="${{ matrix.arch }}"
-          VERSION="${{ inputs.version }}"
-          TAG="${{ inputs.tag_name }}"
-
-          echo "=== Searching for tarball for architecture: ${ARCH} ==="
-
-          # Find and extract from tarball
-          TARBALL=$(find artifacts -name "*linux_${ARCH}*.tar.gz" | head -n 1)
-          if [ -n "$TARBALL" ]; then
-            echo "Found tarball: $TARBALL"
-            mkdir -p extracted
-            tar -xf "$TARBALL" -C extracted
-
-            # Copy binaries to the binaries directory
-            if [ -f "extracted/keylightd" ] && [ -f "extracted/keylightctl" ]; then
-              cp extracted/keylightd binaries/
-              cp extracted/keylightctl binaries/
-              echo "Successfully extracted binaries from tarball"
-            else
-              echo "ERROR: Tarball did not contain expected binaries"
-              exit 1
-            fi
-          else
-            echo "ERROR: Could not find tarball for architecture ${ARCH}"
-            exit 1
-          fi
-
-          # Make binaries executable
-          chmod +x binaries/keylightd binaries/keylightctl
-
-          # List the binaries and verify they exist
-          echo "=== Final binaries for Flatpak build ==="
-          ls -la binaries/
-          if [ -f "binaries/keylightd" ] && [ -x "binaries/keylightd" ] && \
-             [ -f "binaries/keylightctl" ] && [ -x "binaries/keylightctl" ]; then
-            echo "Both binaries exist and are executable"
-            file binaries/keylightd
-            file binaries/keylightctl
-          else
-            echo "ERROR: Missing or non-executable binaries"
-            exit 1
-          fi
-
-      - name: Setup Flatpak environment
-        run: |
-          flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          flatpak install -y --noninteractive flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 || true
-
-      - name: Update Flatpak Manifest
-        run: |
-          # Ensure the tag is valid for the manifest
-          sed -i "s/tag: v1.0.0/tag: ${{ inputs.tag_name }}/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
-          cat contrib/flatpak/io.github.jmylchreest.keylightd.yml | grep 'tag:'
-
-      # Debugging information before build
-      - name: Debug flatpak environment
-        run: |
-          echo "=== Flatpak remotes ==="
-          flatpak remotes || true
-          echo "=== Available SDK versions ==="
-          flatpak list | grep org.freedesktop.Sdk || true
-          echo "=== Manifest runtime version ==="
-          grep -A 2 "runtime-version" contrib/flatpak/io.github.jmylchreest.keylightd.yml
-
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          bundle: keylightd-${{ inputs.version }}-${{ matrix.arch }}.flatpak
-          manifest-path: contrib/flatpak/io.github.jmylchreest.keylightd.yml
-          cache-key: flatpak-builder-${{ github.sha }}-${{ matrix.arch }}
-          arch: ${{ matrix.arch }}
-          runtime-version: "23.08"
+          go-version: stable
+          cache: true
 
-      - name: Upload to Release
+      - name: Vendor Go modules
+        run: |
+          echo "=== Vendoring Go modules ==="
+          go mod tidy
+          go mod vendor
+
+          echo "=== Vendor directory contents ==="
+          ls -la vendor/ || echo "No vendor directory created"
+
+          echo "=== Creating vendor archive ==="
+          tar -czf vendor.tar.gz vendor/
+          ls -la vendor.tar.gz
+
+      - name: Calculate vendor archive hash
+        id: vendor-hash
+        run: |
+          VENDOR_SHA256=$(sha256sum vendor.tar.gz | cut -d' ' -f1)
+          echo "VENDOR_SHA256=${VENDOR_SHA256}" >> $GITHUB_OUTPUT
+          echo "Vendor archive SHA256: ${VENDOR_SHA256}"
+
+      - name: Create source archive
+        run: |
+          echo "=== Creating source archive ==="
+          # Create a clean source archive without .git
+          git archive --format=tar.gz --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar.gz
+          ls -la source.tar.gz
+
+      - name: Calculate source archive hash
+        id: source-hash
+        run: |
+          SOURCE_SHA256=$(sha256sum source.tar.gz | cut -d' ' -f1)
+          echo "SOURCE_SHA256=${SOURCE_SHA256}" >> $GITHUB_OUTPUT
+          echo "Source archive SHA256: ${SOURCE_SHA256}"
+
+      - name: Generate Flatpak manifest
+        run: |
+          cat > io.github.jmylchreest.keylightd.yml << 'EOF'
+          app-id: io.github.jmylchreest.keylightd
+          runtime: org.freedesktop.Platform
+          runtime-version: "23.08"
+          sdk: org.freedesktop.Sdk
+          sdk-extensions:
+            - org.freedesktop.Sdk.Extension.golang
+          command: keylightctl
+          finish-args:
+            - --share=network
+            - --socket=x11
+            - --socket=wayland
+            - --own-name=io.github.jmylchreest.keylightd
+            - --filesystem=home
+            - --talk-name=org.freedesktop.systemd1
+
+          modules:
+            - name: keylightd
+              buildsystem: simple
+              build-options:
+                env:
+                  - CGO_ENABLED=0
+                  - GOPROXY=off
+                  - GOFLAGS=-mod=vendor
+                append-path: /usr/lib/sdk/golang/bin
+              build-commands:
+                # Extract vendor dependencies
+                - tar -xzf vendor.tar.gz
+
+                # Build keylightd binary
+                - |
+                  go build \
+                    -ldflags="-s -w \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightd.version=${{ inputs.version }} \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightd.commit=$(git rev-parse --short HEAD) \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightd.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                    -o keylightd ./cmd/keylightd
+
+                # Build keylightctl binary
+                - |
+                  go build \
+                    -ldflags="-s -w \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.version=${{ inputs.version }} \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit=$(git rev-parse --short HEAD) \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                    -o keylightctl ./cmd/keylightctl
+
+                # Install binaries
+                - install -Dm755 keylightd /app/bin/keylightd
+                - install -Dm755 keylightctl /app/bin/keylightctl
+
+                # Create default configuration directory
+                - mkdir -p /app/share/keylightd
+
+                # Install systemd user service file
+                - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.service /app/share/systemd/user/io.github.jmylchreest.keylightd.service
+
+                # Install desktop autostart file
+                - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd-autostart.desktop /app/share/applications/io.github.jmylchreest.keylightd-autostart.desktop
+
+                # Install desktop entry
+                - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.desktop /app/share/applications/io.github.jmylchreest.keylightd.desktop
+
+                # Install icon
+                - install -Dm644 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg /app/share/icons/hicolor/scalable/apps/io.github.jmylchreest.keylightd.svg
+
+                # Install appstream metadata
+                - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
+              sources:
+                - type: file
+                  path: source.tar.gz
+                  dest-filename: source.tar.gz
+                - type: file
+                  path: vendor.tar.gz
+                  dest-filename: vendor.tar.gz
+                - type: shell
+                  commands:
+                    - tar -xzf source.tar.gz --strip-components=1
+          EOF
+
+      - name: Install Flatpak and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+          sudo flatpak install -y flathub org.freedesktop.Sdk.Extension.golang//23.08
+
+      - name: Build Flatpak
+        run: |
+          echo "=== Building Flatpak ==="
+          flatpak-builder --force-clean --repo=repo build-dir io.github.jmylchreest.keylightd.yml
+
+          echo "=== Creating bundle ==="
+          flatpak build-bundle repo io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak io.github.jmylchreest.keylightd
+
+      - name: Upload Flatpak artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-${{ inputs.version }}
+          path: io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak
+          retention-days: 30
+
+      - name: Upload to release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ inputs.tag_name }}
-          files: keylightd-${{ inputs.version }}-${{ matrix.arch }}.flatpak
-          fail_on_unmatched_files: false
+          files: |
+            io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak
+            io.github.jmylchreest.keylightd.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
