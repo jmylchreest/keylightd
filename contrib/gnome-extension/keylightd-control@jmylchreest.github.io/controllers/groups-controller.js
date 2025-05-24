@@ -121,12 +121,12 @@ export class GroupsController {
     /**
      * Set the brightness of a group
      * @param {string} groupId - The group ID
-     * @param {number} brightness - The new brightness (3-100)
+     * @param {number} brightness - The new brightness (0-100)
      * @returns {Promise<Object>} - Promise resolving to API response
      */
     async setGroupBrightness(groupId, brightness) {
         // Ensure brightness is within valid range
-        brightness = Math.max(3, Math.min(100, brightness));
+        brightness = Math.max(0, Math.min(100, brightness));
         
         try {
             const response = await fetchAPI(`groups/${groupId}/state`, 'PUT', { brightness: brightness });
