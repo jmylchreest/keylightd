@@ -66,6 +66,104 @@ jobs:
           echo "SOURCE_SHA256=${SOURCE_SHA256}" >> $GITHUB_OUTPUT
           echo "Source archive SHA256: ${SOURCE_SHA256}"
 
+      - name: Install jq for JSON processing
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Generate metainfo.xml with GitHub releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Fetch all releases (excluding prereleases)
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const validReleases = releases.data.filter(release => !release.prerelease);
+            
+            // Generate metainfo.xml content
+            let metainfoContent = `<?xml version="1.0" encoding="UTF-8"?>
+            <component type="desktop-application">
+              <id>io.github.jmylchreest.keylightd</id>
+              <name>Keylight Control</name>
+              <summary>Control Elgato Key Lights and similar HTTP-based lighting devices</summary>
+              <metadata_license>MIT</metadata_license>
+              <project_license>MIT</project_license>
+              <description>
+                <p>
+                  Keylight Control provides a daemon and command-line interface for managing Elgato Key Lights and similar HTTP-based lighting devices on your local network.
+                </p>
+                <p>
+                  Features:
+                </p>
+                <ul>
+                  <li>Automatic discovery of Elgato Key Lights via mDNS</li>
+                  <li>Grouping of lights for batch control</li>
+                  <li>HTTP REST API for remote control</li>
+                  <li>Unix socket and CLI interface for local control</li>
+                  <li>Configurable discovery interval and logging</li>
+                </ul>
+              </description>
+              <launchable type="desktop-id">io.github.jmylchreest.keylightd.desktop</launchable>
+              <icon type="stock">io.github.jmylchreest.keylightd</icon>
+              <url type="homepage">https://github.com/jmylchreest/keylightd</url>
+              <url type="bugtracker">https://github.com/jmylchreest/keylightd/issues</url>
+              <developer_name>James Mylchreest</developer_name>
+              <content_rating type="oars-1.1" />
+              <releases>
+            `;
+            
+            // Add releases
+            for (const release of validReleases) {
+              const version = release.tag_name.replace(/^v/, '');
+              const date = release.published_at.split('T')[0];
+              const name = release.name || `Release ${version}`;
+              
+              metainfoContent += `    <release version="${version}" date="${date}">
+                <description>
+                  <p>${name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`;
+              
+              if (release.body && release.body.trim()) {
+                // Clean and truncate release body
+                const cleanBody = release.body
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;')
+                  .replace(/'/g, '&#39;')
+                  .split('\n')
+                  .slice(0, 5)
+                  .join(' ')
+                  .substring(0, 300);
+                
+                if (cleanBody.trim()) {
+                  metainfoContent += `
+                  <p>${cleanBody.trim()}</p>`;
+                }
+              }
+              
+              metainfoContent += `
+                </description>
+              </release>
+            `;
+            }
+            
+            metainfoContent += `  </releases>
+              <screenshots>
+                <screenshot type="default">
+                  <caption>Controlling Key Lights via CLI</caption>
+                  <image>https://raw.githubusercontent.com/jmylchreest/keylightd/main/docs/assets/screenshot.png</image>
+                </screenshot>
+              </screenshots>
+            </component>`;
+            
+            // Write to file
+            fs.writeFileSync('io.github.jmylchreest.keylightd.metainfo.xml', metainfoContent);
+            console.log('Generated metainfo.xml with releases:', validReleases.length);
+
       - name: Generate Flatpak manifest
         run: |
           cat > io.github.jmylchreest.keylightd.yml << 'EOF'
@@ -134,8 +232,8 @@ jobs:
                 # Install icon
                 - install -Dm644 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg /app/share/icons/hicolor/scalable/apps/io.github.jmylchreest.keylightd.svg
 
-                # Install appstream metadata
-                - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
+                # Install appstream metadata (using generated version)
+                - install -Dm644 ../io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
               sources:
                 - type: file
                   path: source.tar.gz
@@ -143,6 +241,9 @@ jobs:
                 - type: file
                   path: vendor.tar.gz
                   dest-filename: vendor.tar.gz
+                - type: file
+                  path: io.github.jmylchreest.keylightd.metainfo.xml
+                  dest-filename: io.github.jmylchreest.keylightd.metainfo.xml
                 - type: shell
                   commands:
                     - tar -xzf source.tar.gz --strip-components=1

@@ -42,10 +42,27 @@ Download the latest [release binaries](https://github.com/jmylchreest/keylightd/
 
 Configuration files are automatically generated on first save in `~/.config/keylight/`.
 
-## Systemd Service
+## Installation Methods
+
+### Flatpak
+Flatpak packages are automatically built for each release and are available from the [releases page](https://github.com/jmylchreest/keylightd/releases). Packages are built for both amd64 and arm64 architectures.
+
+The Flatpak build process automatically:
+- Generates the metainfo.xml file with release information pulled from GitHub releases
+- Excludes pre-release versions from the metadata
+- Creates proper desktop integration with autostart capabilities
+
+Download the appropriate `.flatpak` file for your architecture and install with:
+```bash
+flatpak install keylightd-VERSION-ARCH.flatpak
+```
+
+See `contrib/flatpak/README.md` for detailed Flatpak documentation.
+
+### Systemd Service
 A systemd service file is available in `contrib/systemd/keylightd.service` for running the daemon as a system service.
 
-## GNOME Extension
+### GNOME Extension
 An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory.
 
 ## Documentation
