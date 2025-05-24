@@ -58,6 +58,7 @@ jobs:
         run: |
           echo "=== Creating source archive ==="
           # Create a clean source archive without .git
+          git config --global --add safe.directory "$(pwd)"
           git archive --format=tar.gz --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar.gz
           ls -la source.tar.gz
 
