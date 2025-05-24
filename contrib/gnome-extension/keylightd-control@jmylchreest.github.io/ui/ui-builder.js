@@ -16,10 +16,15 @@ function debounce(func, delay) {
     let timeoutId;
     return function(...args) {
         const context = this;
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
+        if (timeoutId) {
+            GLib.source_remove(timeoutId);
+            timeoutId = null;
+        }
+        timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             func.apply(context, args);
-        }, delay);
+            timeoutId = null;
+            return GLib.SOURCE_REMOVE;
+        });
     };
 }
 
@@ -49,6 +54,7 @@ export class UIBuilder {
         this._settings = settings;
         this._iconTheme = null;
         this._cachedIcons = new Map();
+        this._timeoutIds = new Set();
         this._initIconTheme();
     }
     
@@ -67,20 +73,7 @@ export class UIBuilder {
                 }
             }
 
-            // If stage method failed, try Gtk.IconTheme
-            if (!this._iconTheme) {
-                try {
-                    const Gtk = imports.gi.Gtk;
-                    const Gdk = imports.gi.Gdk;
-                    const display = Gdk.Display.get_default();
-                    if (display) {
-                        this._iconTheme = Gtk.IconTheme.get_for_display(display);
-                        log('debug', 'Initialized icon theme from Gtk.IconTheme');
-                    }
-                } catch (error) {
-                    log('warn', 'Failed to initialize icon theme from Gtk.IconTheme:', error);
-                }
-            }
+            // Skip Gtk/Gdk imports as they're not allowed in GNOME Shell process
 
             // Last resort - try to get theme directly
             if (!this._iconTheme) {
@@ -233,10 +226,12 @@ export class UIBuilder {
                 toggleCallback(newState);
                 
                 // Set a timeout to allow toggling again after debounce period
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, debounceTime, () => {
+                const timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, debounceTime, () => {
                     section._isToggling = false;
+                    this._timeoutIds.delete(timeoutId);
                     return GLib.SOURCE_REMOVE;
                 });
+                this._timeoutIds.add(timeoutId);
             }
         });
         
@@ -597,4 +592,25 @@ export class UIBuilder {
         // Only valid after the section is allocated (added to stage/container and layout is complete)
         return section.height;
     }
-} 
+
+    /**
+     * Clean up resources and timeouts
+     */
+    destroy() {
+        // Clean up all timeouts
+        this._timeoutIds.forEach(timeoutId => {
+            if (timeoutId) {
+                GLib.source_remove(timeoutId);
+            }
+        });
+        this._timeoutIds.clear();
+
+        // Clear cached icons
+        this._cachedIcons.clear();
+        
+        // Clear references
+        this._iconTheme = null;
+        this._settings = null;
+        this._extensionPath = null;
+    }
+}

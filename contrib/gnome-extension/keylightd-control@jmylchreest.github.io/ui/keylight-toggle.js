@@ -244,14 +244,14 @@ export const KeylightdControlToggle = GObject.registerClass({
         });
         
         // Listen for max-height-percent changes and refresh UI after debounce
-        let maxHeightTimeout = null;
         this._settings.connect('changed::max-height-percent', () => {
-            if (maxHeightTimeout) {
-                GLib.source_remove(maxHeightTimeout);
+            if (this._maxHeightTimeoutId) {
+                GLib.source_remove(this._maxHeightTimeoutId);
+                this._maxHeightTimeoutId = null;
             }
-            maxHeightTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+            this._maxHeightTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
                 this._debouncedLoadControls();
-                maxHeightTimeout = null;
+                this._maxHeightTimeoutId = null;
                 return GLib.SOURCE_REMOVE;
             });
         });
@@ -304,6 +304,7 @@ export const KeylightdControlToggle = GObject.registerClass({
     _debouncedLoadControls(delay = 100) {
         if (this._loadControlsDebounceId) {
             GLib.source_remove(this._loadControlsDebounceId);
+            this._loadControlsDebounceId = null;
         }
         this._loadControlsDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
             this._loadControls();
@@ -1219,6 +1220,22 @@ export const KeylightdControlToggle = GObject.registerClass({
     destroy() {
         // Clear timer
         this._clearRefreshTimer();
+        
+        // Clear all timeout IDs
+        if (this._toggleTimeoutId) {
+            GLib.source_remove(this._toggleTimeoutId);
+            this._toggleTimeoutId = null;
+        }
+        
+        if (this._loadControlsDebounceId) {
+            GLib.source_remove(this._loadControlsDebounceId);
+            this._loadControlsDebounceId = null;
+        }
+        
+        if (this._maxHeightTimeoutId) {
+            GLib.source_remove(this._maxHeightTimeoutId);
+            this._maxHeightTimeoutId = null;
+        }
         
         // Unsubscribe from state events
         this._unsubscribeFromStateEvents();

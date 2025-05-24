@@ -10,6 +10,7 @@ import Gio from 'gi://Gio';
 import St from 'gi://St';
 import { getLightStateIcon, LightState, determineLightState } from '../icons.js';
 import { log } from '../utils.js';
+import GLib from 'gi://GLib';
 
 // Parse GNOME Shell version for compatibility
 const ShellVersion = parseFloat(Config.PACKAGE_VERSION);
@@ -60,14 +61,18 @@ export const KeylightdControl = GObject.registerClass(
             
             // Schedule a delayed check to update the icon after initial setup
             // Run it sooner since we want the icon to be correct quickly
-            setTimeout(() => {
+            this._initialUpdateTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
                 this._updateIndicatorVisibility();
-            }, 1000);
+                this._initialUpdateTimeoutId = null;
+                return GLib.SOURCE_REMOVE;
+            });
             
             // Schedule another update after a longer time to ensure we have data
-            setTimeout(() => {
+            this._delayedUpdateTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 3000, () => {
                 this._updateIndicatorVisibility();
-            }, 3000);
+                this._delayedUpdateTimeoutId = null;
+                return GLib.SOURCE_REMOVE;
+            });
         }
         
         /**
@@ -146,6 +151,17 @@ export const KeylightdControl = GObject.registerClass(
          * Destroy the indicator and clean up
          */
         destroy() {
+            // Clear all timeouts
+            if (this._initialUpdateTimeoutId) {
+                GLib.source_remove(this._initialUpdateTimeoutId);
+                this._initialUpdateTimeoutId = null;
+            }
+            
+            if (this._delayedUpdateTimeoutId) {
+                GLib.source_remove(this._delayedUpdateTimeoutId);
+                this._delayedUpdateTimeoutId = null;
+            }
+            
             // Clean up toggle
             this.quickSettingsItems.forEach((item) => item.destroy());
             

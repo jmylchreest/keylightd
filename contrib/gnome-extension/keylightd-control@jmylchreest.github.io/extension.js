@@ -27,7 +27,7 @@ const KeylightdStateUpdateEmitter = GObject.registerClass({
     },
 }, class KeylightdStateUpdateEmitter extends GObject.Object {});
 
-const keylightdStateUpdateEmitter = new KeylightdStateUpdateEmitter();
+let keylightdStateUpdateEmitter = null;
 
 function iconExists(iconName) {
     try {
@@ -114,6 +114,9 @@ export default class KeylightdControlExtension extends Extension {
             this._syncVisibilityState();
         });
         
+        // Create and initialize the state update emitter
+        keylightdStateUpdateEmitter = new KeylightdStateUpdateEmitter();
+        
         // Listen for state updates from API calls
         this._stateUpdateEmitter = keylightdStateUpdateEmitter;
         this._stateUpdateId = this._stateUpdateEmitter.connect('keylightd-state-update', (emitter, event) => {
@@ -131,9 +134,24 @@ export default class KeylightdControlExtension extends Extension {
      */
     disable() {
         // Remove state update listener
-        if (this._stateUpdateId && typeof global.off === 'function') {
-            global.off(this._stateUpdateId);
+        if (this._stateUpdateId && this._stateUpdateEmitter) {
+            this._stateUpdateEmitter.disconnect(this._stateUpdateId);
             this._stateUpdateId = null;
+        }
+        
+        // Null out the global emitter
+        keylightdStateUpdateEmitter = null;
+        this._stateUpdateEmitter = null;
+        
+        // Clear all timeouts
+        if (this._initialRefreshTimeoutId) {
+            clearTimeout(this._initialRefreshTimeoutId);
+            this._initialRefreshTimeoutId = null;
+        }
+        
+        if (this._delayedToggleUpdateTimeoutId) {
+            clearTimeout(this._delayedToggleUpdateTimeoutId);
+            this._delayedToggleUpdateTimeoutId = null;
         }
         
         // Remove background refresh timer
@@ -149,7 +167,13 @@ export default class KeylightdControlExtension extends Extension {
         // Clean up controllers and managers
         this._lightsController = null;
         this._groupsController = null;
-        this._uiBuilder = null;
+        
+        // Clean up UI builder
+        if (this._uiBuilder) {
+            this._uiBuilder.destroy();
+            this._uiBuilder = null;
+        }
+        
         this._stateManager = null;
         
         // Clear the settings reference in utils
@@ -306,7 +330,19 @@ export default class KeylightdControlExtension extends Extension {
     async _performInitialRefresh() {
         try {
             // Wait a bit to ensure the extension is fully initialized
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            this._initialRefreshTimeoutId = setTimeout(() => {
+                this._performInitialRefreshDelayed();
+            }, 1000);
+        } catch (error) {
+            console.error('Error during initial refresh:', error);
+        }
+    }
+
+    /**
+     * Perform the delayed part of initial refresh
+     */
+    async _performInitialRefreshDelayed() {
+        try {
             
             // Refresh groups first (as they might contain lights)
             try {
@@ -345,11 +381,11 @@ export default class KeylightdControlExtension extends Extension {
             }
             
             // Schedule another refresh after UI is more likely to be fully initialized
-            setTimeout(() => {
+            this._delayedToggleUpdateTimeoutId = setTimeout(() => {
                 try {
-            if (this._keylightdIndicator && this._keylightdIndicator._keylightdToggle) {
-                this._keylightdIndicator._keylightdToggle._updateToggleState();
-            }
+                    if (this._keylightdIndicator && this._keylightdIndicator._keylightdToggle) {
+                        this._keylightdIndicator._keylightdToggle._updateToggleState();
+                    }
                 } catch (error) {
                     console.error('Error in delayed toggle update:', error);
                 }
