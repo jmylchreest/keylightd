@@ -1,22 +1,19 @@
 [Unit]
-Description=Elgato Keylight Daemon
+Description=Keylightd Daemon
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/keylightd
+ExecStartPre=/bin/bash -c 'export PATH="$(brew --prefix)/bin:$PATH"'
+ExecStart=keylightd
 Restart=on-failure
 RestartSec=5s
-User=keylightd
-Group=keylightd
-Environment=KEYLIGHT_CONFIG=/etc/keylight/keylightd.yaml
-WorkingDirectory=/var/lib/keylightd
+WorkingDirectory=%h
 
 # Security best practices
 NoNewPrivileges=true
 ProtectSystem=full
-ProtectHome=true
 PrivateTmp=true
 
 [Install]
-WantedBy=multi-user.target 
+WantedBy=default.target

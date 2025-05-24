@@ -62,6 +62,34 @@ brew install jmylchreest/keylightd/keylightd
 
 This installs both `keylightd` and `keylightctl` binaries.
 
+#### Running as a Service
+
+After installation, you can run keylightd as a background service:
+
+**On Linux with systemd:**
+```bash
+# Enable and start the user service
+systemctl --user enable keylightd
+systemctl --user start keylightd
+
+# Check status
+systemctl --user status keylightd
+```
+
+**On macOS:**
+```bash
+# Run in background manually
+keylightd &
+
+# Or create a launchd service (advanced users)
+# See: https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html
+```
+
+**Manual startup (all platforms):**
+```bash
+keylightd
+```
+
 ### Flatpak
 Flatpak packages are automatically built for each release and are available from the [releases page](https://github.com/jmylchreest/keylightd/releases). Packages are built for both amd64 and arm64 architectures.
 
