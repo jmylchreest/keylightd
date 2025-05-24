@@ -2,6 +2,8 @@
 
 This directory contains the necessary files to build a Flatpak package for KeylightD and KeylightCTL. The package uses the "light-enabled.svg" icon from the GNOME extension for desktop integration.
 
+**IMPORTANT:** The Flatpak manifest file is entirely **generated** by the GitHub Actions workflow and is not stored in the repository. The workflow dynamically creates the manifest with the correct version information, dependencies, and build instructions at build time.
+
 ## CI Build Process
 
 The Flatpak is built as part of the release workflow in GitHub Actions. The process:
@@ -9,9 +11,13 @@ The Flatpak is built as part of the release workflow in GitHub Actions. The proc
 1. The release workflow is triggered when a tag is pushed or manually triggered
 2. After GoReleaser builds and uploads the binaries, the flatpak job runs
 3. The flatpak job builds packages for both amd64 and arm64 architectures
-4. For each architecture, it fetches the corresponding pre-compiled binaries 
-5. Creates a modified version of this manifest to use the pre-built binaries
-6. Builds and publishes both flatpak packages to the same release
+4. For each architecture:
+   - It creates a full source archive of the repository
+   - Vendors Go modules for reproducible builds
+   - Dynamically generates a complete Flatpak manifest with correct version information
+   - Specifies the 23.08 SDK version to ensure compatibility
+   - Builds the Flatpak directly from source 
+5. Builds and publishes both flatpak packages to the same release
 
 ## Features
 
@@ -33,27 +39,56 @@ sudo apt install flatpak-builder # Ubuntu/Debian
 flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 ```
 
-### Method 1: Using Pre-built Binaries (Recommended)
+### Building Locally
 
-This is the same approach used by the CI workflow:
+To build the Flatpak package locally, you'll need to:
 
-1. Download and extract binaries from a release (or build them yourself):
+1. Create your own Flatpak manifest (since it's not stored in the repo):
+
    ```bash
-   # Create a directory for your binaries
-   mkdir -p binaries
+   # Create a manifest based on the CI-generated one
+   cat > io.github.jmylchreest.keylightd.yml << 'EOF'
+   app-id: io.github.jmylchreest.keylightd
+   runtime: org.freedesktop.Platform
+   runtime-version: "23.08"
+   sdk: org.freedesktop.Sdk
+   sdk-extensions:
+     - org.freedesktop.Sdk.Extension.golang
+   command: keylightctl
+   finish-args:
+     - --share=network
+     - --socket=x11
+     - --socket=wayland
+     - --own-name=io.github.jmylchreest.keylightd
+     - --filesystem=home
+     - --talk-name=org.freedesktop.systemd1
    
-   # Option A: Download from a release
-   wget https://github.com/jmylchreest/keylightd/releases/download/v1.0.0/keylightd_1.0.0_linux_amd64.tar.gz
-   tar -xzf keylightd_1.0.0_linux_amd64.tar.gz
-   cp keylightd binaries/
-   cp keylightctl binaries/
-   
-   # Option B: Copy your locally built binaries
-   # cp /path/to/keylightd binaries/
-   # cp /path/to/keylightctl binaries/
-   
-   chmod +x binaries/keylightd
-   chmod +x binaries/keylightctl
+   modules:
+     - name: keylightd
+       buildsystem: simple
+       build-options:
+         env:
+           - CGO_ENABLED=0
+         append-path: /usr/lib/sdk/golang/bin
+       build-commands:
+         # Build keylightd and keylightctl
+         - go build -o keylightd ./cmd/keylightd
+         - go build -o keylightctl ./cmd/keylightctl
+
+         # Install binaries and supporting files
+         - install -Dm755 keylightd /app/bin/keylightd
+         - install -Dm755 keylightctl /app/bin/keylightctl
+         - mkdir -p /app/share/keylightd
+         - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.service /app/share/systemd/user/io.github.jmylchreest.keylightd.service
+         - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd-autostart.desktop /app/share/applications/io.github.jmylchreest.keylightd-autostart.desktop
+         - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.desktop /app/share/applications/io.github.jmylchreest.keylightd.desktop
+         - install -Dm644 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg /app/share/icons/hicolor/scalable/apps/io.github.jmylchreest.keylightd.svg
+         - install -Dm644 contrib/flatpak/io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
+       sources:
+         - type: git
+           url: https://github.com/jmylchreest/keylightd.git
+           tag: main
+   EOF
    ```
 
 2. Build the flatpak:
@@ -105,12 +140,17 @@ flatpak run --command=keylightctl io.github.jmylchreest.keylightd light list
 
 ## Files
 
-- `io.github.jmylchreest.keylightd.yml` - Flatpak manifest (modified by CI to use pre-built binaries)
 - `io.github.jmylchreest.keylightd.service` - Systemd user service
 - `io.github.jmylchreest.keylightd-autostart.desktop` - Desktop autostart file
 - `io.github.jmylchreest.keylightd.desktop` - Desktop application entry
 - `io.github.jmylchreest.keylightd.metainfo.xml` - AppStream metadata
 - Uses the icon from `contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg`
+
+Note that the Flatpak manifest (`io.github.jmylchreest.keylightd.yml`) is not stored in the repository. It is dynamically generated by the GitHub Actions workflow with:
+- Proper version information from the release tags
+- Correct SDK/runtime versions (currently fixed at 23.08)
+- Custom build instructions for snapshot vs. release builds
+- All necessary dependencies and build configurations
 
 ## Architecture Support
 
