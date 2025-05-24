@@ -6,7 +6,7 @@ updates:
     schedule:
       interval: "monthly"
       time: "06:00"
-      timezone: "UTC"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 5
     reviewers:
       - "jmylchreest"
@@ -38,7 +38,7 @@ updates:
     schedule:
       interval: "monthly"
       time: "06:00"
-      timezone: "UTC"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 3
     reviewers:
       - "jmylchreest"
