@@ -155,7 +155,7 @@ jobs:
               </screenshots>
             </component>`;
             
-            # Write to file
+            // Write to file
             fs.writeFileSync('io.github.jmylchreest.keylightd.metainfo.xml', metainfoContent);
             console.log('Generated metainfo.xml with releases:', validReleases.length);
 
