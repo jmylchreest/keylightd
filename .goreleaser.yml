@@ -19,9 +19,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/jmylchreest/keylightd/cmd/keylightd.version={{.Version}}
-      - -X github.com/jmylchreest/keylightd/cmd/keylightd.commit={{.ShortCommit}}
-      - -X github.com/jmylchreest/keylightd/cmd/keylightd.buildDate={{.Date}}
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.buildDate={{.Date}}
 
   - id: keylightctl
     main: ./cmd/keylightctl
@@ -36,9 +36,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/jmylchreest/keylightd/cmd/keylightctl.version={{.Version}}
-      - -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit={{.ShortCommit}}
-      - -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate={{.Date}}
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.buildDate={{.Date}}
 
 release:
   disable: false
@@ -80,6 +80,6 @@ brews:
       bin.install "keylightd"
       bin.install "keylightctl"
     test: |
-      system "#{bin}/keylightd", "--version"
-      system "#{bin}/keylightctl", "--version"
+      system "#{bin}/keylightd", "-h"
+      system "#{bin}/keylightctl", "version"
     skip_upload: "{{ .IsSnapshot }}"
