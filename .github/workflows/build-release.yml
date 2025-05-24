@@ -271,11 +271,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  flatpak:
-    name: Build Flatpak
-    needs: goreleaser
-    uses: ./.github/workflows/flatpak.yml
-    with:
-      tag_name: ${{ needs.goreleaser.outputs.IS_SNAPSHOT == 'true' && needs.goreleaser.outputs.VERSION || needs.goreleaser.outputs.CURRENT_TAG }}
-      version: ${{ needs.goreleaser.outputs.VERSION }}
-      release_id: ${{ needs.goreleaser.outputs.RELEASE_ID }}
+  # flatpak:
+  #   name: Build Flatpak
+  #   needs: goreleaser
+  #   uses: ./.github/workflows/flatpak.yml
+  #   with:
+  #     tag_name: ${{ needs.goreleaser.outputs.IS_SNAPSHOT == 'true' && needs.goreleaser.outputs.VERSION || needs.goreleaser.outputs.CURRENT_TAG }}
+  #     version: ${{ needs.goreleaser.outputs.VERSION }}
+  #     release_id: ${{ needs.goreleaser.outputs.RELEASE_ID }}
