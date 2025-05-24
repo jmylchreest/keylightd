@@ -2,11 +2,19 @@ EXT_UUID=keylightd-control@jmylchreest.github.io
 EXT_DIR=$(EXT_UUID)
 DIST_DIR=$(CURDIR)/../../dist/gnome-extension
 
-.PHONY: all build clean pack
+.PHONY: all build clean pack version-info test
 
 all: clean build pack 
 
-build: clean
+version-info:
+	@echo "Generating version info..."
+	@./update-version-info.sh
+
+test:
+	@echo "Running tests..."
+	@cd tests && ./run-tests.sh
+
+build: clean version-info test
 	@echo "Building schemas..."
 	glib-compile-schemas $(EXT_DIR)/schemas
 	@echo "Build complete."
@@ -22,6 +30,7 @@ pack: mkdist build
 		--extra-source=utils.js \
 		--extra-source=icons.js \
 		--extra-source=icon-names.js \
+		--extra-source=version-info.json \
 		--out-dir $(DIST_DIR)
 
 mkdist: clean
@@ -31,8 +40,9 @@ mkdist: clean
 zip: mkdist build
 	@echo "Zipping extension..."
 	@echo $(CURDIR) -- $(DIST_DIR)
-	@(cd $(EXT_DIR) && zip -r $(DIST_DIR)/$(EXT_UUID).shell-extension.zip .)
+	@(cd $(EXT_DIR) && zip -r $(DIST_DIR)/$(EXT_UUID).shell-extension.zip . -x "*.git*")
 
 clean:
 	rm -rf $(EXT_DIR)/schemas/gschemas.compiled
-	rm -rf $(DIST_DIR)/$(EXT_UUID).shell-extension.zip 
+	rm -rf $(EXT_DIR)/version-info.json
+	rm -rf $(DIST_DIR)/$(EXT_UUID).shell-extension.zip

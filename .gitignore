@@ -44,3 +44,4 @@ Thumbs.db
 tmp/
 temp/
 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/schemas/gschemas.compiled
+contrib/gnome-extension/keylightd-control@jmylchreest.github.io/version-info.json
