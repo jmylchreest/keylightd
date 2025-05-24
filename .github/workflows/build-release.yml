@@ -1,0 +1,281 @@
+name: Build Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+      - "!*SNAPSHOT*"
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Test"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  check-test-status:
+    name: Check Test Workflow Status
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.ref_type == 'tag' || github.ref_name == 'main'))
+    steps:
+      - name: Check Test Status
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "Test workflow has completed successfully."
+          else
+            echo "Direct workflow trigger. Proceeding with build."
+          fi
+
+  build-gnome-extension:
+    name: Build GNOME extension
+    runs-on: ubuntu-latest
+    needs: check-test-status
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make zip
+
+      - name: Build extension
+        run: |
+          cd contrib/gnome-extension
+          make zip
+          echo "Extension built successfully"
+          echo "=== Checking what was created ==="
+          find $(pwd)/../../dist -name "*gnome-extension*" -o -name "*.zip" | sort
+
+      - name: Upload GNOME extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-extension
+          path: dist/gnome-extension/*.zip
+          retention-days: 1
+
+  goreleaser:
+    name: Run GoReleaser
+    needs: build-gnome-extension
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.extract-version.outputs.VERSION }}
+      CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
+      IS_SNAPSHOT: ${{ steps.version.outputs.IS_SNAPSHOT }}
+      RELEASE_ID: ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && steps.create_release.outputs.id || steps.get_release.outputs.RELEASE_ID }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Generate commit info
+        id: commit-info
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
+          echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "COMMIT_MSG=${COMMIT_MSG}" >> $GITHUB_OUTPUT
+          echo "Commit hash: ${COMMIT_HASH}"
+          echo "Commit message: ${COMMIT_MSG}"
+
+      - name: Find previous and current versions
+        id: version
+        run: |
+          # Get all tags
+          git fetch --tags
+          
+          # List all tags for diagnostics
+          echo "=== All tags (newest first) ==="
+          git tag --sort=-v:refname
+          
+          # Determine if this is a snapshot build
+          IS_SNAPSHOT="false"
+          if [ "${{ github.ref_type }}" != "tag" ] || [[ "${{ github.ref_name }}" == *"SNAPSHOT"* ]]; then
+            IS_SNAPSHOT="true"
+          fi
+          
+          if [ "$IS_SNAPSHOT" == "true" ]; then
+            # Snapshot build logic
+            LATEST_RELEASE_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
+            if [ -z "$LATEST_RELEASE_TAG" ]; then
+              LATEST_RELEASE_TAG="v0.0.0"
+            fi
+            echo "Latest release tag: ${LATEST_RELEASE_TAG}"
+            
+            BASE_VERSION=${LATEST_RELEASE_TAG}
+            echo "Using base version: ${BASE_VERSION}"
+            
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            if [[ "$PREVIOUS_TAG" == *"SNAPSHOT"* ]]; then
+              PREVIOUS_TAG=${LATEST_RELEASE_TAG}
+            fi
+            CURRENT_TAG=${BASE_VERSION}
+          else
+            # Release build logic
+            CURRENT_TAG="${{ github.ref_name }}"
+            if [ -z "$CURRENT_TAG" ] || [[ "$CURRENT_TAG" == *"SNAPSHOT"* ]]; then
+              CURRENT_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
+            fi
+            echo "Current tag: ${CURRENT_TAG}"
+            
+            PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | grep -v "^${CURRENT_TAG}$" | head -n1)
+            if [ -z "$PREVIOUS_TAG" ]; then
+              PREVIOUS_TAG="v0.0.0"
+            fi
+            echo "Previous tag: ${PREVIOUS_TAG}"
+          fi
+          
+          echo "IS_SNAPSHOT=${IS_SNAPSHOT}" >> $GITHUB_OUTPUT
+          echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+          echo "CURRENT_TAG=${CURRENT_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Debug GoReleaser environment
+        run: |
+          echo "=== GoReleaser Environment ==="
+          echo "IS_SNAPSHOT: ${{ steps.version.outputs.IS_SNAPSHOT }}"
+          echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
+          echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
+
+      - name: Download GNOME extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gnome-extension
+          path: dist/gnome-extension
+
+      - name: Check for GNOME extension files
+        run: |
+          echo "=== Listing all directories ==="
+          find . -type d | sort
+          echo "=== Looking for gnome-extension files ==="
+          find . -name "*gnome-extension*" -type d -o -name "*.zip" | sort
+
+      - name: Run GoReleaser
+        id: goreleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "latest"
+          args: release --clean ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && '--snapshot' || '' }} --timeout 30m
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Extract version information
+        id: extract-version
+        run: |
+          echo "=== Content of metadata.json ==="
+          cat ./dist/metadata.json
+
+          # Extract version using jq
+          VERSION=$(jq -r .version ./dist/metadata.json | sed 's/^v//')
+          echo "Extracted version (without v prefix): ${VERSION}"
+
+          # Print debug info
+          echo "Final version for release: ${VERSION}"
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Debug GoReleaser output
+        run: |
+          echo "=== GoReleaser output directories ==="
+          find ./dist -type d | sort
+
+          echo "=== GoReleaser output files ==="
+          find ./dist -type f | sort
+
+          echo "=== GoReleaser artifacts.json content ==="
+          if [ -f ./dist/artifacts.json ]; then
+            jq . ./dist/artifacts.json
+          else
+            echo "artifacts.json not found"
+          fi
+
+          echo "=== GoReleaser metadata.json content ==="
+          if [ -f ./dist/metadata.json ]; then
+            jq . ./dist/metadata.json
+          else
+            echo "metadata.json not found"
+          fi
+
+          echo "=== GNOME extension files ==="
+          find ./dist/gnome-extension -type f | sort
+
+          echo "=== Archive contents ==="
+          ls -la ./dist/*.tar.gz || echo "No archives found"
+
+      - name: Create GitHub Release (Snapshot only)
+        id: create_release
+        if: steps.version.outputs.IS_SNAPSHOT == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Snapshot ${{ steps.extract-version.outputs.VERSION }}"
+          tag_name: "${{ steps.extract-version.outputs.VERSION }}"
+          body: |
+            Automated snapshot build from commit ${{ github.sha }}
+
+            Commit message: ${{ steps.commit-info.outputs.COMMIT_MSG }}
+
+            This is an automated snapshot build and is not intended for production use.
+          files: |
+            ./dist/*.tar.gz
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Release ID (Release only)
+        id: get_release
+        if: steps.version.outputs.IS_SNAPSHOT == 'false'
+        run: |
+          # For release builds, GoReleaser should have created the release
+          # Get the release ID for the current tag
+          sleep 5  # Give GoReleaser time to create the release
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.version.outputs.CURRENT_TAG }} --jq '.id' 2>/dev/null || echo "")
+          echo "RELEASE_ID=${RELEASE_ID}" >> $GITHUB_OUTPUT
+          echo "Found release ID: ${RELEASE_ID}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload GNOME extension to release
+        run: |
+          if [ "${{ steps.version.outputs.IS_SNAPSHOT }}" == "true" ]; then
+            TAG_NAME="${{ steps.extract-version.outputs.VERSION }}"
+          else
+            TAG_NAME="${{ steps.version.outputs.CURRENT_TAG }}"
+          fi
+          
+          echo "Uploading GNOME extension to release: ${TAG_NAME}"
+          gh release upload ${TAG_NAME} ./dist/gnome-extension/*.zip --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  flatpak:
+    name: Build Flatpak
+    needs: goreleaser
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      tag_name: ${{ needs.goreleaser.outputs.IS_SNAPSHOT == 'true' && needs.goreleaser.outputs.VERSION || needs.goreleaser.outputs.CURRENT_TAG }}
+      version: ${{ needs.goreleaser.outputs.VERSION }}
+      release_id: ${{ needs.goreleaser.outputs.RELEASE_ID }}

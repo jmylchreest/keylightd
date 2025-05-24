@@ -1,12 +1,6 @@
 name: Snapshot
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
   workflow_dispatch:
   workflow_run:
     workflows: ["Test"]
@@ -19,7 +13,9 @@ jobs:
   check-test-status:
     name: Check Test Workflow Status
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: |
+      false &&
+      github.event_name == 'workflow_dispatch'
     steps:
       - name: Check Test Status
         run: |

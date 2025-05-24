@@ -11,6 +11,10 @@ on:
         description: "The version number"
         required: true
         type: string
+      release_id:
+        description: "The release ID to upload to (optional, for existing releases)"
+        required: false
+        type: string
 
 jobs:
   flatpak:
@@ -285,12 +289,26 @@ jobs:
           path: io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak
           retention-days: 30
 
-      - name: Upload to release
+      - name: Upload to existing release
+        if: inputs.release_id != ''
+        run: |
+          echo "Uploading to existing release ID: ${{ inputs.release_id }}"
+          gh release upload ${{ inputs.tag_name }} \
+            io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak \
+            io.github.jmylchreest.keylightd.yml \
+            --clobber
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create new release (snapshots only)
+        if: inputs.release_id == ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag_name }}
           files: |
             io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak
             io.github.jmylchreest.keylightd.yml
+          make_latest: "false"
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

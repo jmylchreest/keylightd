@@ -1,10 +1,6 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
-      - "!*SNAPSHOT*"
   workflow_dispatch:
   workflow_run:
     workflows: ["Test"]
@@ -16,10 +12,8 @@ jobs:
     name: Check Test Workflow Status
     runs-on: ubuntu-latest
     if: |
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       (startsWith(github.event.workflow_run.head_branch, 'refs/tags/v') ||
-        contains(github.event.workflow_run.head_branch, 'refs/tags/v')))
+      false &&
+      github.event_name == 'workflow_dispatch'
     steps:
       - name: Check Test Status
         run: |
@@ -66,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       VERSION: ${{ steps.extract-version.outputs.VERSION }}
+      CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -157,5 +152,5 @@ jobs:
     needs: goreleaser
     uses: ./.github/workflows/flatpak.yml
     with:
-      tag_name: ${{ github.ref_name }}
+      tag_name: ${{ needs.goreleaser.outputs.CURRENT_TAG }}
       version: ${{ needs.goreleaser.outputs.VERSION }}
