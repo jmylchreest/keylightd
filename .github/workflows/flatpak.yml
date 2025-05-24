@@ -51,6 +51,16 @@ jobs:
           echo "VENDOR_SHA256=${VENDOR_SHA256}" >> $GITHUB_OUTPUT
           echo "Vendor archive SHA256: ${VENDOR_SHA256}"
 
+      - name: Calculate git commit hash
+        id: git-info
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+          echo "BUILD_DATE=${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "Git commit hash: ${COMMIT_HASH}"
+          echo "Build date: ${BUILD_DATE}"
+
       - name: Create source archive
         run: |
           echo "=== Creating source archive ==="
@@ -200,8 +210,8 @@ jobs:
                   go build \
                     -ldflags="-s -w \
                       -X github.com/jmylchreest/keylightd/cmd/keylightd.version=${{ inputs.version }} \
-                      -X github.com/jmylchreest/keylightd/cmd/keylightd.commit=$(git rev-parse --short HEAD) \
-                      -X github.com/jmylchreest/keylightd/cmd/keylightd.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightd.commit=${{ steps.git-info.outputs.COMMIT_HASH }} \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightd.buildDate=${{ steps.git-info.outputs.BUILD_DATE }}" \
                     -o keylightd ./cmd/keylightd
 
                 # Build keylightctl binary
@@ -209,8 +219,8 @@ jobs:
                   go build \
                     -ldflags="-s -w \
                       -X github.com/jmylchreest/keylightd/cmd/keylightctl.version=${{ inputs.version }} \
-                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit=$(git rev-parse --short HEAD) \
-                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.commit=${{ steps.git-info.outputs.COMMIT_HASH }} \
+                      -X github.com/jmylchreest/keylightd/cmd/keylightctl.buildDate=${{ steps.git-info.outputs.BUILD_DATE }}" \
                     -o keylightctl ./cmd/keylightctl
 
                 # Install binaries
@@ -233,7 +243,7 @@ jobs:
                 - install -Dm644 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/icons/hicolor/scalable/actions/light-enabled.svg /app/share/icons/hicolor/scalable/apps/io.github.jmylchreest.keylightd.svg
 
                 # Install appstream metadata (using generated version)
-                - install -Dm644 ../io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
+                - install -Dm644 io.github.jmylchreest.keylightd.metainfo.xml /app/share/metainfo/io.github.jmylchreest.keylightd.metainfo.xml
               sources:
                 - type: file
                   path: source.tar.gz
