@@ -72,6 +72,7 @@ brews:
       owner: jmylchreest
       name: homebrew-keylightd
       branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
@@ -82,5 +83,3 @@ brews:
       system "#{bin}/keylightd", "--version"
       system "#{bin}/keylightctl", "--version"
     skip_upload: "{{ .IsSnapshot }}"
-
-
