@@ -35,7 +35,7 @@ export const KeylightdControl = GObject.registerClass(
       this._keylightdToggle = new KeylightdControlToggle(extension);
 
       // Connect to toggle's notify::gicon signal to update the indicator icon
-      this._keylightdToggle.connect("notify::gicon", () => {
+      this._giconSignalId = this._keylightdToggle.connect("notify::gicon", () => {
         if (this._keylightdToggle.gicon) {
           this._indicator.gicon = this._keylightdToggle.gicon;
           this._indicator.visible = true;
@@ -43,7 +43,7 @@ export const KeylightdControl = GObject.registerClass(
       });
 
       // Connect to menu open/close events to sync icon state
-      this._keylightdToggle.menu.connect(
+      this._openStateSignalId = this._keylightdToggle.menu.connect(
         "open-state-changed",
         (menu, isOpen) => {
           // When menu closes, ensure our icon is synced with the toggle
@@ -180,6 +180,17 @@ export const KeylightdControl = GObject.registerClass(
      * Destroy the indicator and clean up
      */
     destroy() {
+      // Disconnect signal handlers
+      if (this._giconSignalId && this._keylightdToggle) {
+        this._keylightdToggle.disconnect(this._giconSignalId);
+        this._giconSignalId = null;
+      }
+
+      if (this._openStateSignalId && this._keylightdToggle && this._keylightdToggle.menu) {
+        this._keylightdToggle.menu.disconnect(this._openStateSignalId);
+        this._openStateSignalId = null;
+      }
+
       // Clear all timeouts
       if (this._initialUpdateTimeoutId) {
         GLib.source_remove(this._initialUpdateTimeoutId);

@@ -99,6 +99,9 @@ export const KeylightdControlToggle = GObject.registerClass(
       this._stateSubscriptions = [];
       this._subscribeToStateEvents();
 
+      // Initialize settings signal IDs array
+      this._settingsSignalIds = [];
+
       // Connect settings change signals
       this._connectSettings();
     }
@@ -220,52 +223,68 @@ export const KeylightdControlToggle = GObject.registerClass(
      * Connect to settings change signals
      */
     _connectSettings() {
-      this._settings.connect("changed::api-url", () => {
-        this._debouncedLoadControls();
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::api-url", () => {
+          this._debouncedLoadControls();
+        })
+      );
 
-      this._settings.connect("changed::api-key", () => {
-        this._debouncedLoadControls();
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::api-key", () => {
+          this._debouncedLoadControls();
+        })
+      );
 
-      this._settings.connect("changed::refresh-interval", () => {
-        this._setupRefreshTimer();
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::refresh-interval", () => {
+          this._setupRefreshTimer();
+        })
+      );
 
-      this._settings.connect("changed::visible-groups", () => {
-        this._debouncedLoadControls();
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::visible-groups", () => {
+          this._debouncedLoadControls();
+        })
+      );
 
-      this._settings.connect("changed::visible-lights", () => {
-        this._debouncedLoadControls();
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::visible-lights", () => {
+          this._debouncedLoadControls();
+        })
+      );
 
       // Animation settings
-      this._settings.connect("changed::use-animations", () => {
-        this._useAnimations = this._settings.get_boolean("use-animations");
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::use-animations", () => {
+          this._useAnimations = this._settings.get_boolean("use-animations");
+        })
+      );
 
       // Update debounce time when it changes in settings
-      this._settings.connect("changed::debounce-time", () => {
-        this._debounceTime = this._settings.get_int("debounce-time");
-      });
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::debounce-time", () => {
+          this._debounceTime = this._settings.get_int("debounce-time");
+        })
+      );
 
       // Listen for max-height-percent changes and refresh UI after debounce
-      this._settings.connect("changed::max-height-percent", () => {
-        if (this._maxHeightTimeoutId) {
-          GLib.source_remove(this._maxHeightTimeoutId);
-          this._maxHeightTimeoutId = null;
-        }
-        this._maxHeightTimeoutId = GLib.timeout_add(
-          GLib.PRIORITY_DEFAULT,
-          300,
-          () => {
-            this._debouncedLoadControls();
+      this._settingsSignalIds.push(
+        this._settings.connect("changed::max-height-percent", () => {
+          if (this._maxHeightTimeoutId) {
+            GLib.source_remove(this._maxHeightTimeoutId);
             this._maxHeightTimeoutId = null;
-            return GLib.SOURCE_REMOVE;
-          },
-        );
-      });
+          }
+          this._maxHeightTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            300,
+            () => {
+              this._debouncedLoadControls();
+              this._maxHeightTimeoutId = null;
+              return GLib.SOURCE_REMOVE;
+            },
+          );
+        })
+      );
 
       // Subscribe to state events
       this._subscribeToStateEvents();
@@ -1413,6 +1432,16 @@ export const KeylightdControlToggle = GObject.registerClass(
       if (this._maxHeightTimeoutId) {
         GLib.source_remove(this._maxHeightTimeoutId);
         this._maxHeightTimeoutId = null;
+      }
+
+      // Disconnect all settings signals
+      if (this._settings && this._settingsSignalIds) {
+        this._settingsSignalIds.forEach(signalId => {
+          if (signalId) {
+            this._settings.disconnect(signalId);
+          }
+        });
+        this._settingsSignalIds = [];
       }
 
       // Unsubscribe from state events

@@ -93,23 +93,23 @@ export default class KeylightdControlExtension extends Extension {
         this._setupBackgroundRefresh();
         
         // Connect to settings changes for refresh interval
-        this._settings.connect('changed::refresh-interval', () => {
+        this._refreshIntervalSignalId = this._settings.connect('changed::refresh-interval', () => {
             this._setupBackgroundRefresh();
         });
         
         // Connect to settings changes for debounce delay
-        this._settings.connect('changed::debounce-delay', () => {
+        this._debounceDelaySignalId = this._settings.connect('changed::debounce-delay', () => {
             if (this._uiBuilder) {
                 this._uiBuilder._debounceDelay = this._settings.get_int('debounce-delay');
             }
         });
         
         // Connect to visibility setting changes to ensure UI and preferences stay in sync
-        this._settings.connect('changed::visible-groups', () => {
+        this._visibleGroupsSignalId = this._settings.connect('changed::visible-groups', () => {
             this._syncVisibilityState();
         });
         
-        this._settings.connect('changed::visible-lights', () => {
+        this._visibleLightsSignalId = this._settings.connect('changed::visible-lights', () => {
             this._syncVisibilityState();
         });
         
@@ -136,6 +136,27 @@ export default class KeylightdControlExtension extends Extension {
         if (this._stateUpdateId && this._stateUpdateEmitter) {
             this._stateUpdateEmitter.disconnect(this._stateUpdateId);
             this._stateUpdateId = null;
+        }
+        
+        // Disconnect all settings signal handlers
+        if (this._refreshIntervalSignalId && this._settings) {
+            this._settings.disconnect(this._refreshIntervalSignalId);
+            this._refreshIntervalSignalId = null;
+        }
+        
+        if (this._debounceDelaySignalId && this._settings) {
+            this._settings.disconnect(this._debounceDelaySignalId);
+            this._debounceDelaySignalId = null;
+        }
+        
+        if (this._visibleGroupsSignalId && this._settings) {
+            this._settings.disconnect(this._visibleGroupsSignalId);
+            this._visibleGroupsSignalId = null;
+        }
+        
+        if (this._visibleLightsSignalId && this._settings) {
+            this._settings.disconnect(this._visibleLightsSignalId);
+            this._visibleLightsSignalId = null;
         }
         
         // Null out the global emitter
