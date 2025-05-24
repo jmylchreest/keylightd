@@ -78,6 +78,40 @@ jobs:
           go-version: stable
           cache: true
 
+      - name: Find previous and current versions
+        id: version
+        run: |
+          # Get all tags
+          git fetch --tags
+          
+          # List all tags for diagnostics
+          echo "=== All tags (newest first) ==="
+          git tag --sort=-v:refname
+          
+          # Find the current release tag (should be the tag that triggered this workflow)
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          if [ -z "$CURRENT_TAG" ] || [[ "$CURRENT_TAG" == *"SNAPSHOT"* ]]; then
+            # Fallback to latest non-snapshot tag if needed
+            CURRENT_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
+          fi
+          echo "Current tag: ${CURRENT_TAG}"
+          
+          # Find the previous release tag (non-snapshot, excluding current)
+          PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | grep -v "^${CURRENT_TAG}$" | head -n1)
+          if [ -z "$PREVIOUS_TAG" ]; then
+            PREVIOUS_TAG="v0.0.0"
+          fi
+          echo "Previous tag: ${PREVIOUS_TAG}"
+          
+          echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
+          echo "CURRENT_TAG=${CURRENT_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Debug GoReleaser environment
+        run: |
+          echo "=== GoReleaser Environment ==="
+          echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
+          echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
+
       - name: Download GNOME extension artifact
         uses: actions/download-artifact@v4
         with:
@@ -99,6 +133,8 @@ jobs:
           args: release --clean --timeout 30m
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
