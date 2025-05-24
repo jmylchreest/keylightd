@@ -73,16 +73,16 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            
+
             // Fetch all releases (excluding prereleases)
             const releases = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100
             });
-            
+
             const validReleases = releases.data.filter(release => !release.prerelease);
-            
+
             // Generate metainfo.xml content
             let metainfoContent = `<?xml version="1.0" encoding="UTF-8"?>
             <component type="desktop-application">
@@ -110,21 +110,21 @@ jobs:
               <icon type="stock">io.github.jmylchreest.keylightd</icon>
               <url type="homepage">https://github.com/jmylchreest/keylightd</url>
               <url type="bugtracker">https://github.com/jmylchreest/keylightd/issues</url>
-              <developer_name>James Mylchreest</developer_name>
+              <developer_name>John Mylchreest</developer_name>
               <content_rating type="oars-1.1" />
               <releases>
             `;
-            
+
             // Add releases
             for (const release of validReleases) {
               const version = release.tag_name.replace(/^v/, '');
               const date = release.published_at.split('T')[0];
               const name = release.name || `Release ${version}`;
-              
+
               metainfoContent += `    <release version="${version}" date="${date}">
                 <description>
                   <p>${name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')}</p>`;
-              
+
               if (release.body && release.body.trim()) {
                 // Clean and truncate release body
                 const cleanBody = release.body
@@ -137,19 +137,19 @@ jobs:
                   .slice(0, 5)
                   .join(' ')
                   .substring(0, 300);
-                
+
                 if (cleanBody.trim()) {
                   metainfoContent += `
                   <p>${cleanBody.trim()}</p>`;
                 }
               }
-              
+
               metainfoContent += `
                 </description>
               </release>
             `;
             }
-            
+
             metainfoContent += `  </releases>
               <screenshots>
                 <screenshot type="default">
@@ -158,7 +158,7 @@ jobs:
                 </screenshot>
               </screenshots>
             </component>`;
-            
+
             // Write to file
             fs.writeFileSync('io.github.jmylchreest.keylightd.metainfo.xml', metainfoContent);
             console.log('Generated metainfo.xml with releases:', validReleases.length);
@@ -169,10 +169,10 @@ jobs:
           # Create a clean source archive without .git, including the generated metainfo.xml
           git config --global --add safe.directory "$(pwd)"
           git archive --format=tar --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar
-          
+
           # Add the generated metainfo.xml to the uncompressed archive
           tar --transform 's,^,keylightd-${{ inputs.version }}/,' -rf source.tar io.github.jmylchreest.keylightd.metainfo.xml
-          
+
           # Now compress the archive
           gzip source.tar
           ls -la source.tar.gz
