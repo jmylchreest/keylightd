@@ -137,31 +137,14 @@ jobs:
 
       - name: Setup Flatpak environment
         run: |
-          # Add Flathub repository and update
-          echo "=== Setting up Flathub repository ==="
           flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-          # Update remotes
-          flatpak remote-ls flathub || true
-
-          # Install the SDK if needed
-          echo "=== Installing SDK if needed ==="
           flatpak install -y --noninteractive flathub org.freedesktop.Sdk//23.08 org.freedesktop.Platform//23.08 || true
-
-          echo "=== Available runtimes ==="
-          flatpak list --runtime
-
-          echo "=== Check SDK ==="
-          flatpak remote-ls flathub | grep org.freedesktop.Sdk
 
       - name: Update Flatpak Manifest
         run: |
           # Ensure the tag is valid for the manifest
           sed -i "s/tag: v1.0.0/tag: ${{ inputs.tag_name }}/g" contrib/flatpak/io.github.jmylchreest.keylightd.yml
-
-          # Display the updated manifest for debugging
-          echo "=== Updated Flatpak Manifest ==="
-          grep -A 5 "tag:" contrib/flatpak/io.github.jmylchreest.keylightd.yml
+          cat contrib/flatpak/io.github.jmylchreest.keylightd.yml | grep 'tag:'
 
       # Debugging information before build
       - name: Debug flatpak environment
