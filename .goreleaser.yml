@@ -52,7 +52,6 @@ archives:
     files:
       - LICENSE
       - README.md
-      - keylightd.service
 
 changelog:
   sort: asc
@@ -69,6 +68,7 @@ brews:
     description: "Daemon and CLI tool for managing Elgato Key Lights on your local network"
     homepage: "https://github.com/jmylchreest/keylightd"
     license: "MIT"
+    skip_upload: "{{ .IsSnapshot }}"
     repository:
       owner: jmylchreest
       name: homebrew-keylightd
@@ -81,15 +81,14 @@ brews:
       bin.install "keylightd"
       bin.install "keylightctl"
 
-      # Install systemd service file for Linux users
-      if OS.linux?
-        (prefix/"etc/systemd/user").mkpath
-        (prefix/"etc/systemd/user").install "keylightd.service"
+      service do
+        run bin/"keylightd"
+        keep_alive true
+        restart_delay 5
+        process_type background
+        run_type :immediate
       end
 
-      # Make service file available on all platforms for reference
-      (share/"keylightd").mkpath
-      (share/"keylightd").install "keylightd.service"
     test: |
       system "#{bin}/keylightd", "-h"
       system "#{bin}/keylightctl", "version"
@@ -106,18 +105,8 @@ brews:
         systemctl --user enable keylightd
         systemctl --user start keylightd
 
-        Service file installed to: #{HOMEBREW_PREFIX}/etc/systemd/user/keylightd.service
-
-      On macOS (using launchd):
-        # Manual background start:
-        keylightd &
-
-        # Or create your own launchd plist in ~/Library/LaunchAgents/
-
       Once started, control your lights with:
         keylightctl light list
         keylightctl --help
 
       Configuration will be created at: ~/.config/keylight/
-
-    skip_upload: "{{ .IsSnapshot }}"
