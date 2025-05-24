@@ -149,6 +149,9 @@ jobs:
 
       - name: Debug GoReleaser environment
         run: |
+          echo "=== Full contents ==="
+          find ./ -type f
+
           echo "=== GoReleaser Environment ==="
           echo "IS_SNAPSHOT: ${{ steps.version.outputs.IS_SNAPSHOT }}"
           echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
@@ -203,9 +206,6 @@ jobs:
             echo "metadata.json not found"
           fi
 
-          echo "=== Archive contents ==="
-          ls -la ./dist/*.tar.gz || echo "No archives found"
-
       - name: Create GitHub Release (Snapshot only)
         id: create_release
         if: steps.version.outputs.IS_SNAPSHOT == 'true'
@@ -221,6 +221,7 @@ jobs:
             This is an automated snapshot build and is not intended for production use.
           files: |
             ./dist/*.tar.gz
+            ./contrib/systemd/*
           prerelease: true
           draft: false
           generate_release_notes: false
