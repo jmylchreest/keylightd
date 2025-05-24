@@ -164,11 +164,13 @@ jobs:
           echo "=== Creating source archive ==="
           # Create a clean source archive without .git, including the generated metainfo.xml
           git config --global --add safe.directory "$(pwd)"
-          git archive --format=tar.gz --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar.gz
+          git archive --format=tar --prefix=keylightd-${{ inputs.version }}/ HEAD > source.tar
           
-          # Add the generated metainfo.xml to the archive
-          tar --transform 's,^,keylightd-${{ inputs.version }}/,' -rf source.tar.gz io.github.jmylchreest.keylightd.metainfo.xml
-          gzip -f source.tar
+          # Add the generated metainfo.xml to the uncompressed archive
+          tar --transform 's,^,keylightd-${{ inputs.version }}/,' -rf source.tar io.github.jmylchreest.keylightd.metainfo.xml
+          
+          # Now compress the archive
+          gzip source.tar
           ls -la source.tar.gz
 
       - name: Calculate source archive hash
