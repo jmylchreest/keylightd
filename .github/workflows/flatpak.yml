@@ -162,13 +162,13 @@ jobs:
           flatpak-builder --force-clean --repo=repo build-dir io.github.jmylchreest.keylightd.yml
 
           echo "=== Creating bundle ==="
-          flatpak build-bundle repo io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak io.github.jmylchreest.keylightd
+          flatpak build-bundle repo io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak io.github.jmylchreest.keylightd
 
       - name: Upload Flatpak artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flatpak-${{ inputs.version }}
-          path: io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak
+          name: flatpak-${{ matrix.arch }}-${{ inputs.version }}
+          path: io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak
           retention-days: 30
 
       - name: Upload to release
@@ -176,7 +176,7 @@ jobs:
         with:
           tag_name: ${{ inputs.tag_name }}
           files: |
-            io.github.jmylchreest.keylightd-${{ inputs.version }}.flatpak
+            io.github.jmylchreest.keylightd-${{ matrix.arch }}-${{ inputs.version }}.flatpak
             io.github.jmylchreest.keylightd.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
