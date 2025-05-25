@@ -63,6 +63,7 @@ changelog:
       - Merge pull request
       - Merge branch
 
+# homebrew_casks:
 brews:
   - name: keylightd
     description: "Daemon and CLI tool for managing Elgato Key Lights on your local network"
@@ -77,17 +78,23 @@ brews:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
+
+    # binary: |
+    #   keylightd
+    #   keylightctl
+
     install: |
       bin.install "keylightd"
       bin.install "keylightctl"
 
-      service do
-        run bin/"keylightd"
-        keep_alive true
-        restart_delay 5
-        process_type background
-        run_type :immediate
-      end
+    service: |
+      run bin/"keylightd"
+      keep_alive true
+      restart_delay 5
+      process_type :background
+      run_type :immediate
+      log_path var/"log/keylightd.log"
+      error_log_path var/"log/keylightd.log"
 
     test: |
       system "#{bin}/keylightd", "-h"
@@ -99,14 +106,21 @@ brews:
       To start keylightd manually:
         keylightd
 
-      To start automatically on boot:
+      To start automatically with Homebrew services:
+        brew services start keylightd
 
-      On Linux with systemd:
-        systemctl --user enable keylightd
-        systemctl --user start keylightd
+      To stop the service:
+        brew services stop keylightd
+
+      To restart the service:
+        brew services restart keylightd
+
+      To check service status:
+        brew services list | grep keylightd
 
       Once started, control your lights with:
         keylightctl light list
         keylightctl --help
 
       Configuration will be created at: ~/.config/keylight/
+      Service logs will be written to: $(brew --prefix)/var/log/keylightd.log
