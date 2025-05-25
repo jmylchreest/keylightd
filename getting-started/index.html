@@ -6,17 +6,17 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Documentation for the KeylightD API for Elgato Key Light devices.">
+        <meta name="description" content="Documentation for the keylightd API for Elgato Key Light devices.">
       
       
-        <meta name="author" content="KeylightD Team">
+        <meta name="author" content="keylightd Team">
       
       
       
         <link rel="prev" href="..">
       
       
-        <link rel="next" href="../api/">
+        <link rel="next" href="../supported-devices/">
       
       
       <link rel="icon" href="../assets/images/favicon.png">
@@ -24,7 +24,7 @@
     
     
       
-        <title>Getting Started - KeylightD API Documentation</title>
+        <title>Getting Started - keylightd API Documentation</title>
       
     
     
@@ -50,7 +50,7 @@
       
     
     
-      <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui.css">
+      <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@latest/swagger-ui.css">
     
       <link rel="stylesheet" href="../stylesheets/extra.css">
     
@@ -66,10 +66,12 @@
   
     
     
+      
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="indigo">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -94,7 +96,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="KeylightD API Documentation" class="md-header__button md-logo" aria-label="KeylightD API Documentation" data-md-component="logo">
+    <a href=".." title="keylightd API Documentation" class="md-header__button md-logo" aria-label="keylightd API Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -108,7 +110,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            KeylightD API Documentation
+            keylightd API Documentation
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -122,7 +124,33 @@
     </div>
     
       
+        <form class="md-header__option" data-md-component="palette">
+  
     
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
     
     
     
@@ -194,13 +222,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="KeylightD API Documentation" class="md-nav__button md-logo" aria-label="KeylightD API Documentation" data-md-component="logo">
+    <a href=".." title="keylightd API Documentation" class="md-nav__button md-logo" aria-label="keylightd API Documentation" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    KeylightD API Documentation
+    keylightd API Documentation
   </label>
   
   <ul class="md-nav__list" data-md-scrollfix>
@@ -303,18 +331,27 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#option-1-installing-from-binary-releases" class="md-nav__link">
+  <a href="#option-1-install-via-homebrew-recommended" class="md-nav__link">
     <span class="md-ellipsis">
-      Option 1: Installing from Binary Releases
+      Option 1: Install via Homebrew (Recommended)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#option-2-building-from-source" class="md-nav__link">
+  <a href="#option-2-installing-from-binary-releases" class="md-nav__link">
     <span class="md-ellipsis">
-      Option 2: Building from Source
+      Option 2: Installing from Binary Releases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-3-building-from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      Option 3: Building from Source
     </span>
   </a>
   
@@ -336,42 +373,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-configuration-example" class="md-nav__link">
+  <a href="#complete-configuration-example" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Configuration Example
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-keylightd" class="md-nav__link">
-    <span class="md-ellipsis">
-      Running KeylightD
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Running KeylightD">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#starting-manually" class="md-nav__link">
-    <span class="md-ellipsis">
-      Starting Manually
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#setting-up-as-a-system-service" class="md-nav__link">
-    <span class="md-ellipsis">
-      Setting Up as a System Service
+      Complete Configuration Example
     </span>
   </a>
   
@@ -397,30 +401,6 @@
       Basic Usage
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Basic Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-the-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using the CLI
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-the-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using the API
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -470,15 +450,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#api-key-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      API Key Issues
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -522,7 +493,7 @@
   
   
   <span class="md-ellipsis">
-    API Reference
+    Supported Devices
     
   </span>
   
@@ -532,6 +503,346 @@
         
         <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Supported Devices
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supported-devices/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../supported-devices/elgato/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Elgato Key Light Series
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Lights
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Lights
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lights/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lights/http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    HTTP API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lights/socket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Socket API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    Groups
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Groups
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../groups/cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    CLI
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../groups/http/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    HTTP API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../groups/socket/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Socket API
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
             <span class="md-nav__icon md-icon"></span>
             API Reference
           </label>
@@ -590,72 +901,6 @@
   
 
     
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../authentication/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Authentication
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../lights/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Lights
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../groups/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    Groups
-    
-  </span>
-  
-
-      </a>
-    </li>
-  
-
-    
   </ul>
 </nav>
                   </div>
@@ -702,18 +947,27 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#option-1-installing-from-binary-releases" class="md-nav__link">
+  <a href="#option-1-install-via-homebrew-recommended" class="md-nav__link">
     <span class="md-ellipsis">
-      Option 1: Installing from Binary Releases
+      Option 1: Install via Homebrew (Recommended)
     </span>
   </a>
   
 </li>
         
           <li class="md-nav__item">
-  <a href="#option-2-building-from-source" class="md-nav__link">
+  <a href="#option-2-installing-from-binary-releases" class="md-nav__link">
     <span class="md-ellipsis">
-      Option 2: Building from Source
+      Option 2: Installing from Binary Releases
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-3-building-from-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      Option 3: Building from Source
     </span>
   </a>
   
@@ -735,42 +989,9 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#basic-configuration-example" class="md-nav__link">
+  <a href="#complete-configuration-example" class="md-nav__link">
     <span class="md-ellipsis">
-      Basic Configuration Example
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-keylightd" class="md-nav__link">
-    <span class="md-ellipsis">
-      Running KeylightD
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Running KeylightD">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#starting-manually" class="md-nav__link">
-    <span class="md-ellipsis">
-      Starting Manually
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#setting-up-as-a-system-service" class="md-nav__link">
-    <span class="md-ellipsis">
-      Setting Up as a System Service
+      Complete Configuration Example
     </span>
   </a>
   
@@ -796,30 +1017,6 @@
       Basic Usage
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Basic Usage">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#using-the-cli" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using the CLI
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#using-the-api" class="md-nav__link">
-    <span class="md-ellipsis">
-      Using the API
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -869,15 +1066,6 @@
   
 </li>
         
-          <li class="md-nav__item">
-  <a href="#api-key-issues" class="md-nav__link">
-    <span class="md-ellipsis">
-      API Key Issues
-    </span>
-  </a>
-  
-</li>
-        
       </ul>
     </nav>
   
@@ -899,142 +1087,135 @@
 
 
 
-<h1 id="getting-started-with-keylightd">Getting Started with KeylightD<a class="headerlink" href="#getting-started-with-keylightd" title="Permanent link">&para;</a></h1>
-<p>This guide will help you get started with KeylightD, a daemon service for controlling Elgato Key Light devices and potentially other HTTP-based lights with similar interfaces. If you have a similar device that's not explicitly supported, please open a ticket to request support.</p>
+<h1 id="getting-started-with-keylightd">Getting Started with keylightd<a class="headerlink" href="#getting-started-with-keylightd" title="Permanent link">&para;</a></h1>
+<p>This guide will help you get started with keylightd, a daemon service for controlling Elgato Key Light devices and potentially other HTTP-based lights with similar interfaces. If you have a similar device that's not explicitly supported, please open a ticket to request support.</p>
 <h2 id="installation">Installation<a class="headerlink" href="#installation" title="Permanent link">&para;</a></h2>
 <h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Linux operating system</li>
+<li>Linux or macOS operating system (basic testing has been performed on Windows and it should work.)</li>
 <li>Go 1.24 or higher (if building from source)</li>
 <li>Network connectivity to your Elgato Key Light devices</li>
 </ul>
-<h3 id="option-1-installing-from-binary-releases">Option 1: Installing from Binary Releases<a class="headerlink" href="#option-1-installing-from-binary-releases" title="Permanent link">&para;</a></h3>
+<h3 id="option-1-install-via-homebrew-recommended">Option 1: Install via Homebrew (Recommended)<a class="headerlink" href="#option-1-install-via-homebrew-recommended" title="Permanent link">&para;</a></h3>
+<p>The easiest way to install keylightd is through our Homebrew tap:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>brew<span class="w"> </span>tap<span class="w"> </span>jmylchreest/keylightd
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>brew<span class="w"> </span>install<span class="w"> </span>keylightd
+</code></pre></div>
+<p>This will install both the <code>keylightd</code> daemon and <code>keylightctl</code> CLI tool. The installation automatically sets up a launchd service on macOS and a systemd service on Linux.</p>
+<p>To start the service:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>brew<span class="w"> </span>services<span class="w"> </span>start<span class="w"> </span>jmylchreest/keylightd/keylightd
+</code></pre></div></p>
+<p><strong>Note:</strong> You can also run keylightd manually by simply executing <code>keylightd</code> in your terminal if you prefer not to use the system service.</p>
+<h3 id="option-2-installing-from-binary-releases">Option 2: Installing from Binary Releases<a class="headerlink" href="#option-2-installing-from-binary-releases" title="Permanent link">&para;</a></h3>
 <ol>
 <li>Download the latest release from the <a href="https://github.com/jmylchreest/keylightd/releases">GitHub releases page</a></li>
 <li>Extract the archive:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>tar -xzf keylightd-v*.tar.gz
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>tar -xzf keylightd-v*.tar.gz
 </code></pre></div></li>
 <li>Move the binary to a directory in your PATH:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo mv keylightd /usr/local/bin/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>chmod +x /usr/local/bin/keylightd
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo mv keylightd /usr/local/bin/
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>chmod +x /usr/local/bin/keylightd
 </code></pre></div></li>
 </ol>
-<h3 id="option-2-building-from-source">Option 2: Building from Source<a class="headerlink" href="#option-2-building-from-source" title="Permanent link">&para;</a></h3>
+<h3 id="option-3-building-from-source">Option 3: Building from Source<a class="headerlink" href="#option-3-building-from-source" title="Permanent link">&para;</a></h3>
 <ol>
 <li>
 <p>Clone the repository:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git clone https://github.com/jmylchreest/keylightd.git
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>cd keylightd
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>git clone https://github.com/jmylchreest/keylightd.git
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>cd keylightd
 </code></pre></div></p>
 </li>
 <li>
 <p>Build the binary:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>go build -o keylightd ./cmd/keylightd
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>go build -o keylightd ./cmd/keylightd
 </code></pre></div></p>
 </li>
 <li>
 <p>Install the binary:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>sudo mv keylightd /usr/local/bin/
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>chmod +x /usr/local/bin/keylightd
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo mv keylightd /usr/local/bin/
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>chmod +x /usr/local/bin/keylightd
 </code></pre></div></p>
 </li>
 </ol>
+<p><strong>Note:</strong> After installation, you can run keylightd manually by executing <code>keylightd</code> in your terminal.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p>KeylightD uses a configuration file located at <code>~/.config/keylightd/config.yaml</code>. The file will be created automatically the first time you run KeylightD, but you can also create it manually.</p>
-<h3 id="basic-configuration-example">Basic Configuration Example<a class="headerlink" href="#basic-configuration-example" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">server</span><span class="p">:</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">unix_socket</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/tmp/keylightd.sock</span><span class="w">  </span><span class="c1"># Unix socket path</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="nt">api</span><span class="p">:</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">listen_address</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">127.0.0.1:8080</span><span class="w">    </span><span class="c1"># HTTP API address and port</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">enable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                       </span><span class="c1"># Enable HTTP API</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="nt">discovery</span><span class="p">:</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">  </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span><span class="w">                       </span><span class="c1"># Discovery interval in seconds</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">cleanup_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span><span class="w">               </span><span class="c1"># Cleanup check interval in seconds</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">cleanup_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">180</span><span class="w">               </span><span class="c1"># Device timeout in seconds</span>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="nt">logging</span><span class="p">:</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info</span><span class="w">                        </span><span class="c1"># Logging level (debug, info, warn, error)</span>
+<p>keylightd uses a configuration file located at <code>~/.config/keylightd/config.yaml</code>. The configuration file is created when settings are first saved, but you can also create it manually.</p>
+<h3 id="complete-configuration-example">Complete Configuration Example<a class="headerlink" href="#complete-configuration-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Application state (automatically managed)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nt">state</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="nt">api_keys</span><span class="p">:</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-generated-api-key-here&quot;</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;my-api-key&quot;</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="nt">created_at</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-01-01T00:00:00Z&quot;</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">      </span><span class="nt">expires_at</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-02-01T00:00:00Z&quot;</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">      </span><span class="nt">last_used_at</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2024-01-15T12:00:00Z&quot;</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="nt">groups</span><span class="p">:</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">group-123451</span><span class="p">:</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">      </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;group-123451&quot;</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;office-lights&quot;</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">      </span><span class="nt">lights</span><span class="p">:</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Elgato</span><span class="nv"> </span><span class="s">Key</span><span class="nv"> </span><span class="s">Light</span><span class="nv"> </span><span class="s">ABC1._elg._tcp.local.&quot;</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;Elgato</span><span class="nv"> </span><span class="s">Key</span><span class="nv"> </span><span class="s">Light</span><span class="nv"> </span><span class="s">XYZ2._elg._tcp.local.&quot;</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="c1"># Configuration settings</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="nt">config</span><span class="p">:</span>
+<a id="__codelineno-7-19" name="__codelineno-7-19" href="#__codelineno-7-19"></a><span class="w">  </span><span class="c1"># Server configuration</span>
+<a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a><span class="w">  </span><span class="nt">server</span><span class="p">:</span>
+<a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="w">    </span><span class="c1"># Unix socket path for local communication</span>
+<a id="__codelineno-7-22" name="__codelineno-7-22" href="#__codelineno-7-22"></a><span class="w">    </span><span class="nt">unix_socket</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/run/user/1000/keylightd.sock&quot;</span>
+<a id="__codelineno-7-23" name="__codelineno-7-23" href="#__codelineno-7-23"></a>
+<a id="__codelineno-7-24" name="__codelineno-7-24" href="#__codelineno-7-24"></a><span class="w">  </span><span class="c1"># HTTP API configuration  </span>
+<a id="__codelineno-7-25" name="__codelineno-7-25" href="#__codelineno-7-25"></a><span class="w">  </span><span class="nt">api</span><span class="p">:</span>
+<a id="__codelineno-7-26" name="__codelineno-7-26" href="#__codelineno-7-26"></a><span class="w">    </span><span class="c1"># Address and port for the HTTP API (default: :9123)</span>
+<a id="__codelineno-7-27" name="__codelineno-7-27" href="#__codelineno-7-27"></a><span class="w">    </span><span class="nt">listen_address</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;:9123&quot;</span>
+<a id="__codelineno-7-28" name="__codelineno-7-28" href="#__codelineno-7-28"></a>
+<a id="__codelineno-7-29" name="__codelineno-7-29" href="#__codelineno-7-29"></a><span class="w">  </span><span class="c1"># Device discovery settings</span>
+<a id="__codelineno-7-30" name="__codelineno-7-30" href="#__codelineno-7-30"></a><span class="w">  </span><span class="nt">discovery</span><span class="p">:</span>
+<a id="__codelineno-7-31" name="__codelineno-7-31" href="#__codelineno-7-31"></a><span class="w">    </span><span class="c1"># How often to scan for new devices (seconds, default: 30)</span>
+<a id="__codelineno-7-32" name="__codelineno-7-32" href="#__codelineno-7-32"></a><span class="w">    </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-7-33" name="__codelineno-7-33" href="#__codelineno-7-33"></a><span class="w">    </span><span class="c1"># How often to check for offline devices (seconds, default: 180)</span>
+<a id="__codelineno-7-34" name="__codelineno-7-34" href="#__codelineno-7-34"></a><span class="w">    </span><span class="nt">cleanup_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">180</span>
+<a id="__codelineno-7-35" name="__codelineno-7-35" href="#__codelineno-7-35"></a><span class="w">    </span><span class="c1"># How long before marking a device as offline (seconds, default: 180)</span>
+<a id="__codelineno-7-36" name="__codelineno-7-36" href="#__codelineno-7-36"></a><span class="w">    </span><span class="nt">cleanup_timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">180</span>
+<a id="__codelineno-7-37" name="__codelineno-7-37" href="#__codelineno-7-37"></a>
+<a id="__codelineno-7-38" name="__codelineno-7-38" href="#__codelineno-7-38"></a><span class="w">  </span><span class="c1"># Logging configuration</span>
+<a id="__codelineno-7-39" name="__codelineno-7-39" href="#__codelineno-7-39"></a><span class="w">  </span><span class="nt">logging</span><span class="p">:</span>
+<a id="__codelineno-7-40" name="__codelineno-7-40" href="#__codelineno-7-40"></a><span class="w">    </span><span class="c1"># Log level: debug, info, warn, error (default: info)</span>
+<a id="__codelineno-7-41" name="__codelineno-7-41" href="#__codelineno-7-41"></a><span class="w">    </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info</span>
+<a id="__codelineno-7-42" name="__codelineno-7-42" href="#__codelineno-7-42"></a><span class="w">    </span><span class="c1"># Log format: text, json (default: text)</span>
+<a id="__codelineno-7-43" name="__codelineno-7-43" href="#__codelineno-7-43"></a><span class="w">    </span><span class="nt">format</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">text</span>
 </code></pre></div>
-<h2 id="running-keylightd">Running KeylightD<a class="headerlink" href="#running-keylightd" title="Permanent link">&para;</a></h2>
-<h3 id="starting-manually">Starting Manually<a class="headerlink" href="#starting-manually" title="Permanent link">&para;</a></h3>
-<p>Run KeylightD in your terminal:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>keylightd
-</code></pre></div>
-<p>You should see output indicating that the daemon has started and is discovering devices.</p>
-<h3 id="setting-up-as-a-system-service">Setting Up as a System Service<a class="headerlink" href="#setting-up-as-a-system-service" title="Permanent link">&para;</a></h3>
-<p>For persistent operation, it's recommended to set up KeylightD as a system service using systemd.</p>
-<ol>
-<li>
-<p>Create a service file:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>sudo vi /etc/systemd/system/keylightd.service
-</code></pre></div></p>
-</li>
-<li>
-<p>Add the following content:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>[Unit]
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>Description=KeylightD daemon for controlling Elgato Key Light devices
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>After=network.target
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>[Service]
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>ExecStart=/usr/local/bin/keylightd
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>Restart=on-failure
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>User=YOUR_USERNAME  # Replace with your username
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>[Install]
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>WantedBy=multi-user.target
-</code></pre></div></p>
-</li>
-<li>
-<p>Enable and start the service:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>sudo systemctl enable keylightd
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>sudo systemctl start keylightd
-</code></pre></div></p>
-</li>
-<li>
-<p>Check the service status:
-   <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>sudo systemctl status keylightd
-</code></pre></div></p>
-</li>
-</ol>
 <h2 id="creating-your-first-api-key">Creating Your First API Key<a class="headerlink" href="#creating-your-first-api-key" title="Permanent link">&para;</a></h2>
 <p>Before using the HTTP API, you need to create an API key:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>keylightctl api-key add my-first-key
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>keylightctl api-key add my-first-key
 </code></pre></div>
 <p>This will generate a new API key that you can use to authenticate API requests.</p>
 <h2 id="basic-usage">Basic Usage<a class="headerlink" href="#basic-usage" title="Permanent link">&para;</a></h2>
-<h3 id="using-the-cli">Using the CLI<a class="headerlink" href="#using-the-cli" title="Permanent link">&para;</a></h3>
-<p>KeylightD comes with a command-line interface for controlling lights:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a># List all discovered lights
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>keylightctl light list
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a># Turn on a specific light
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>keylightctl light set --id light-1 --on
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a># Change brightness
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>keylightctl light set --id light-1 --brightness 50
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a># Change color temperature
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a>keylightctl light set --id light-1 --temperature 4000
+<p>keylightd comes with a command-line interface for controlling lights:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a># List all discovered lights
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>keylightctl light list
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a># Turn on a specific light
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>keylightctl light set &quot;Elgato Key Light ABC1._elg._tcp.local.&quot; on true
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a># Change brightness
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>keylightctl light set &quot;Elgato Key Light ABC1._elg._tcp.local.&quot; brightness 50
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a># Change color temperature
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>keylightctl light set &quot;Elgato Key Light ABC1._elg._tcp.local.&quot; temperature 4000
 </code></pre></div>
-<h3 id="using-the-api">Using the API<a class="headerlink" href="#using-the-api" title="Permanent link">&para;</a></h3>
-<p>You can also use the HTTP API directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># List all lights</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer YOUR_API_KEY&quot;</span><span class="w"> </span>http://127.0.0.1:8080/api/v1/lights
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># Turn on a light</span>
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Authorization: Bearer YOUR_API_KEY&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;on&quot;: true}&#39;</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span>http://127.0.0.1:8080/api/v1/lights/light-1/state
-</code></pre></div>
-<p>See the <a href="../api/">API Reference</a> for full details on all available endpoints.</p>
 <h2 id="gnome-extension">GNOME Extension<a class="headerlink" href="#gnome-extension" title="Permanent link">&para;</a></h2>
-<p>There is an experimental GNOME extension available that allows you to control your lights directly from the GNOME desktop. You can find it in the <code>contrib/gnome-extension</code> directory of the project.</p>
+<p>There is a GNOME extension available that allows you to control your lights directly from the GNOME desktop. You can download the extension from the <a href="https://github.com/jmylchreest/keylightd/releases">GitHub releases page</a> and install it using:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>gnome-extensions<span class="w"> </span>install<span class="w"> </span>keylightd-control@jmylchreest.github.io.zip
+</code></pre></div>
+<p>After installation, enable the extension through GNOME Extensions or from the command line:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>gnome-extensions<span class="w"> </span><span class="nb">enable</span><span class="w"> </span>keylightd-control@jmylchreest.github.io
+</code></pre></div>
 <h2 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
-<p>Now that you have KeylightD up and running, you can:</p>
+<p>Now that you have keylightd up and running, you can:</p>
 <ul>
-<li><a href="../authentication/">Learn about authentication</a></li>
-<li><a href="../lights/">Explore light control options</a></li>
-<li><a href="../groups/">Create and manage light groups</a></li>
+<li><a href="../lights/cli/">Explore light control options</a></li>
+<li><a href="../groups/cli/">Create and manage light groups</a> </li>
 <li><a href="../api/">Review the complete API reference</a></li>
 </ul>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">&para;</a></h2>
@@ -1049,11 +1230,6 @@
 <li>Check that the Key Lights are powered on and connected to your network</li>
 <li>Verify network connectivity by pinging the light's IP address</li>
 <li>Ensure no firewall is blocking the connection</li>
-</ul>
-<h3 id="api-key-issues">API Key Issues<a class="headerlink" href="#api-key-issues" title="Permanent link">&para;</a></h3>
-<ul>
-<li>If your API key isn't working, try creating a new one</li>
-<li>Check that you're including the key correctly in your requests</li>
 </ul>
 <p>For more help, check the <a href="https://github.com/jmylchreest/keylightd/issues">GitHub issues page</a> or submit a new issue.</p>
 
@@ -1109,7 +1285,7 @@
     
       <script src="../assets/javascripts/bundle.13a4f30d.min.js"></script>
       
-        <script src="https://unpkg.com/swagger-ui-dist@4.5.0/swagger-ui-bundle.js"></script>
+        <script src="https://unpkg.com/swagger-ui-dist@latest/swagger-ui-bundle.js"></script>
       
     
   </body>
