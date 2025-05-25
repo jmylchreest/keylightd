@@ -1,7 +1,6 @@
 # keylightd
 
 [![Build Release](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml)
-[![License](https://badgen.net/github/license/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/blob/main/LICENSE)
 [![Latest Tag](https://badgen.net/github/tag/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/releases)
 [![Dependabot](https://badgen.net/github/dependabot/jmylchreest/keylightd)](https://dependabot.com)
 [![Coverage](https://badgen.net/codecov/c/github/jmylchreest/keylightd)](https://codecov.io/gh/jmylchreest/keylightd)
@@ -66,7 +65,7 @@ brew install jmylchreest/keylightd/keylightd
 This installs both `keylightd` and `keylightctl` binaries plus a service to run the daemon.
 
 ### GNOME Extension
-An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/)
+An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/extension/8185/keylightd-control/)
 
 ## Documentation
 For detailed documentation, see [github pages](https://jmylchreest.github.io/keylightd/)
