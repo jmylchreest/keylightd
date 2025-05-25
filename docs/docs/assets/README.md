@@ -1,6 +1,6 @@
 # Assets Directory
 
-This directory contains images, diagrams, and other assets used in the KeylightD documentation.
+This directory contains images, diagrams, and other assets used in the keylightd documentation.
 
 ## Guidelines
 

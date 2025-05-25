@@ -1,4 +1,4 @@
-# Keylight Details
+# Elgato Key Light Series
 
 ## Temperature Control
 
@@ -21,11 +21,10 @@ The device accepts values in the range:
 | 5950K  | 168    | Cool white |
 | 7000K  | 143    | Cool (daylight) |
 
-When setting the temperature through the API:
+When setting the temperature through the keylightd API:
 1. The input Kelvin value is clamped to the valid range (2900K-7000K)
 2. The clamped Kelvin value is converted to mireds using the formula above
-3. The mireds value is clamped to the device's valid range (143-344)
-4. The resulting mireds value is sent to the device
+3. The resulting mireds value is sent to the device
 
 For example:
 - Setting 2000K → clamped to 2900K → 1,000,000/2900 = 344 mireds
@@ -52,6 +51,27 @@ The device exposes the following HTTP endpoints:
 - `GET /elgato/lights` - Get current light state
 - `PUT /elgato/lights` - Set light state
 
+### Accessory Info Format
+
+```json
+{
+  "productName": "Elgato Key Light",
+  "hardwareBoardType": 53,
+  "hardwareRevision": "1",
+  "macAddress": "XX:XX:XX:XX:XX:XX",
+  "firmwareBuildNumber": 222,
+  "firmwareVersion": "1.0.3",
+  "serialNumber": "CNXXXXXXXXXX",
+  "displayName": "Elgato Key Light XXXX",
+  "features": ["lights"],
+  "wifi-info": {
+    "ssid": "YourNetwork",
+    "frequencyMHz": 2400,
+    "rssi": -41
+  }
+}
+```
+
 ### Light State Format
 
 ```json
@@ -65,4 +85,4 @@ The device exposes the following HTTP endpoints:
     }
   ]
 }
-``` 
+```

@@ -1,12 +1,12 @@
 openapi: 3.1.0
 info:
-  title: KeylightD API
+  title: keylightd API
   description: |
     API for controlling Elgato Key Light devices through the keylightd daemon.
     This API provides endpoints for managing lights, groups, and API keys.
   version: 1.0.0
   contact:
-    name: KeylightD
+    name: keylightd
 servers:
   - url: /api/v1
     description: Base API path

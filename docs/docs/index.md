@@ -1,10 +1,10 @@
-# KeylightD Documentation
+# keylightd Documentation
 
-Welcome to the KeylightD API documentation. This guide provides comprehensive information about the KeylightD API, which allows you to control Elgato Key Light devices programmatically.
+Welcome to the keylightd API documentation. This guide provides comprehensive information about the keylightd API, which allows you to control Elgato Key Light devices programmatically.
 
-## What is KeylightD?
+## What is keylightd?
 
-KeylightD is a daemon service that discovers, monitors, and controls Elgato Key Light devices on your network. It provides:
+keylightd is a daemon service that discovers, monitors, and controls Elgato Key Light devices on your network. It provides:
 
 - A Unix socket interface for local control
 - A REST API for remote control
@@ -21,7 +21,7 @@ KeylightD is a daemon service that discovers, monitors, and controls Elgato Key 
 
 ## Getting Started
 
-If you're new to KeylightD, start with the [Getting Started](getting-started.md) guide to learn how to install and configure the daemon.
+If you're new to keylightd, start with the [Getting Started](getting-started.md) guide to learn how to install and configure the daemon.
 
 ## API Reference
 
@@ -37,9 +37,8 @@ For detailed information about available endpoints, request/response formats, an
 
 ## Quick Links
 
-- [Authentication](authentication.md) - Learn how to authenticate with the API
-- [Lights](lights.md) - Controlling individual lights
-- [Groups](groups.md) - Managing groups of lights
+- [Lights](lights/cli.md) - Controlling individual lights
+- [Groups](groups/cli.md) - Managing groups of lights
 
 ## Support
 

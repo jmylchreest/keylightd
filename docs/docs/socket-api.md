@@ -57,8 +57,8 @@ Retrieves all discovered lights.
     "status": "ok",
     "id": "optional-request-id",
     "lights": {
-        "light-id-1": {
-            "id": "light-id-1",
+        "Elgato Key Light ABC1._elg._tcp.local.": {
+            "id": "Elgato Key Light ABC1._elg._tcp.local.",
             "productname": "Elgato Key Light",
             "serialnumber": "ABC123456",
             "firmwareversion": "1.0.3",
@@ -84,7 +84,7 @@ Retrieves information about a specific light.
     "action": "get_light",
     "id": "optional-request-id",
     "data": {
-        "id": "light-id-1"
+        "id": "Elgato Key Light ABC1._elg._tcp.local."
     }
 }
 
@@ -93,7 +93,7 @@ Retrieves information about a specific light.
     "status": "ok",
     "id": "optional-request-id",
     "light": {
-        "id": "light-id-1",
+        "id": "Elgato Key Light ABC1._elg._tcp.local.",
         "productname": "Elgato Key Light",
         "serialnumber": "ABC123456",
         "firmwareversion": "1.0.3",
@@ -118,7 +118,7 @@ Changes properties of a specific light.
     "action": "set_light_state",
     "id": "optional-request-id",
     "data": {
-        "id": "light-id-1",
+        "id": "Elgato Key Light ABC1._elg._tcp.local.",
         "property": "on",  // Can be "on", "brightness", or "temperature"
         "value": true      // Boolean for "on", integer for others
     }
@@ -157,19 +157,19 @@ Retrieves all configured light groups.
     "status": "ok",
     "id": "optional-request-id",
     "groups": {
-        "group-1746907750613172530": {
-            "id": "group-1746907750613172530",
+        "group-123451": {
+            "id": "group-123451",
             "name": "office",
             "lights": [
-                "Elgato Key Light 1E2D._elg._tcp.local.",
-                "Elgato Key Light 218C._elg._tcp.local."
+                "Elgato Key Light ABC1._elg._tcp.local.",
+                "Elgato Key Light XYZ2._elg._tcp.local."
             ]
         },
-        "group-1746947787717716493": {
-            "id": "group-1746947787717716493",
+        "group-123452": {
+            "id": "group-123452",
             "name": "office-left",
             "lights": [
-                "Elgato Key Light 1E2D._elg._tcp.local."
+                "Elgato Key Light ABC1._elg._tcp.local."
             ]
         }
     }
@@ -186,7 +186,7 @@ Retrieves information about a specific group.
     "action": "get_group",
     "id": "optional-request-id",
     "data": {
-        "id": "group-1746907750613172530"
+        "id": "group-123451"
     }
 }
 
@@ -195,9 +195,9 @@ Retrieves information about a specific group.
     "status": "ok",
     "id": "optional-request-id",
     "group": {
-        "id": "group-1746907750613172530",
+        "id": "group-123451",
         "name": "Office Lights",
-        "lights": ["light-id-1", "light-id-2"]
+        "lights": ["Elgato Key Light ABC1._elg._tcp.local.", "Elgato Key Light XYZ2._elg._tcp.local."]
     }
 }
 ```
@@ -213,7 +213,7 @@ Creates a new light group.
     "id": "optional-request-id",
     "data": {
         "name": "Office Lights",
-        "lights": ["light-id-1", "light-id-2"]  // Optional initial lights
+        "lights": ["Elgato Key Light ABC1._elg._tcp.local.", "Elgato Key Light XYZ2._elg._tcp.local."]  // Optional initial lights
     }
 }
 
@@ -222,9 +222,9 @@ Creates a new light group.
     "status": "ok",
     "id": "optional-request-id",
     "group": {
-        "id": "group-1746907750613172530",
+        "id": "group-123451",
         "name": "Office Lights",
-        "lights": ["light-id-1", "light-id-2"]
+        "lights": ["Elgato Key Light ABC1._elg._tcp.local.", "Elgato Key Light XYZ2._elg._tcp.local."]
     }
 }
 ```
@@ -239,7 +239,7 @@ Deletes a light group.
     "action": "delete_group",
     "id": "optional-request-id",
     "data": {
-        "id": "group-1746907750613172530"
+        "id": "group-123451"
     }
 }
 
@@ -260,8 +260,8 @@ Updates the list of lights in a group.
     "action": "set_group_lights",
     "id": "optional-request-id",
     "data": {
-        "id": "group-1746907750613172530",
-        "lights": ["light-id-1", "light-id-2"]
+        "id": "group-123451",
+        "lights": ["Elgato Key Light ABC1._elg._tcp.local.", "Elgato Key Light XYZ2._elg._tcp.local."]
     }
 }
 
@@ -282,7 +282,7 @@ Changes a property for all lights in a group.
     "action": "set_group_state",
     "id": "optional-request-id",
     "data": {
-        "id": "group-1746907750613172530",
+        "id": "group-123451",
         "property": "on",  // Can be "on", "brightness", or "temperature"
         "value": true      // Boolean for "on", integer for others
     }
@@ -382,7 +382,7 @@ When an error occurs, you'll receive an error response with a descriptive messag
 
 ```json
 {
-    "error": "Light not found: light-id-1",
+    "error": "Light not found: Elgato Key Light ABC1._elg._tcp.local.",
     "id": "optional-request-id"
 }
 ```
@@ -393,8 +393,8 @@ Common error messages:
 |---------------|-------------|
 | "Invalid action" | The specified action doesn't exist |
 | "Missing required parameter: X" | A required parameter is missing |
-| "Light not found: X" | The specified light doesn't exist |
-| "Group not found: X" | The specified group doesn't exist |
+| "Light not found: Elgato Key Light ABC1._elg._tcp.local." | The specified light doesn't exist |
+| "Group not found: group-123451" | The specified group doesn't exist |
 | "API key not found: X" | The specified API key doesn't exist |
 | "Device unavailable" | The light device couldn't be reached |
 | "Invalid input: X" | The provided input is invalid (e.g., brightness outside allowed range) |
@@ -449,7 +449,7 @@ sock.connect('/run/user/1000/keylightd.sock')
 request = {
     'action': 'set_light_state',
     'data': {
-        'id': 'Elgato Key Light 1E2D._elg._tcp.local.',
+        'id': 'Elgato Key Light ABC1._elg._tcp.local.',
         'property': 'on',
         'value': True
     }

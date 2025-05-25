@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Script to build MkDocs documentation using Docker/Podman
-# 
+#
 # NOTE: This script is for local development only and is not used in CI/CD.
 # It allows developers to build documentation locally without installing MkDocs.
 

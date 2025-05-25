@@ -45,3 +45,6 @@ tmp/
 temp/
 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/schemas/gschemas.compiled
 contrib/gnome-extension/keylightd-control@jmylchreest.github.io/version-info.json
+
+# Documentation site build output
+docs/site/
