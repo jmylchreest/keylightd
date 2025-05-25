@@ -1,8 +1,8 @@
 # keylightd
 
+[![Build Release](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml)
 [![License](https://badgen.net/github/license/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/blob/main/LICENSE)
 [![Latest Tag](https://badgen.net/github/tag/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/releases)
-[![Build Release](https://badgen.net/github/checks/jmylchreest/keylightd/main/build-release)](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml)
 [![Dependabot](https://badgen.net/github/dependabot/jmylchreest/keylightd)](https://dependabot.com)
 [![Coverage](https://badgen.net/codecov/c/github/jmylchreest/keylightd)](https://codecov.io/gh/jmylchreest/keylightd)
 
