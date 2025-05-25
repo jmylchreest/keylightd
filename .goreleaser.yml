@@ -93,8 +93,6 @@ brews:
       restart_delay 5
       process_type :background
       run_type :immediate
-      log_path var/"log/keylightd.log"
-      error_log_path var/"log/keylightd.log"
 
     test: |
       system "#{bin}/keylightd", "-h"
