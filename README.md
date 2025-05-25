@@ -1,8 +1,10 @@
 # keylightd
 
-[![Build Status](https://github.com/jmylchreest/keylightd/actions/workflows/release.yml/badge.svg)](https://github.com/jmylchreest/keylightd/actions)
-[![Codecov](https://codecov.io/gh/jmylchreest/keylightd/branch/main/graph/badge.svg)](https://codecov.io/gh/jmylchreest/keylightd)
-[![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=jmylchreest/keylightd)](https://dependabot.com)
+[![License](https://badgen.net/github/license/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/blob/main/LICENSE)
+[![Latest Tag](https://badgen.net/github/tag/jmylchreest/keylightd)](https://github.com/jmylchreest/keylightd/releases)
+[![Build Release](https://badgen.net/github/checks/jmylchreest/keylightd/main/build-release)](https://github.com/jmylchreest/keylightd/actions/workflows/build-release.yml)
+[![Dependabot](https://badgen.net/github/dependabot/jmylchreest/keylightd)](https://dependabot.com)
+[![Coverage](https://badgen.net/codecov/c/github/jmylchreest/keylightd)](https://codecov.io/gh/jmylchreest/keylightd)
 
 **keylightd** is a daemon and CLI tool for managing Key Lights on your local network. While designed primarily for Elgato Key Lights, it may also support other HTTP-based lights with similar interfaces (if you have a compatible device not explicitly supported, please open a ticket).
 
@@ -19,7 +21,8 @@
 ```mermaid
 graph LR
     A[keylightctl] ---|Unix Socket| B[keylightd]
-    B ---|mDNS/HTTP| C[Elgato Key Lights]
+    D[gnome-extension] ---|HTTP| B
+    B ---|mDNS/HTTP| C[Key Lights]
 ```
 
 ## Quick Start
@@ -63,7 +66,7 @@ brew install jmylchreest/keylightd/keylightd
 This installs both `keylightd` and `keylightctl` binaries plus a service to run the daemon.
 
 ### GNOME Extension
-An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the gnoem extensions website [here](https://extensions.gnome.org/)
+An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/)
 
 ## Documentation
 For detailed documentation, see [github pages](https://jmylchreest.github.io/keylightd/)
