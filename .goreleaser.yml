@@ -121,7 +121,7 @@ brews:
         keylightctl light list
         keylightctl --help
 
-      Configuration will be created at: ~/.config/keylight/
+      Configuration will be created at: ~/.config/keylightd/
       Service logs will be written to: $(brew --prefix)/var/log/keylightd.log
 
 aurs:

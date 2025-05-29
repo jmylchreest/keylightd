@@ -82,7 +82,7 @@ sudo systemctl start keylightd
 
 ## Configuration
 
-keylightd uses a configuration file located at `~/.config/keylightd/config.yaml`. The configuration file is created when settings are first saved, but you can also create it manually.
+keylightd uses a configuration file located at `~/.config/keylightd/keylightd.yaml`. The configuration file is created when settings are first saved, but you can also create it manually.
 
 ### Complete Configuration Example
 

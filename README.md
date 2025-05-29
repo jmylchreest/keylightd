@@ -42,7 +42,7 @@ Download the latest [release binaries](https://github.com/jmylchreest/keylightd/
 ./keylightctl group set Office on true
 ```
 
-Configuration files are automatically generated on first save in `~/.config/keylight/`.
+Configuration files are automatically generated on first save in `~/.config/keylightd/`.
 
 ## Installation Methods
 

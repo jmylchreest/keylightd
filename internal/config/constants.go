@@ -5,7 +5,7 @@ import "time"
 // Common constants shared between daemon and client
 const (
 	// ConfigDirName is the name of the config directory within XDG_CONFIG_HOME
-	ConfigDirName = "keylight"
+	ConfigDirName = "keylightd"
 
 	// DaemonConfigFilename is the base filename for daemon config
 	DaemonConfigFilename = "keylightd.yaml"

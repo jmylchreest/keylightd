@@ -169,5 +169,5 @@ Each architecture-specific build contains binaries optimized for that platform.
 
 ## Notes
 
-- Flatpak configuration is stored in `~/.var/app/io.github.jmylchreest.keylightd/config/keylight/`
+- Flatpak configuration is stored in `~/.var/app/io.github.jmylchreest.keylightd/config/keylightd/`
 - Socket path will be in the XDG runtime directory for the Flatpak

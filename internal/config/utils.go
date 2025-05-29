@@ -38,6 +38,11 @@ func GetRuntimeSocketPath() string {
 // GetConfigBaseDir returns the base directory for configuration files
 func GetConfigBaseDir() string {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
+		// For system service, XDG_CONFIG_HOME is set to /etc/keylightd
+		// so we return it directly without appending ConfigDirName
+		if dir == "/etc/keylightd" {
+			return dir
+		}
 		return filepath.Join(dir, ConfigDirName)
 	}
 	home, _ := os.UserHomeDir()
