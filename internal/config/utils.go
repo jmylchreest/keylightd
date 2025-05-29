@@ -16,8 +16,23 @@ func GetRuntimeDir() string {
 }
 
 // GetRuntimeSocketPath returns the full path to the Unix socket
+// It checks the user's runtime directory first, then falls back to system socket
 func GetRuntimeSocketPath() string {
-	return filepath.Join(GetRuntimeDir(), SocketFilename)
+	userSocket := filepath.Join(GetRuntimeDir(), SocketFilename)
+	
+	// If user socket exists, use it
+	if _, err := os.Stat(userSocket); err == nil {
+		return userSocket
+	}
+	
+	// Fall back to system socket path for systemd service
+	systemSocket := filepath.Join("/run/keylightd", SocketFilename)
+	if _, err := os.Stat(systemSocket); err == nil {
+		return systemSocket
+	}
+	
+	// Default to user socket path (original behavior)
+	return userSocket
 }
 
 // GetConfigBaseDir returns the base directory for configuration files

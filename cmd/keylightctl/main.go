@@ -62,10 +62,15 @@ func main() {
 		socket = cfg.Config.Server.UnixSocket
 	}
 
-	apiClient := client.New(logger, socket)
-
 	// Use the NewRootCommand from the commands package
 	rootCmd := commands.NewRootCommand(logger, version, commit, buildDate)
+
+	// Check for socket flag override
+	if socketFlag, _ := rootCmd.PersistentFlags().GetString("socket"); socketFlag != "" {
+		socket = socketFlag
+	}
+
+	apiClient := client.New(logger, socket)
 
 	// Get the context initialized by NewRootCommand (which includes the logger)
 	// and add the apiClient to it.
