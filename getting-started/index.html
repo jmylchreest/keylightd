@@ -1188,7 +1188,7 @@
 </code></pre></div>
 <p><strong>Socket Permissions:</strong> The systemd service creates a Unix socket at <code>/run/keylightd/keylightd.sock</code> that is accessible by users in the <code>keylightd</code> group. This allows <code>keylightctl</code> to communicate with the daemon running as a system service.</p>
 <h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
-<p>keylightd uses a configuration file located at <code>~/.config/keylightd/config.yaml</code>. The configuration file is created when settings are first saved, but you can also create it manually.</p>
+<p>keylightd uses a configuration file located at <code>~/.config/keylightd/keylightd.yaml</code>. The configuration file is created when settings are first saved, but you can also create it manually.</p>
 <h3 id="complete-configuration-example">Complete Configuration Example<a class="headerlink" href="#complete-configuration-example" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Application state (automatically managed)</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nt">state</span><span class="p">:</span>
