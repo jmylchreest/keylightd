@@ -11,7 +11,6 @@ Restart=on-failure
 RestartSec=10
 User=keylightd
 Group=keylightd
-DynamicUser=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -28,6 +27,8 @@ ReadWritePaths=/var/lib/keylightd
 StateDirectory=keylightd
 ConfigurationDirectory=keylightd
 RuntimeDirectory=keylightd
+RuntimeDirectoryMode=0775
+UMask=0002
 Environment="XDG_CONFIG_HOME=/etc/keylightd"
 Environment="XDG_RUNTIME_DIR=/run/keylightd"
 

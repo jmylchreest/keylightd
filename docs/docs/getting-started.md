@@ -62,6 +62,35 @@ brew services start jmylchreest/keylightd/keylightd
 
 **Note:** After installation, you can run keylightd manually by executing `keylightd` in your terminal.
 
+### Option 4: Arch Linux (AUR)
+
+For Arch Linux users, keylightd is available in the AUR:
+
+```bash
+# Using yay
+yay -S keylightd-bin
+
+# Or using paru
+paru -S keylightd-bin
+```
+
+After installation:
+
+1. Add your user to the `keylightd` group for socket access:
+   ```bash
+   sudo usermod -a -G keylightd $USER
+   ```
+
+2. Enable and start the systemd service:
+   ```bash
+   sudo systemctl enable keylightd
+   sudo systemctl start keylightd
+   ```
+
+3. Log out and back in for group changes to take effect
+
+**Socket Permissions:** The systemd service creates a Unix socket at `/run/keylightd/keylightd.sock` that is accessible by users in the `keylightd` group. This allows `keylightctl` to communicate with the daemon running as a system service.
+
 ## Configuration
 
 keylightd uses a configuration file located at `~/.config/keylightd/config.yaml`. The configuration file is created when settings are first saved, but you can also create it manually.
@@ -92,7 +121,7 @@ config:
     # Unix socket path for local communication
     unix_socket: "/run/user/1000/keylightd.sock"
 
-  # HTTP API configuration  
+  # HTTP API configuration
   api:
     # Address and port for the HTTP API (default: :9123)
     listen_address: ":9123"
@@ -161,7 +190,7 @@ gnome-extensions enable keylightd-control@jmylchreest.github.io
 Now that you have keylightd up and running, you can:
 
 - [Explore light control options](lights/cli.md)
-- [Create and manage light groups](groups/cli.md) 
+- [Create and manage light groups](groups/cli.md)
 - [Review the complete API reference](api/index.md)
 
 ## Troubleshooting
@@ -177,6 +206,35 @@ Now that you have keylightd up and running, you can:
 - Check that the Key Lights are powered on and connected to your network
 - Verify network connectivity by pinging the light's IP address
 - Ensure no firewall is blocking the connection
+
+### Socket Permission Issues
+
+If you get a "permission denied" error when using `keylightctl` with a systemd service:
+
+```
+Error: failed to connect to socket: dial unix /run/keylightd/keylightd.sock: connect: permission denied
+```
+
+This means your user doesn't have permission to access the daemon's socket. To fix this:
+
+1. Add your user to the `keylightd` group:
+   ```bash
+   sudo usermod -a -G keylightd $USER
+   ```
+
+2. Log out and back in for the group changes to take effect
+
+3. Verify you're in the group:
+   ```bash
+   groups | grep keylightd
+   ```
+
+4. Check socket permissions:
+   ```bash
+   ls -la /run/keylightd/keylightd.sock
+   ```
+
+   The socket should be owned by `keylightd:keylightd` with group write permissions.
 
 
 For more help, check the [GitHub issues page](https://github.com/jmylchreest/keylightd/issues) or submit a new issue.
