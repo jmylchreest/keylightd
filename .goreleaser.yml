@@ -153,10 +153,11 @@ aurs:
       install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/keylightd-bin/README.md"
 
       # create keylightd user and group
-      install -Dm644 /dev/stdin "${pkgdir}/usr/lib/sysusers.d/keylightd.conf" <<EOF
-      u keylightd - "Key Light Daemon" /var/lib/keylightd
-      g keylightd -
-      EOF
+      install -dm755 "${pkgdir}/usr/lib/sysusers.d"
+      cat > "${pkgdir}/usr/lib/sysusers.d/keylightd.conf" << 'EOF'
+u keylightd - "Key Light Daemon" /var/lib/keylightd
+g keylightd -
+EOF
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

@@ -64,6 +64,21 @@ brew install jmylchreest/keylightd/keylightd
 
 This installs both `keylightd` and `keylightctl` binaries plus a service to run the daemon.
 
+### Arch Linux (AUR)
+You can install it via AUR on Arch (package name is `keylightd-bin`). Add your user to the keylightd group to access the socket via CLI:
+
+```bash
+# Install via AUR helper (such as yay or paru)
+paru -S keylightd-bin
+
+# Add user to group for socket access
+sudo usermod -a -G keylightd $USER
+
+# Enable and start the service
+sudo systemctl enable keylightd
+sudo systemctl start keylightd
+```
+
 ### GNOME Extension
 An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/extension/8185/keylightd-control/)
 

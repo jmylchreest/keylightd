@@ -64,30 +64,19 @@ brew services start jmylchreest/keylightd/keylightd
 
 ### Option 4: Arch Linux (AUR)
 
-For Arch Linux users, keylightd is available in the AUR:
+You can install it via AUR on Arch (package name is `keylightd-bin`). Add your user to the keylightd group to access the socket via CLI:
 
 ```bash
-# Using yay
-yay -S keylightd-bin
-
-# Or using paru
+# Install via AUR helper (such as yay or paru)
 paru -S keylightd-bin
+
+# Add user to group for socket accss
+sudo usermod -a -G keylightd $USER
+
+# Enable and start the service
+sudo systemctl enable keylightd
+sudo systemctl start keylightd
 ```
-
-After installation:
-
-1. Add your user to the `keylightd` group for socket access:
-   ```bash
-   sudo usermod -a -G keylightd $USER
-   ```
-
-2. Enable and start the systemd service:
-   ```bash
-   sudo systemctl enable keylightd
-   sudo systemctl start keylightd
-   ```
-
-3. Log out and back in for group changes to take effect
 
 **Socket Permissions:** The systemd service creates a Unix socket at `/run/keylightd/keylightd.sock` that is accessible by users in the `keylightd` group. This allows `keylightctl` to communicate with the daemon running as a system service.
 
