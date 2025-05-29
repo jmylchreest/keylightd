@@ -14,19 +14,28 @@ import { getIcon } from "../icons.js";
 import GLib from "gi://GLib";
 
 // Debounce function to limit function calls
-function debounce(func, delay) {
+function debounce(func, delay, timeoutTracker = null) {
   let timeoutId;
   return function (...args) {
     const context = this;
     if (timeoutId) {
       GLib.source_remove(timeoutId);
+      if (timeoutTracker) {
+        timeoutTracker.delete(timeoutId);
+      }
       timeoutId = null;
     }
     timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, delay, () => {
       func.apply(context, args);
+      if (timeoutTracker) {
+        timeoutTracker.delete(timeoutId);
+      }
       timeoutId = null;
       return GLib.SOURCE_REMOVE;
     });
+    if (timeoutTracker) {
+      timeoutTracker.add(timeoutId);
+    }
   };
 }
 
@@ -318,6 +327,7 @@ export class UIBuilder {
         ? debounce(
             (value) => brightnessCallback(Math.round(value)),
             debounceTime,
+            this._timeoutIds,
           )
         : null,
       type: "brightness",
@@ -331,6 +341,7 @@ export class UIBuilder {
         ? debounce(
             (value) => temperatureCallback(Math.round(value)),
             debounceTime,
+            this._timeoutIds,
           )
         : null,
       type: "temperature",
