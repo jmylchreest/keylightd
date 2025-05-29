@@ -7,10 +7,8 @@
 
 **keylightd** is a daemon and CLI tool for managing Key Lights on your local network. While designed primarily for Elgato Key Lights, it may also support other HTTP-based lights with similar interfaces (if you have a compatible device not explicitly supported, please open a ticket).
 
-## Screenshots
-
-### GNOME Extension
-The keylightd GNOME Extension provides convenient desktop control for your Key Lights:
+## GNOME Extension
+The keylightd GNOME Extension provides convenient desktop control for your Key Lights and is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/extension/8185/keylightd-control/)
 
 | Lights On | Lights Off |
 |-----------|------------|
@@ -88,9 +86,6 @@ sudo usermod -a -G keylightd $USER
 sudo systemctl enable keylightd
 sudo systemctl start keylightd
 ```
-
-### GNOME Extension
-An experimental GNOME extension for controlling lights from your desktop is available in the `contrib/gnome-extension` directory, from the releases page [here](https://github.com/jmylchreest/keylightd/releases), or from the GNOME extensions website [here](https://extensions.gnome.org/extension/8185/keylightd-control/)
 
 ## Documentation
 For detailed documentation, see [github pages](https://jmylchreest.github.io/keylightd/)
