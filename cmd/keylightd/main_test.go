@@ -35,12 +35,12 @@ func TestCreateRootCmd(t *testing.T) {
 	// Test creation of root command
 	cmd := &cobra.Command{
 		Use:   "keylightd",
-		Short: "Elgato Keylight Daemon",
+		Short: "Key Light Daemon",
 	}
 
 	assert.NotNil(t, cmd)
 	assert.Equal(t, "keylightd", cmd.Use)
-	assert.Equal(t, "Elgato Keylight Daemon", cmd.Short)
+	assert.Equal(t, "Key Light Daemon", cmd.Short)
 }
 
 func TestSetupFlagBindings(t *testing.T) {

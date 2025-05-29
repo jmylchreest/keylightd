@@ -1,5 +1,5 @@
 [Unit]
-Description=Elgato Key Light Daemon (Flatpak)
+Description=Key Light Daemon (Flatpak)
 After=network.target
 
 [Service]

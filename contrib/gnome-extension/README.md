@@ -1,6 +1,6 @@
 # Keylightd Control GNOME Extension
 
-This directory contains a GNOME Shell extension for controlling Elgato Keylights via the keylightd HTTP API.
+This directory contains a GNOME Shell extension for controlling Key Lights via the keylightd HTTP API.
 
 ## Features
 - Integrates with GNOME quick settings

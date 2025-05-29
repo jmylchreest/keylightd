@@ -26,7 +26,7 @@ var (
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "keylightd",
-		Short: "Elgato Keylight Daemon",
+		Short: "Key Light Daemon",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v := viper.New()
 			v.SetEnvPrefix("KEYLIGHT")

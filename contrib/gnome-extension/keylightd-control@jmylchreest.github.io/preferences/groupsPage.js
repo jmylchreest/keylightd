@@ -338,7 +338,7 @@ export var GroupsPage = GObject.registerClass(
       // Create the groups list
       this._groupsGroup = new Adw.PreferencesGroup({
         title: _("Keylight Groups"),
-        description: _("Manage groups of Elgato Keylights"),
+        description: _("Manage groups of Key Lights"),
       });
 
       // Add a header with a refresh button and add button

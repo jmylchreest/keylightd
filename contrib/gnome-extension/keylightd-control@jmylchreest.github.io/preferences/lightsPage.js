@@ -31,7 +31,7 @@ export var LightsPage = GObject.registerClass(
       // Create the lights list
       this._lightsGroup = new Adw.PreferencesGroup({
         title: _("Keylight Lights"),
-        description: _("Manage individual Elgato Keylights"),
+        description: _("Manage individual Key Lights"),
       });
 
       // Add a header with a refresh button

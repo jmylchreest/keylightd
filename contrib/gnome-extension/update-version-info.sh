@@ -11,7 +11,7 @@ VERSION_FILE="$SCRIPT_DIR/keylightd-control@jmylchreest.github.io/version-info.j
 
 # Default values
 PROJECT_NAME="keylightd gnome-extension"
-ABOUT="GNOME Shell extension for controlling Elgato Key Light devices through keylightd daemon"
+ABOUT="GNOME Shell extension for controlling Key Light devices through keylightd daemon"
 VERSION="development"
 COMMIT="unknown"
 

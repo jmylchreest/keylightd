@@ -85,7 +85,7 @@ export const AboutPage = GObject.registerClass(
             // Fallback values
             return {
                 project_name: 'keylightd gnome-extension',
-                about: 'GNOME Shell extension for controlling Elgato Key Light devices through keylightd daemon',
+                about: 'GNOME Shell extension for controlling Key Light devices through keylightd daemon',
                 version: 'development',
                 commit: 'unknown'
             };

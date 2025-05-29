@@ -67,7 +67,7 @@ changelog:
 # homebrew_casks:
 brews:
   - name: keylightd
-    description: "Daemon and CLI tool for managing Elgato Key Lights on your local network"
+    description: "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
     homepage: "https://github.com/jmylchreest/keylightd"
     license: "MIT"
     skip_upload: "{{ .IsSnapshot }}"
@@ -127,7 +127,7 @@ brews:
 aurs:
   - name: keylightd-bin
     homepage: "https://github.com/jmylchreest/keylightd"
-    description: "Daemon and CLI tool for managing Key Lights on your local network"
+    description: "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
     maintainers:
       - "{{ .Env.AUR_MAINTAINER }}"
     license: "MIT"

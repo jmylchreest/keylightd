@@ -1,5 +1,5 @@
 site_name: keylightd API Documentation
-site_description: Documentation for the keylightd API for Elgato Key Light devices.
+site_description: Documentation for the keylightd API for HTTP-based Key Light devices, including Elgato models.
 site_author: keylightd Team
 docs_dir: docs
 

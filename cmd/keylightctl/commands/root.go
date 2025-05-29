@@ -15,7 +15,7 @@ type loggerContextKey struct{}
 func NewRootCommand(logger *slog.Logger, version, commit, buildDate string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "keylightctl",
-		Short: "Control Elgato Keylights",
+		Short: "Control Key Lights",
 	}
 
 	// Add global flags
