@@ -7,6 +7,16 @@
 
 **keylightd** is a daemon and CLI tool for managing Key Lights on your local network. While designed primarily for Elgato Key Lights, it may also support other HTTP-based lights with similar interfaces (if you have a compatible device not explicitly supported, please open a ticket).
 
+## Screenshots
+
+### GNOME Extension
+The keylightd GNOME Extension provides convenient desktop control for your Key Lights:
+
+| Lights On | Lights Off |
+|-----------|------------|
+| ![Extension On](docs/docs/assets/screenshots/extension-on.png) | ![Extension Off](docs/docs/assets/screenshots/extension-off.png) |
+| Extension panel showing lights in the on state | Extension panel showing lights in the off state |
+
 ## Features
 - Automatic discovery of lights via mDNS
 - Grouping of lights for batch control

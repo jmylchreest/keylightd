@@ -35,10 +35,14 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - admonition
   - tables
   - toc:
       permalink: true
+  - attr_list
+  - md_in_html
 
 extra_javascript:
   - https://unpkg.com/swagger-ui-dist@latest/swagger-ui-bundle.js
@@ -50,6 +54,8 @@ extra_css:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Screenshots:
+      - Gnome Extension: screenshots/gnome-extension.md
   - Supported Devices:
       - Overview: supported-devices/index.md
       - Elgato Key Light Series: supported-devices/elgato.md
