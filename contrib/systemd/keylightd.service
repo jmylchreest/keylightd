@@ -1,5 +1,5 @@
 [Unit]
-Description=Elgato Key Light Daemon
+Description=Key Light Daemon (keylightd)
 Documentation=https://github.com/jmylchreest/keylightd
 After=network.target
 Wants=network.target
