@@ -58,3 +58,6 @@ contrib/gnome-extension/keylightd-control@jmylchreest.github.io/version-info.jso
 
 # Documentation site build output
 docs/site/
+
+.cursor
+.claude
