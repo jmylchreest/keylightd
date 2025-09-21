@@ -41,7 +41,7 @@ jobs:
     needs: check-test-status
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -76,7 +76,7 @@ jobs:
       RELEASE_ID: ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && steps.create_release.outputs.id || steps.get_release.outputs.RELEASE_ID }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
