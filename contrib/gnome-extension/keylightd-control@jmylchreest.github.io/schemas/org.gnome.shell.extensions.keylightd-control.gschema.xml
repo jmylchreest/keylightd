@@ -34,12 +34,7 @@
       <summary>Log Level</summary>
       <description>The minimum log level to display (debug, info, warning, error)</description>
     </key>
-    <!-- groups -->
-    <key type="as" name="groups">
-      <default>[]</default>
-      <summary>Groups</summary>
-      <description>List of group names to display.</description>
-    </key>
+
     <key type="as" name="visible-groups">
       <default>[]</default>
       <summary>Visible Groups</summary>
@@ -62,11 +57,7 @@
       <summary>Animation Duration</summary>
       <description>Duration of animations in milliseconds when toggling lights.</description>
     </key>
-    <key type="b" name="compact-layout">
-      <default>false</default>
-      <summary>Compact Layout</summary>
-      <description>Use a more condensed UI layout.</description>
-    </key>
+
     <!-- preferences -->
     <key type="i" name="prefs-default-width">
       <default>600</default>
@@ -82,4 +73,4 @@
       <description>Maximum percent of the screen height the lights scroll view can use (range: 0.25 to 0.75).</description>
     </key>
   </schema>
-</schemalist> 
+</schemalist>

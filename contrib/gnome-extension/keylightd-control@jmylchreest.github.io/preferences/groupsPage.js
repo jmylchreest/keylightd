@@ -66,50 +66,52 @@ const GroupDialog = GObject.registerClass(
 
       content.append(nameEntry);
 
-      // Lights list with checkboxes
-      const scrollWindow = new Gtk.ScrolledWindow({
-        hscrollbar_policy: Gtk.PolicyType.NEVER,
-        vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
-        min_content_height: 150,
-        vexpand: true,
-      });
+      if (group) {
+        // Lights list with checkboxes (only shown when editing an existing group)
+        const scrollWindow = new Gtk.ScrolledWindow({
+          hscrollbar_policy: Gtk.PolicyType.NEVER,
+          vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+          min_content_height: 150,
+          vexpand: true,
+        });
 
-      this._lightsStore = new Gtk.ListStore();
-      this._lightsStore.set_column_types([
-        GObject.TYPE_BOOLEAN, // selected
-        GObject.TYPE_STRING, // light name
-        GObject.TYPE_STRING, // light id
-      ]);
+        this._lightsStore = new Gtk.ListStore();
+        this._lightsStore.set_column_types([
+          GObject.TYPE_BOOLEAN, // selected
+          GObject.TYPE_STRING, // light name
+          GObject.TYPE_STRING, // light id
+        ]);
 
-      const lightsView = new Gtk.TreeView({
-        model: this._lightsStore,
-        headers_visible: false,
-        enable_search: false,
-      });
+        const lightsView = new Gtk.TreeView({
+          model: this._lightsStore,
+          headers_visible: false,
+          enable_search: false,
+        });
 
-      // Toggle column
-      const toggleRenderer = new Gtk.CellRendererToggle();
-      toggleRenderer.connect("toggled", (renderer, path) => {
-        const [success, iter] = this._lightsStore.get_iter_from_string(path);
-        if (success) {
-          const selected = this._lightsStore.get_value(iter, 0);
-          this._lightsStore.set_value(iter, 0, !selected);
-        }
-      });
-      const toggleColumn = new Gtk.TreeViewColumn();
-      toggleColumn.pack_start(toggleRenderer, false);
-      toggleColumn.add_attribute(toggleRenderer, "active", 0);
-      lightsView.append_column(toggleColumn);
+        // Toggle column
+        const toggleRenderer = new Gtk.CellRendererToggle();
+        toggleRenderer.connect("toggled", (renderer, path) => {
+          const [success, iter] = this._lightsStore.get_iter_from_string(path);
+          if (success) {
+            const selected = this._lightsStore.get_value(iter, 0);
+            this._lightsStore.set_value(iter, 0, !selected);
+          }
+        });
+        const toggleColumn = new Gtk.TreeViewColumn();
+        toggleColumn.pack_start(toggleRenderer, false);
+        toggleColumn.add_attribute(toggleRenderer, "active", 0);
+        lightsView.append_column(toggleColumn);
 
-      // Name column
-      const nameRenderer = new Gtk.CellRendererText();
-      const nameColumn = new Gtk.TreeViewColumn({ title: _("Light") });
-      nameColumn.pack_start(nameRenderer, true);
-      nameColumn.add_attribute(nameRenderer, "text", 1);
-      lightsView.append_column(nameColumn);
+        // Name column
+        const nameRenderer = new Gtk.CellRendererText();
+        const nameColumn = new Gtk.TreeViewColumn({ title: _("Light") });
+        nameColumn.pack_start(nameRenderer, true);
+        nameColumn.add_attribute(nameRenderer, "text", 1);
+        lightsView.append_column(nameColumn);
 
-      scrollWindow.set_child(lightsView);
-      content.append(scrollWindow);
+        scrollWindow.set_child(lightsView);
+        content.append(scrollWindow);
+      }
 
       // Error message
       this._errorLabel = new Gtk.Label({
@@ -131,8 +133,10 @@ const GroupDialog = GObject.registerClass(
 
       this.set_content(box);
 
-      // Load lights
-      this._loadLights();
+      // Load lights only when editing an existing group
+      if (this._group) {
+        this._loadLights();
+      }
     }
 
     async _loadLights() {
@@ -262,33 +266,34 @@ const GroupDialog = GObject.registerClass(
         return;
       }
 
-      // Collect selected lights
-      const selectedLights = [];
-      let [valid, iter] = this._lightsStore.get_iter_first();
-
-      while (valid) {
-        const selected = this._lightsStore.get_value(iter, 0);
-        if (selected) {
-          const lightId = this._lightsStore.get_value(iter, 2);
-          selectedLights.push(lightId);
+      let selectedLights = [];
+      if (this._group) {
+        // Collect selected lights only when editing
+        let [valid, iter] = this._lightsStore.get_iter_first();
+        while (valid) {
+          const selected = this._lightsStore.get_value(iter, 0);
+          if (selected) {
+            const lightId = this._lightsStore.get_value(iter, 2);
+            selectedLights.push(lightId);
+          }
+          valid = this._lightsStore.iter_next(iter);
         }
-        valid = this._lightsStore.iter_next(iter);
+        filteredLog("info", `Saving group with lights:`, selectedLights);
+      } else {
+        filteredLog(
+          "info",
+          "Creating new group (no lights assigned at creation)",
+        );
       }
-
-      filteredLog("info", `Saving group with lights:`, selectedLights);
 
       this._spinner.start();
 
       try {
-        const groupData = {
-          name: name,
-          lights: selectedLights,
-        };
-
         let groupId;
 
         if (this._group) {
-          // Update existing group
+          // Update existing group (including lights)
+          const groupData = { name: name, lights: selectedLights };
           filteredLog(
             "info",
             `Updating group ${this._group.id} with:`,
@@ -300,17 +305,14 @@ const GroupDialog = GObject.registerClass(
           await fetchAPI(endpoint, method, body);
           groupId = this._group.id;
         } else {
-          // Create new group
+          // Create new group (only send name)
+          const groupData = { name: name };
           filteredLog("info", `Creating new group with:`, groupData);
           const response = await fetchAPI("groups", "POST", groupData);
 
-          // New groups are NOT visible by default (changed from previous behavior)
           if (response && response.id) {
             groupId = response.id;
             filteredLog("info", `New group created with ID: ${groupId}`);
-
-            // Do NOT add new group to visible groups by default
-            // The user must explicitly make it visible
           } else {
             filteredLog("error", "Failed to get ID for new group:", response);
           }
