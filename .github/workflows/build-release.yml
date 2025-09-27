@@ -275,11 +275,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload extension to EGO (extensions.gnome.org)
-        if: steps.version.outputs.IS_SNAPSHOT == 'false' && secrets.EGO_USERNAME != '' && secrets.EGO_PASSWORD != ''
+        if: steps.version.outputs.IS_SNAPSHOT == 'false'
         continue-on-error: true
         run: |
           set +e
           echo "Preparing GNOME Extensions (EGO) upload (non-fatal step)"
+          if [ -z "${EGO_USERNAME}" ] || [ -z "${EGO_PASSWORD}" ]; then
+            echo "::warning::Skipping EGO upload: credentials missing."
+            exit 0
+          fi
           echo "Installing gnome-extensions CLI (if needed)"
           sudo apt-get update
           sudo apt-get install -y gnome-shell-extension-prefs || true
