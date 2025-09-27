@@ -84,8 +84,9 @@ func (m *Manager) DeleteAPIKey(key string) error {
 	return nil
 }
 
-// ValidateAPIKey checks if an API key is valid, not expired, and not disabled.
-// It also updates the LastUsedAt timestamp for the key if it's valid and saves the config.
+// ValidateAPIKey checks if an API key is valid (exists, not disabled, not expired).
+// Side effects: updates LastUsedAt on successful validation and persists the change (best-effort).
+// Concurrency: underlying config access is internally locked; the returned pointer must be treated as read-only by callers.
 func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 	apiKey, found := m.cfg.FindAPIKey(key) // FindAPIKey returns (*APIKey, bool)
 	if !found {

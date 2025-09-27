@@ -23,7 +23,7 @@ type APIKey struct {
 	CreatedAt  time.Time `json:"created_at" yaml:"created_at"`     // Timestamp of when the key was created
 	ExpiresAt  time.Time `json:"expires_at" yaml:"expires_at"`     // Timestamp of when the key expires (zero value means never)
 	LastUsedAt time.Time `json:"last_used_at" yaml:"last_used_at"` // Timestamp of when the key was last used (zero value means never)
-	disabled   bool      // If true, the key is disabled
+	Disabled   bool      `json:"disabled" yaml:"disabled"`         // If true, the key is disabled
 }
 
 // IsExpired checks if the API key has expired.
@@ -36,7 +36,7 @@ func (ak *APIKey) IsExpired() bool {
 
 // IsDisabled checks if the API key is disabled.
 func (ak *APIKey) IsDisabled() bool {
-	return ak.disabled
+	return ak.Disabled
 }
 
 // GenerateKey creates a new random API key string.
@@ -60,7 +60,7 @@ func GenerateKey(length int) (string, error) {
 
 // State holds persistent data like API keys and groups
 type State struct {
-	APIKeys []APIKey          `yaml:"api_keys"`
+	APIKeys []APIKey       `yaml:"api_keys"`
 	Groups  map[string]any `yaml:"groups"`
 }
 
@@ -186,11 +186,11 @@ func Load(configName, configFile string) (*Config, error) {
 		cfg.Config.API.ListenAddress = DefaultAPIListenAddress
 	}
 	// Use default values if logging configuration is invalid
-	if cfg.Config.Logging.Level != LogLevelDebug && cfg.Config.Logging.Level != LogLevelInfo && 
-	   cfg.Config.Logging.Level != LogLevelWarn && cfg.Config.Logging.Level != LogLevelError {
+	if cfg.Config.Logging.Level != LogLevelDebug && cfg.Config.Logging.Level != LogLevelInfo &&
+		cfg.Config.Logging.Level != LogLevelWarn && cfg.Config.Logging.Level != LogLevelError {
 		cfg.Config.Logging.Level = LogLevelInfo
 	}
-	
+
 	if cfg.Config.Logging.Format != LogFormatText && cfg.Config.Logging.Format != LogFormatJSON {
 		cfg.Config.Logging.Format = LogFormatText
 	}
@@ -333,7 +333,10 @@ func (c *Config) DeleteAPIKey(keyString string) bool {
 }
 
 // FindAPIKey retrieves an API key by its key string.
+// NOTE: Returns a pointer to the internal slice element; do not store or modify outside config methods.
 func (c *Config) FindAPIKey(keyString string) (*APIKey, bool) {
+	c.saveMutex.Lock()
+	defer c.saveMutex.Unlock()
 	for i, k := range c.State.APIKeys {
 		if k.Key == keyString {
 			return &c.State.APIKeys[i], true
@@ -344,6 +347,8 @@ func (c *Config) FindAPIKey(keyString string) (*APIKey, bool) {
 
 // UpdateAPIKeyLastUsed updates the LastUsedAt field for a given API key.
 func (c *Config) UpdateAPIKeyLastUsed(keyString string, lastUsedTime time.Time) error {
+	c.saveMutex.Lock()
+	defer c.saveMutex.Unlock()
 	found := false
 	for i, apiKey := range c.State.APIKeys {
 		if apiKey.Key == keyString {
@@ -361,6 +366,8 @@ func (c *Config) UpdateAPIKeyLastUsed(keyString string, lastUsedTime time.Time) 
 
 // SetAPIKeyDisabledStatus updates the disabled status of an API key.
 func (c *Config) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (*APIKey, error) {
+	c.saveMutex.Lock()
+	defer c.saveMutex.Unlock()
 	var targetKey *APIKey
 	targetIndex := -1
 
@@ -376,7 +383,7 @@ func (c *Config) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (*APIK
 		return nil, fmt.Errorf("API key '%s' not found", keyOrName)
 	}
 
-	c.State.APIKeys[targetIndex].disabled = disabled
+	c.State.APIKeys[targetIndex].Disabled = disabled
 
 	return targetKey, nil
 }

@@ -22,6 +22,38 @@ func TestLoadDefaults_NoConfigFile(t *testing.T) {
 	assert.Equal(t, ":9123", cfg.Config.API.ListenAddress)
 }
 
+func TestAPIKeyDisabledPersistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// Initial load (will use defaults, create in-memory config)
+	cfg, err := Load("config.yaml", configPath)
+	require.NoError(t, err)
+
+	// Add an API key
+	key := APIKey{
+		Key:  "testkey123456",
+		Name: "test",
+	}
+	require.NoError(t, cfg.AddAPIKey(key))
+
+	// Disable it via the provided method
+	_, err = cfg.SetAPIKeyDisabledStatus("test", true) // using name
+	require.NoError(t, err)
+
+	// Save to disk
+	require.NoError(t, cfg.Save())
+
+	// Reload from disk
+	cfgReloaded, err := Load("config.yaml", configPath)
+	require.NoError(t, err)
+
+	// Find by key string
+	reloadedKey, found := cfgReloaded.FindAPIKey("testkey123456")
+	require.True(t, found, "expected to find API key after reload")
+	assert.True(t, reloadedKey.IsDisabled(), "expected API key to remain disabled after reload")
+}
+
 func TestSaveAndLoadConfig_WithTimeFields(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "test.yaml")
