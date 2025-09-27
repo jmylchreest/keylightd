@@ -11,7 +11,7 @@ import {
   LightState,
   determineLightState,
 } from "../icons.js";
-import { log } from "../utils.js";
+import { filteredLog } from "../utils.js";
 import GLib from "gi://GLib";
 
 // Parse GNOME Shell version for compatibility
@@ -54,7 +54,7 @@ export const KeylightdControl = GObject.registerClass(
             this._indicator
           ) {
             this._indicator.gicon = this._keylightdToggle.gicon;
-            log("debug", "Synced indicator icon after menu close");
+            filteredLog("debug", "Synced indicator icon after menu close");
           }
         },
       );
@@ -132,7 +132,7 @@ export const KeylightdControl = GObject.registerClass(
             : LightState.UNKNOWN;
 
       this._indicator.gicon = getLightStateIcon(actualState);
-      log("debug", `Indicator icon set to state: ${actualState}`);
+      filteredLog("debug", `Indicator icon set to state: ${actualState}`);
       this._indicator.visible = true;
     }
 
@@ -168,11 +168,11 @@ export const KeylightdControl = GObject.registerClass(
 
         // Set the icon
         this._indicator.gicon = getLightStateIcon(state);
-        log("debug", `Updating indicator icon to state: ${state}`);
+        filteredLog("debug", `Updating indicator icon to state: ${state}`);
       } else {
         // Default to unknown icon if no state manager
         this._indicator.gicon = getLightStateIcon(LightState.UNKNOWN);
-        log("debug", "Setting indicator to UNKNOWN state (no state manager)");
+        filteredLog("debug", "Setting indicator to UNKNOWN state (no state manager)");
       }
     }
 

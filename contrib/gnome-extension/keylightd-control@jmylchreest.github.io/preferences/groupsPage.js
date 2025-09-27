@@ -140,7 +140,7 @@ const GroupDialog = GObject.registerClass(
 
       try {
         // First, fetch the list of all lights from the API
-        log("info", "Fetching all lights from /lights endpoint...");
+        filteredLog("info", "Fetching all lights from /lights endpoint...");
         const lightsResponse = await fetchAPI("lights");
 
         // Clear existing data
@@ -150,12 +150,12 @@ const GroupDialog = GObject.registerClass(
         let groupLightIds = [];
         if (this._group) {
           try {
-            log("info", `Fetching details for group ${this._group.id}...`);
+            filteredLog("info", `Fetching details for group ${this._group.id}...`);
             const groupDetails = await fetchAPI(`groups/${this._group.id}`);
             groupLightIds = groupDetails.lights || [];
-            log("info", `Group ${this._group.id} has lights:`, groupLightIds);
+            filteredLog("info", `Group ${this._group.id} has lights:`, groupLightIds);
           } catch (error) {
-            log("error", `Error loading group details: ${error}`);
+            filteredLog("error", `Error loading group details: ${error}`);
             this._showError(
               `${_("Failed to load group details")}: ${error.message}`,
             );
@@ -173,7 +173,7 @@ const GroupDialog = GObject.registerClass(
         if (Array.isArray(lightsResponse)) {
           // Response is already an array
           lightsArray = lightsResponse;
-          log("info", "Lights endpoint returned an array of lights");
+          filteredLog("info", "Lights endpoint returned an array of lights");
         } else if (typeof lightsResponse === "object") {
           // Response is an object with light IDs as keys
           // Convert to array format
@@ -186,9 +186,9 @@ const GroupDialog = GObject.registerClass(
               };
             },
           );
-          log("info", "Converted lights object to array:", lightsArray);
+          filteredLog("info", "Converted lights object to array:", lightsArray);
         } else {
-          log(
+          filteredLog(
             "error",
             "Unexpected response format from lights endpoint:",
             lightsResponse,
@@ -196,7 +196,7 @@ const GroupDialog = GObject.registerClass(
           throw new Error(_("Invalid lights data format from API"));
         }
 
-        log(
+        filteredLog(
           "info",
           `Found ${lightsArray.length} lights:`,
           lightsArray.map((l) => l.name || "unnamed"),
@@ -205,7 +205,7 @@ const GroupDialog = GObject.registerClass(
         // Process each light
         for (const light of lightsArray) {
           if (!light || !light.id) {
-            log("warn", "Invalid light entry:", light);
+            filteredLog("warn", "Invalid light entry:", light);
             continue; // Skip invalid entries
           }
 
@@ -213,7 +213,7 @@ const GroupDialog = GObject.registerClass(
           const name = light.name || `Light ${lightId}`;
           const isSelected = groupLightIds.includes(lightId);
 
-          log(
+          filteredLog(
             "info",
             `Adding light "${name}" (${lightId}) to list, selected: ${isSelected}`,
           );
@@ -231,7 +231,7 @@ const GroupDialog = GObject.registerClass(
           );
         }
       } catch (error) {
-        log("error", `Error in _loadLights: ${error}`);
+        filteredLog("error", `Error in _loadLights: ${error}`);
         this._showError(`${_("Failed to load lights")}: ${error.message}`);
         this._spinner.stop();
       }
@@ -268,7 +268,7 @@ const GroupDialog = GObject.registerClass(
         valid = this._lightsStore.iter_next(iter);
       }
 
-      log("info", `Saving group with lights:`, selectedLights);
+      filteredLog("info", `Saving group with lights:`, selectedLights);
 
       this._spinner.start();
 
@@ -282,7 +282,7 @@ const GroupDialog = GObject.registerClass(
 
         if (this._group) {
           // Update existing group
-          log("info", `Updating group ${this._group.id} with:`, groupData);
+          filteredLog("info", `Updating group ${this._group.id} with:`, groupData);
           const endpoint = `groups/${this._group.id}/lights`;
           const method = "PUT";
           const body = { light_ids: selectedLights };
@@ -290,18 +290,18 @@ const GroupDialog = GObject.registerClass(
           groupId = this._group.id;
         } else {
           // Create new group
-          log("info", `Creating new group with:`, groupData);
+          filteredLog("info", `Creating new group with:`, groupData);
           const response = await fetchAPI("groups", "POST", groupData);
 
           // New groups are NOT visible by default (changed from previous behavior)
           if (response && response.id) {
             groupId = response.id;
-            log("info", `New group created with ID: ${groupId}`);
+            filteredLog("info", `New group created with ID: ${groupId}`);
 
             // Do NOT add new group to visible groups by default
             // The user must explicitly make it visible
           } else {
-            log("error", "Failed to get ID for new group:", response);
+            filteredLog("error", "Failed to get ID for new group:", response);
           }
         }
 
@@ -309,7 +309,7 @@ const GroupDialog = GObject.registerClass(
         this.emit("group-saved");
         this.close();
       } catch (error) {
-        log("error", `Error saving group: ${error}`);
+        filteredLog("error", `Error saving group: ${error}`);
         this._spinner.stop();
         this._showError(`${_("Failed to save group")}: ${error.message}`);
       }
@@ -355,14 +355,14 @@ export var GroupsPage = GObject.registerClass(
       this._refreshButton.connect("clicked", () => {
         try {
           this._loadGroups().catch((error) => {
-            log("error", "Error loading groups:", error);
+            filteredLog("error", "Error loading groups:", error);
             this._setStatus(
               _("Failed to load groups. Check connection settings."),
               true,
             );
           });
         } catch (error) {
-          log("error", "Error loading groups:", error);
+          filteredLog("error", "Error loading groups:", error);
           this._setStatus(
             _("Failed to load groups. Check connection settings."),
             true,
@@ -408,14 +408,14 @@ export var GroupsPage = GObject.registerClass(
       showAllButton.connect("clicked", () => {
         try {
           this._toggleAllGroupsVisibility(true).catch((error) => {
-            log("error", "Error showing all groups:", error);
+            filteredLog("error", "Error showing all groups:", error);
             this._setStatus(
               _("Failed to show all groups. Check connection settings."),
               true,
             );
           });
         } catch (error) {
-          log("error", "Error showing all groups:", error);
+          filteredLog("error", "Error showing all groups:", error);
           this._setStatus(
             _("Failed to show all groups. Check connection settings."),
             true,
@@ -426,14 +426,14 @@ export var GroupsPage = GObject.registerClass(
       hideAllButton.connect("clicked", () => {
         try {
           this._toggleAllGroupsVisibility(false).catch((error) => {
-            log("error", "Error hiding all groups:", error);
+            filteredLog("error", "Error hiding all groups:", error);
             this._setStatus(
               _("Failed to hide all groups. Check connection settings."),
               true,
             );
           });
         } catch (error) {
-          log("error", "Error hiding all groups:", error);
+          filteredLog("error", "Error hiding all groups:", error);
           this._setStatus(
             _("Failed to hide all groups. Check connection settings."),
             true,
@@ -499,20 +499,20 @@ export var GroupsPage = GObject.registerClass(
       this._settings.connect("changed::api-url", () => {
         try {
           this._loadGroups().catch((error) => {
-            log("error", "Error loading groups after API URL change:", error);
+            filteredLog("error", "Error loading groups after API URL change:", error);
           });
         } catch (error) {
-          log("error", "Error loading groups after API URL change:", error);
+          filteredLog("error", "Error loading groups after API URL change:", error);
         }
       });
 
       this._settings.connect("changed::api-key", () => {
         try {
           this._loadGroups().catch((error) => {
-            log("error", "Error loading groups after API key change:", error);
+            filteredLog("error", "Error loading groups after API key change:", error);
           });
         } catch (error) {
-          log("error", "Error loading groups after API key change:", error);
+          filteredLog("error", "Error loading groups after API key change:", error);
         }
       });
       // Listen for visible-groups changes and reload
@@ -523,7 +523,7 @@ export var GroupsPage = GObject.registerClass(
       // Load groups with proper error handling
       try {
         this._loadGroups().catch((error) => {
-          log("error", "Initial error loading groups:", error);
+          filteredLog("error", "Initial error loading groups:", error);
           this._setStatus(
             _("Failed to load groups. Check connection settings."),
             true,
@@ -532,7 +532,7 @@ export var GroupsPage = GObject.registerClass(
           this._spinner.visible = false;
         });
       } catch (error) {
-        log("error", "Error in initial groups load:", error);
+        filteredLog("error", "Error in initial groups load:", error);
         this._setStatus(
           _("Failed to load groups. Check connection settings."),
           true,
@@ -566,7 +566,7 @@ export var GroupsPage = GObject.registerClass(
                 }
               }
             } catch (e) {
-              log("error", "Error accessing suffixes by index", e);
+              filteredLog("error", "Error accessing suffixes by index", e);
             }
           } else if (typeof child.get_suffixes === "function") {
             // Some GNOME versions provide a get_suffixes() method
@@ -578,7 +578,7 @@ export var GroupsPage = GObject.registerClass(
                 }
               }
             } catch (e) {
-              log("error", "Error accessing suffixes array", e);
+              filteredLog("error", "Error accessing suffixes array", e);
             }
           } else {
             // Fallback method: try to find buttons in child widgets
@@ -790,11 +790,11 @@ export var GroupsPage = GObject.registerClass(
       dialog.connect("response", async (dialog, response) => {
         if (response === "delete") {
           try {
-            log("info", `Deleting group ${group.id}`);
+            filteredLog("info", `Deleting group ${group.id}`);
 
             const result = await fetchAPI(`groups/${group.id}`, "DELETE");
 
-            log("debug", `Delete result:`, result);
+            filteredLog("debug", `Delete result:`, result);
 
             // Update visible groups if needed
             const visibleGroups = this._settings.get_strv("visible-groups");
@@ -808,7 +808,7 @@ export var GroupsPage = GObject.registerClass(
             // Reload the groups list
             this._loadGroups();
           } catch (error) {
-            log("error", `Failed to delete group: ${error}`);
+            filteredLog("error", `Failed to delete group: ${error}`);
             this._setStatus(
               `${_("Failed to delete group")}: ${error.message}`,
               true,
@@ -839,11 +839,11 @@ export var GroupsPage = GObject.registerClass(
           // Then update the setting
           if (visible) {
             // Show all groups
-            log("info", `Setting all ${allGroupIds.length} groups to visible`);
+            filteredLog("info", `Setting all ${allGroupIds.length} groups to visible`);
             this._settings.set_strv("visible-groups", allGroupIds);
           } else {
             // Hide all groups
-            log("info", "Hiding all groups");
+            filteredLog("info", "Hiding all groups");
             this._settings.set_strv("visible-groups", []);
           }
           // No direct _loadGroups() call here; rely on settings signal
@@ -851,7 +851,7 @@ export var GroupsPage = GObject.registerClass(
           this._setStatus(_("No groups found"));
         }
       } catch (error) {
-        log("error", "Error toggling all groups visibility:", error);
+        filteredLog("error", "Error toggling all groups visibility:", error);
         this._setStatus(
           `${_("Failed to toggle visibility")}: ${error.message}`,
           true,

@@ -2,7 +2,7 @@
 
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import { log } from './utils.js';
+import { filteredLog } from './utils.js';
 import St from 'gi://St';
 import { ICON_ENABLED, ICON_DISABLED, ICON_UNKNOWN, SYSTEM_ICON_POWER, SYSTEM_ICON_BRIGHTNESS, SYSTEM_ICON_TEMPERATURE, FALLBACK_SYSTEM_ICON, SYSTEM_PREFS_GENERAL_ICON, SYSTEM_PREFS_GROUPS_ICON, SYSTEM_PREFS_LIGHTS_ICON, SYSTEM_PREFS_UI_ICON } from './icon-names.js';
 
@@ -25,7 +25,7 @@ const _iconCache = new Map();
  */
 export function initIcons(extensionPath) {
     _extensionPath = extensionPath;
-    log('debug', `icons.js initialized with extensionPath: ${_extensionPath}`);
+    filteredLog('debug', `icons.js initialized with extensionPath: ${_extensionPath}`);
 }
 
 /**
@@ -35,7 +35,7 @@ export function initIcons(extensionPath) {
  */
 export function getIconPath(iconFile) {
     if (!_extensionPath) {
-        log('error', 'getIconPath called before icons.js was initialized!');
+        filteredLog('error', 'getIconPath called before icons.js was initialized!');
         return '';
     }
     // Always append .svg if not present
@@ -43,7 +43,7 @@ export function getIconPath(iconFile) {
         iconFile += '.svg';
     }
     const path = `${_extensionPath}${ACTIONS_PATH}${iconFile}`;
-    log('debug', `Icon path: ${path}`);
+    filteredLog('debug', `Icon path: ${path}`);
     return path;
 }
 
@@ -54,7 +54,7 @@ export function getIconPath(iconFile) {
  */
 export function iconExists(iconPath) {
     const exists = GLib.file_test(iconPath, GLib.FileTest.EXISTS);
-    log('debug', `Icon exists at ${iconPath}: ${exists}`);
+    filteredLog('debug', `Icon exists at ${iconPath}: ${exists}`);
     return exists;
 }
 
@@ -65,7 +65,7 @@ export function iconExists(iconPath) {
  */
 export function getLightStateIcon(state) {
     if (!_extensionPath) {
-        log('error', 'getLightStateIcon called before icons.js was initialized!');
+        filteredLog('error', 'getLightStateIcon called before icons.js was initialized!');
         return Gio.ThemedIcon.new(FALLBACK_SYSTEM_ICON);
     }
     let iconFile;
@@ -87,13 +87,13 @@ export function getLightStateIcon(state) {
             const icon = Gio.icon_new_for_string(iconPath);
             return icon;
         } catch (e) {
-            log('warn', `Failed to load icon for state ${state} at ${iconPath}: ${e}`);
+            filteredLog('warn', `Failed to load icon for state ${state} at ${iconPath}: ${e}`);
         }
     } else {
-        log('warn', `Icon file for state ${state} does not exist: ${iconPath}`);
+        filteredLog('warn', `Icon file for state ${state} does not exist: ${iconPath}`);
     }
     // Fallback to a system icon
-    log('warn', `Falling back to system icon for state ${state}`);
+    filteredLog('warn', `Falling back to system icon for state ${state}`);
     return Gio.ThemedIcon.new(FALLBACK_SYSTEM_ICON);
 }
 
@@ -168,7 +168,7 @@ export function determineLightState(lights, groups, visibleLightIds, visibleGrou
  */
 export function getIcon(iconName, params = {}) {
     if (!iconName || typeof iconName !== 'string') {
-        log('warn', `Invalid icon name: ${iconName}`);
+        filteredLog('warn', `Invalid icon name: ${iconName}`);
         iconName = FALLBACK_SYSTEM_ICON;
     }
 
@@ -186,15 +186,15 @@ export function getIcon(iconName, params = {}) {
         if (iconExists(customIconPath)) {
             const gicon = Gio.icon_new_for_string(customIconPath);
             iconProps.gicon = gicon;
-            log('debug', `Loaded custom icon as gicon: ${customIconPath}`);
+            filteredLog('debug', `Loaded custom icon as gicon: ${customIconPath}`);
             return new St.Icon(iconProps);
         }
     } catch (e) {
-        log('warn', `Failed to load custom icon for ${iconName}: ${e}`);
+        filteredLog('warn', `Failed to load custom icon for ${iconName}: ${e}`);
     }
 
     // Fallback to system/themed icon
     iconProps.icon_name = iconName;
-    log('debug', `getIcon(): using system/themed icon_name: ${iconName}`);
+    filteredLog('debug', `getIcon(): using system/themed icon_name: ${iconName}`);
     return new St.Icon(iconProps);
 } 

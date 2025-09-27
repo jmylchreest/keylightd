@@ -7,7 +7,7 @@ import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
 // Import shared utilities
-import { setSettings, log } from "./utils.js";
+import { setSettings, filteredLog } from "./utils.js";
 
 // Import our modules
 import { StateManager } from "./managers/state-manager.js";
@@ -36,7 +36,7 @@ function iconExists(iconName) {
     let icon = new St.Icon({ icon_name: iconName });
     return true;
   } catch (e) {
-    log("warn", `Icon "${iconName}" could not be created: ${e}`);
+    filteredLog("warn", `Icon "${iconName}" could not be created: ${e}`);
     return false;
   }
 }
@@ -55,7 +55,7 @@ function checkAllIcons() {
   ];
   ICONS_TO_CHECK.forEach((iconName) => {
     if (!iconExists(iconName)) {
-      log("warn", `Icon "${iconName}" not found in current icon theme!`);
+      filteredLog("warn", `Icon "${iconName}" not found in current icon theme!`);
     }
   });
 }

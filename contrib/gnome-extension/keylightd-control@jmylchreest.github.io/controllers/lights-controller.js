@@ -1,7 +1,7 @@
 'use strict';
 
 import { fetchAPI } from '../utils.js';
-import { log } from '../utils.js';
+import { filteredLog } from '../utils.js';
 
 // Temperature conversion constants
 const MIN_MIREDS = 143;
@@ -93,7 +93,7 @@ export class LightsController {
             
             return lightsArray;
         } catch (error) {
-            log('error', `LightsController: Error fetching lights: ${error}`);
+            filteredLog('error', `LightsController: Error fetching lights: ${error}`);
             throw error;
         }
     }
@@ -129,7 +129,7 @@ export class LightsController {
             
             return light;
         } catch (error) {
-            log('error', `LightsController: Error fetching light ${lightId}: ${error}`);
+            filteredLog('error', `LightsController: Error fetching light ${lightId}: ${error}`);
             throw error;
         }
     }
@@ -150,7 +150,7 @@ export class LightsController {
             
             return response;
         } catch (error) {
-            log('error', `LightsController: Error setting light ${lightId} state to ${state}: ${error}`);
+            filteredLog('error', `LightsController: Error setting light ${lightId} state to ${state}: ${error}`);
             throw error;
         }
     }
@@ -174,7 +174,7 @@ export class LightsController {
             
             return response;
         } catch (error) {
-            log('error', `LightsController: Error setting light ${lightId} brightness to ${brightness}: ${error}`);
+            filteredLog('error', `LightsController: Error setting light ${lightId} brightness to ${brightness}: ${error}`);
             throw error;
         }
     }
@@ -192,7 +192,7 @@ export class LightsController {
             temperature = Math.max(2900, Math.min(7000, temperature));
             
             // Log the temperature value being sent
-            log('debug', `LightsController: Setting light ${lightId} temperature to ${temperature}K`);
+            filteredLog('debug', `LightsController: Setting light ${lightId} temperature to ${temperature}K`);
             
             const response = await fetchAPI(`lights/${lightId}/state`, 'POST', { temperature: temperature });
             
@@ -207,7 +207,7 @@ export class LightsController {
             
             return response;
         } catch (error) {
-            log('error', `LightsController: Error setting light ${lightId} temperature to ${temperature}K: ${error}`);
+            filteredLog('error', `LightsController: Error setting light ${lightId} temperature to ${temperature}K: ${error}`);
             throw error;
         }
     }
@@ -226,12 +226,12 @@ export class LightsController {
                         return true;
                     }
                 } catch (error) {
-                    log('error', `LightsController: Error checking light ${light.id} status: ${error}`);
+                    filteredLog('error', `LightsController: Error checking light ${light.id} status: ${error}`);
                 }
             }
             return false;
         } catch (error) {
-            log('error', `LightsController: Error checking if any light is on: ${error}`);
+            filteredLog('error', `LightsController: Error checking if any light is on: ${error}`);
             return false;
         }
     }
@@ -246,7 +246,7 @@ export class LightsController {
             const visibleLights = await this.getVisibleLights();
             
             if (visibleLights.length === 0) {
-                log('info', 'LightsController: No visible lights to toggle');
+                filteredLog('info', 'LightsController: No visible lights to toggle');
                 return;
             }
             
@@ -256,7 +256,7 @@ export class LightsController {
                 state = !(firstLight.on === true);
             }
             
-            log('info', `LightsController: Toggling all visible lights to ${state}`);
+            filteredLog('info', `LightsController: Toggling all visible lights to ${state}`);
             
             // Toggle all lights in parallel
             const promises = visibleLights.map(light => 
@@ -264,9 +264,9 @@ export class LightsController {
             );
             
             await Promise.all(promises);
-            log('debug', 'LightsController: All light toggle operations completed');
+            filteredLog('debug', 'LightsController: All light toggle operations completed');
         } catch (error) {
-            log('error', `LightsController: Error toggling all lights: ${error}`);
+            filteredLog('error', `LightsController: Error toggling all lights: ${error}`);
             throw error;
         }
     }

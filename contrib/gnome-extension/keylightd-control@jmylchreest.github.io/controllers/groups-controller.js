@@ -2,7 +2,7 @@
 
 import { fetchAPI, getGroupLights } from '../utils.js';
 import { convertKelvinToDevice } from './lights-controller.js';
-import { log } from '../utils.js';
+import { filteredLog } from '../utils.js';
 
 export class GroupsController {
     constructor(settings, stateManager, lightsController) {
@@ -48,7 +48,7 @@ export class GroupsController {
             
             return groups;
         } catch (error) {
-            log('error', `GroupsController: Error fetching groups: ${error}`);
+            filteredLog('error', `GroupsController: Error fetching groups: ${error}`);
             throw error;
         }
     }
@@ -84,7 +84,7 @@ export class GroupsController {
             
             return group;
         } catch (error) {
-            log('error', `GroupsController: Error fetching group ${groupId}: ${error}`);
+            filteredLog('error', `GroupsController: Error fetching group ${groupId}: ${error}`);
             throw error;
         }
     }
@@ -113,7 +113,7 @@ export class GroupsController {
             
             return response;
         } catch (error) {
-            log('error', `GroupsController: Error setting group ${groupId} state to ${state}: ${error}`);
+            filteredLog('error', `GroupsController: Error setting group ${groupId} state to ${state}: ${error}`);
             throw error;
         }
     }
@@ -145,7 +145,7 @@ export class GroupsController {
             
             return response;
         } catch (error) {
-            log('error', `GroupsController: Error setting group ${groupId} brightness to ${brightness}: ${error}`);
+            filteredLog('error', `GroupsController: Error setting group ${groupId} brightness to ${brightness}: ${error}`);
             throw error;
         }
     }
@@ -163,7 +163,7 @@ export class GroupsController {
             temperature = Math.max(2900, Math.min(7000, temperature));
             
             // Log the temperature value being sent
-            log('debug', `GroupsController: Setting group ${groupId} temperature to ${temperature}K`);
+            filteredLog('debug', `GroupsController: Setting group ${groupId} temperature to ${temperature}K`);
             
             const response = await fetchAPI(`groups/${groupId}/state`, 'PUT', { temperature: temperature });
             
@@ -190,7 +190,7 @@ export class GroupsController {
             
             return response;
         } catch (error) {
-            log('error', `GroupsController: Error setting group ${groupId} temperature to ${temperature}K: ${error}`);
+            filteredLog('error', `GroupsController: Error setting group ${groupId} temperature to ${temperature}K: ${error}`);
             throw error;
         }
     }
@@ -208,7 +208,7 @@ export class GroupsController {
             if (mode === 'all') return lights.every(light => light.on === true);
             return lights.some(light => light.on === true);
         } catch (error) {
-            log('error', `GroupsController: Error determining if group ${groupId} is on: ${error}`);
+            filteredLog('error', `GroupsController: Error determining if group ${groupId} is on: ${error}`);
             return false;
         }
     }
@@ -226,7 +226,7 @@ export class GroupsController {
             }
             return false;
         } catch (error) {
-            log('error', `GroupsController: Error checking visible groups: ${error}`);
+            filteredLog('error', `GroupsController: Error checking visible groups: ${error}`);
             return false;
         }
     }
@@ -241,7 +241,7 @@ export class GroupsController {
             const visibleGroups = await this.getVisibleGroups();
             
             if (visibleGroups.length === 0) {
-                log('info', 'GroupsController: No visible groups to toggle');
+                filteredLog('info', 'GroupsController: No visible groups to toggle');
                 return;
             }
             
@@ -251,7 +251,7 @@ export class GroupsController {
                 state = !anyLightOn;
             }
             
-            log('info', `GroupsController: Toggling all visible groups to ${state}`);
+            filteredLog('info', `GroupsController: Toggling all visible groups to ${state}`);
             
             // Toggle all groups in parallel
             const promises = visibleGroups.map(group => 
@@ -259,9 +259,9 @@ export class GroupsController {
             );
             
             await Promise.all(promises);
-            log('debug', 'GroupsController: All group toggle operations completed');
+            filteredLog('debug', 'GroupsController: All group toggle operations completed');
         } catch (error) {
-            log('error', `GroupsController: Error toggling all groups: ${error}`);
+            filteredLog('error', `GroupsController: Error toggling all groups: ${error}`);
             throw error;
         }
     }

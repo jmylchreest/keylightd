@@ -4,7 +4,7 @@ import St from "gi://St";
 import Clutter from "gi://Clutter";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { Slider } from "resource:///org/gnome/shell/ui/slider.js";
-import { log } from "../utils.js";
+import { filteredLog } from "../utils.js";
 import {
   SYSTEM_ICON_POWER,
   SYSTEM_ICON_BRIGHTNESS,
@@ -80,7 +80,7 @@ export class UIBuilder {
         const themeContext = St.ThemeContext.get_for_stage(stage);
         if (themeContext) {
           this._iconTheme = themeContext.get_theme();
-          log("debug", "Initialized icon theme from stage theme context");
+          filteredLog("debug", "Initialized icon theme from stage theme context");
         }
       }
 
@@ -92,9 +92,9 @@ export class UIBuilder {
           this._iconTheme = St.ThemeContext.get_for_stage(
             global.stage,
           ).get_theme();
-          log("debug", "Initialized icon theme from fallback method");
+          filteredLog("debug", "Initialized icon theme from fallback method");
         } catch (error) {
-          log(
+          filteredLog(
             "warn",
             "Failed to initialize icon theme from fallback method:",
             error,
@@ -110,33 +110,33 @@ export class UIBuilder {
           // Different API depending on GNOME version
           if (this._iconTheme.append_search_path) {
             this._iconTheme.append_search_path(actionsPath);
-            log("debug", `Added icon search path: ${actionsPath}`);
+            filteredLog("debug", `Added icon search path: ${actionsPath}`);
           } else if (this._iconTheme.add_search_path) {
             this._iconTheme.add_search_path(actionsPath);
-            log("debug", `Added icon search path: ${actionsPath}`);
+            filteredLog("debug", `Added icon search path: ${actionsPath}`);
           } else if (this._iconTheme.set_search_path) {
             // For older versions that use set_search_path
             const currentPaths = this._iconTheme.get_search_path();
             this._iconTheme.set_search_path([...currentPaths, actionsPath]);
-            log("debug", `Added icon search path: ${actionsPath}`);
+            filteredLog("debug", `Added icon search path: ${actionsPath}`);
           } else {
-            log(
+            filteredLog(
               "warn",
               "Could not add icon search path - no supported method found",
             );
           }
         } catch (error) {
-          log("error", "Error adding icon search path:", error);
+          filteredLog("error", "Error adding icon search path:", error);
         }
       }
 
       // If we still don't have a theme, create a basic one
       if (!this._iconTheme) {
-        log("warn", "No icon theme available, creating basic theme");
+        filteredLog("warn", "No icon theme available, creating basic theme");
         this._iconTheme = new St.Theme();
       }
     } catch (error) {
-      log("error", "Error in icon theme initialization:", error);
+      filteredLog("error", "Error in icon theme initialization:", error);
       // Create a basic theme as fallback
       this._iconTheme = new St.Theme();
     }
@@ -162,7 +162,7 @@ export class UIBuilder {
       brightnessIconName = SYSTEM_ICON_BRIGHTNESS,
       temperatureIconName = SYSTEM_ICON_TEMPERATURE,
     } = config;
-    log(
+    filteredLog(
       "debug",
       `[UIBuilder] Creating control section for ${name} (id: ${id}, type: ${type}) with icons: power=${powerIconName}, brightness=${brightnessIconName}, temperature=${temperatureIconName}`,
     );
@@ -200,7 +200,7 @@ export class UIBuilder {
       style_class: "keylightd-power-icon",
     });
     if (!powerIcon)
-      log(
+      filteredLog(
         "error",
         `[UIBuilder] Power icon failed to load for ${powerIconName}`,
       );
@@ -293,7 +293,7 @@ export class UIBuilder {
             section._brightnessRow._slider.reactive = state;
           }
         } catch (e) {
-          log("error", "Error updating brightness row state:", e);
+          filteredLog("error", "Error updating brightness row state:", e);
         }
       }
       if (section._temperatureRow && !section._temperatureRow.is_finalized) {
@@ -306,7 +306,7 @@ export class UIBuilder {
             section._temperatureRow._slider.reactive = state;
           }
         } catch (e) {
-          log("error", "Error updating temperature row state:", e);
+          filteredLog("error", "Error updating temperature row state:", e);
         }
       }
     });
@@ -384,14 +384,14 @@ export class UIBuilder {
       callback,
       type = "brightness", // 'brightness' or 'temperature'
     } = config;
-    log(
+    filteredLog(
       "debug",
       `[UIBuilder] Creating slider row (type: ${type}) with icon: ${iconName}`,
     );
 
     const sliderConfig = SLIDER_CONFIGS[type];
     if (!sliderConfig) {
-      log("error", `Invalid slider type: ${type}`);
+      filteredLog("error", `Invalid slider type: ${type}`);
       return null;
     }
 
@@ -413,7 +413,7 @@ export class UIBuilder {
       icon_size: 18,
     });
     if (!icon)
-      log(
+      filteredLog(
         "error",
         `[UIBuilder] Slider icon failed to load for ${iconName} (type: ${type})`,
       );
@@ -497,7 +497,7 @@ export class UIBuilder {
             ? "keylightd-power-button keylightd-power-on"
             : "keylightd-power-button keylightd-power-off";
         } catch (e) {
-          log("error", "Error updating power button:", e);
+          filteredLog("error", "Error updating power button:", e);
         }
       }
 
@@ -512,7 +512,7 @@ export class UIBuilder {
             section._brightnessRow._slider.reactive = updates.on;
           }
         } catch (e) {
-          log("error", "Error updating brightness row state:", e);
+          filteredLog("error", "Error updating brightness row state:", e);
         }
       }
       if (section._temperatureRow && !section._temperatureRow.is_finalized) {
@@ -525,7 +525,7 @@ export class UIBuilder {
             section._temperatureRow._slider.reactive = updates.on;
           }
         } catch (e) {
-          log("error", "Error updating temperature row state:", e);
+          filteredLog("error", "Error updating temperature row state:", e);
         }
       }
     }
@@ -560,7 +560,7 @@ export class UIBuilder {
           }
         }
       } catch (e) {
-        log("error", "Error updating brightness slider:", e);
+        filteredLog("error", "Error updating brightness slider:", e);
       }
     }
 
@@ -599,7 +599,7 @@ export class UIBuilder {
           }
         }
       } catch (e) {
-        log("error", "Error updating temperature slider:", e);
+        filteredLog("error", "Error updating temperature slider:", e);
       }
     }
 
@@ -612,7 +612,7 @@ export class UIBuilder {
       try {
         section._titleLabel.text = updates.name;
       } catch (e) {
-        log("error", "Error updating title label:", e);
+        filteredLog("error", "Error updating title label:", e);
       }
     }
   }

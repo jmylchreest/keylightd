@@ -259,7 +259,7 @@ export var LightsPage = GObject.registerClass(
           }
         }
       } catch (error) {
-        log("error", "Error loading lights:", error);
+        filteredLog("error", "Error loading lights:", error);
         this._spinner.stop();
         this._spinner.visible = false;
         this._setStatus(
@@ -354,11 +354,11 @@ export var LightsPage = GObject.registerClass(
           // Then update the setting
           if (visible) {
             // Show all lights
-            log("info", `Setting all ${allLightIds.length} lights to visible`);
+            filteredLog("info", `Setting all ${allLightIds.length} lights to visible`);
             this._settings.set_strv("visible-lights", allLightIds);
           } else {
             // Hide all lights
-            log("info", "Hiding all lights");
+            filteredLog("info", "Hiding all lights");
             this._settings.set_strv("visible-lights", []);
           }
           this._loadLights();
@@ -366,7 +366,7 @@ export var LightsPage = GObject.registerClass(
           this._setStatus(_("No lights found"));
         }
       } catch (error) {
-        log("error", "Error toggling all lights visibility:", error);
+        filteredLog("error", "Error toggling all lights visibility:", error);
         this._setStatus(
           `${_("Failed to toggle visibility")}: ${error.message}`,
           true,

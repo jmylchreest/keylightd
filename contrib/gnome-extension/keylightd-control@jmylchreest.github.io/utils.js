@@ -40,7 +40,7 @@ export function getErroring() {
  * @param {string} message - Message to log
  * @param {...any} args - Additional arguments to log
  */
-export function log(level, message, ...args) {
+export function filteredLog(level, message, ...args) {
     // Normalize level to lowercase
     level = level.toLowerCase();
 
@@ -55,7 +55,7 @@ export function log(level, message, ...args) {
 
     // Always log errors regardless of settings
     if (level === 'error') {
-        console.log(`[keylightd-control (${level.toUpperCase()})] ${message}`, ...args);
+        console.filteredLog(`[keylightd-control (${level.toUpperCase()})] ${message}`, ...args);
         return;
     }
 
@@ -72,7 +72,7 @@ export function log(level, message, ...args) {
     // Only log if message level is at or above configured level
     if (messageLevelValue >= configuredLevelValue) {
         const prefix = `[keylightd-control (${level.toUpperCase()})]`;
-        console.log(`${prefix} ${message}`, ...args);
+        console.filteredLog(`${prefix} ${message}`, ...args);
     }
 }
 
@@ -140,7 +140,7 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
     const requestId = Math.random().toString(36).substring(2, 8);
     
     if (!_settingsInstance) {
-        log('error', `[${requestId}] Settings have not been initialized`);
+        filteredLog('error', `[${requestId}] Settings have not been initialized`);
         throw new Error('Settings have not been initialized');
     }
     
@@ -149,7 +149,7 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
     
     // Check if required settings are available
     if (!endpoint || !apiKey) {
-        log('error', `[${requestId}] API URL or API Key not configured`);
+        filteredLog('error', `[${requestId}] API URL or API Key not configured`);
         // Update erroring state for GET requests to groups or lights
         if (method === 'GET' && ['groups', 'lights'].some(base => path === base || path.startsWith(`${base}/`))) {
             _erroring = true;
@@ -163,11 +163,11 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
     message.get_request_headers().append('X-API-Key', apiKey);
     
     // Log request details
-    log('info', `[${requestId}] Request: method: ${method} URL: ${url} headers: X-API-Key: [REDACTED], Content-Type: application/json`);
+    filteredLog('info', `[${requestId}] Request: method: ${method} URL: ${url} headers: X-API-Key: [REDACTED], Content-Type: application/json`);
     
     if (body) {
         let bodyStr = JSON.stringify(body);
-        log('info', `[${requestId}] Request body: ${bodyStr}`);
+        filteredLog('info', `[${requestId}] Request body: ${bodyStr}`);
         let bytes = new GLib.Bytes(bodyStr);
         message.set_request_body_from_bytes('application/json', bytes);
     }
@@ -190,7 +190,7 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                             responseHeaders.push(`${name}: ${value}`);
                         });
                         
-                        log('info', `[${requestId}] Response status: ${statusCode} headers: ${responseHeaders.join(', ')}`);
+                        filteredLog('info', `[${requestId}] Response status: ${statusCode} headers: ${responseHeaders.join(', ')}`);
                         
                         if (statusCode >= 200 && statusCode < 300) {
                             let decoder = new TextDecoder('utf-8');
@@ -202,7 +202,7 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                                 text.substring(0, maxLogLength) + '... [truncated]' : 
                                 text;
                                 
-                            log('info', `[${requestId}] Response body (${method} ${path}, ${statusCode}): ${logText}`);
+                            filteredLog('info', `[${requestId}] Response body (${method} ${path}, ${statusCode}): ${logText}`);
                             
                             // Update erroring state for GET requests to groups or lights
                             if (method === 'GET' && ['groups', 'lights'].some(base => path === base || path.startsWith(`${base}/`))) {
@@ -212,10 +212,10 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                             // Handle empty responses (like DELETE with 204 No Content)
                             if (!text || text.trim() === '') {
                                 if (statusCode === 204) {
-                                    log('info', `[${requestId}] Empty response with 204 status - this is expected`);
+                                    filteredLog('info', `[${requestId}] Empty response with 204 status - this is expected`);
                                     resolve({success: true, statusCode: 204});
                                 } else {
-                                    log('info', `[${requestId}] Empty response with ${statusCode} status`);
+                                    filteredLog('info', `[${requestId}] Empty response with ${statusCode} status`);
                                     resolve({});
                                 }
                             } else {
@@ -223,7 +223,7 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                                     const data = JSON.parse(text);
                                     resolve(data);
                                 } catch (parseError) {
-                                    log('warn', `[${requestId}] Could not parse JSON response: ${parseError.message}`);
+                                    filteredLog('warn', `[${requestId}] Could not parse JSON response: ${parseError.message}`);
                                     // Return the raw text if we can't parse it as JSON
                                     resolve({text: text, statusCode: statusCode});
                                 }
@@ -238,9 +238,9 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                             try {
                                 let decoder = new TextDecoder('utf-8');
                                 errorBody = decoder.decode(bytes.get_data());
-                                log('error', `[${requestId}] Error response (${method} ${path}, ${statusCode}): ${errorBody}`);
+                                filteredLog('error', `[${requestId}] Error response (${method} ${path}, ${statusCode}): ${errorBody}`);
                             } catch (decodeError) {
-                                log('error', `[${requestId}] Failed to decode error response for ${method} ${path}: ${decodeError}`);
+                                filteredLog('error', `[${requestId}] Failed to decode error response for ${method} ${path}: ${decodeError}`);
                             }
                             
                             // Update erroring state for GET requests to groups or lights
@@ -251,14 +251,14 @@ export async function fetchAPI(path, method = 'GET', body = null, stateUpdateEmi
                             reject(new Error(`HTTP error ${statusCode}: ${errorBody}`));
                         }
                     } catch (e) {
-                        log('error', `[${requestId}] Error processing response for ${method} ${path}: ${e.message}`);
+                        filteredLog('error', `[${requestId}] Error processing response for ${method} ${path}: ${e.message}`);
                         reject(e);
                     }
                 }
             );
         });
     } catch (e) {
-        log('error', `[${requestId}] Request failed for ${method} ${path}: ${e.message}`);
+        filteredLog('error', `[${requestId}] Request failed for ${method} ${path}: ${e.message}`);
         throw e;
     }
 }

@@ -1,6 +1,6 @@
 'use strict';
 
-import { log } from '../utils.js';
+import { filteredLog } from '../utils.js';
 
 // Event types for state changes
 export const StateEvents = Object.freeze({
@@ -41,7 +41,7 @@ export class StateManager {
      */
     subscribe(event, callback) {
         if (!this._listeners.has(event)) {
-            log('warn', `StateManager: Unknown event type: ${event}`);
+            filteredLog('warn', `StateManager: Unknown event type: ${event}`);
             return () => {};
         }
         
@@ -62,7 +62,7 @@ export class StateManager {
      */
     _emit(event, data) {
         if (!this._listeners.has(event)) {
-            log('warn', `StateManager: Trying to emit unknown event type: ${event}`);
+            filteredLog('warn', `StateManager: Trying to emit unknown event type: ${event}`);
             return;
         }
         
@@ -72,7 +72,7 @@ export class StateManager {
             try {
                 callback(data);
             } catch (error) {
-                log('error', `StateManager: Error in event listener for ${event}:`, error);
+                filteredLog('error', `StateManager: Error in event listener for ${event}:`, error);
             }
         });
         
@@ -84,7 +84,7 @@ export class StateManager {
                 try {
                     callback({ type: event, data });
                 } catch (error) {
-                    log('error', `StateManager: Error in general state change listener:`, error);
+                    filteredLog('error', `StateManager: Error in general state change listener:`, error);
                 }
             });
         }
@@ -122,7 +122,7 @@ export class StateManager {
      */
     updateLight(lightId, updates) {
         if (!lightId || typeof lightId !== 'string' || !updates) {
-            log('warn', `StateManager: Attempted to update light with invalid ID:`, updates);
+            filteredLog('warn', `StateManager: Attempted to update light with invalid ID:`, updates);
             return;
         }
         
@@ -150,7 +150,7 @@ export class StateManager {
      */
     updateGroup(groupId, updates) {
         if (!groupId || typeof groupId !== 'string' || !updates) {
-            log('warn', `StateManager: Attempted to update group with invalid ID:`, updates);
+            filteredLog('warn', `StateManager: Attempted to update group with invalid ID:`, updates);
             return;
         }
         

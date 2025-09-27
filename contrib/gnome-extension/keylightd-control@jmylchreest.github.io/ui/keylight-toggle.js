@@ -6,7 +6,7 @@ import Clutter from "gi://Clutter";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import * as QuickSettings from "resource:///org/gnome/shell/ui/quickSettings.js";
 import { StateEvents } from "../managers/state-manager.js";
-import { log } from "../utils.js";
+import { filteredLog } from "../utils.js";
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
 import {
@@ -388,7 +388,7 @@ export const KeylightdControlToggle = GObject.registerClass(
      */
     async _loadControls() {
       if (this._isLoadingControls) {
-        log("debug", "Already loading controls, skipping duplicate call");
+        filteredLog("debug", "Already loading controls, skipping duplicate call");
         return;
       }
       this._isLoadingControls = true;
@@ -433,7 +433,7 @@ export const KeylightdControlToggle = GObject.registerClass(
             this._lightsController.getVisibleLights(),
           ]);
         } catch (error) {
-          log("warn", "Could not get total counts:", error);
+          filteredLog("warn", "Could not get total counts:", error);
         }
 
         // Update toggle state first so the global icon is updated
@@ -450,7 +450,7 @@ export const KeylightdControlToggle = GObject.registerClass(
                 group.id,
               );
               if (!groupLights || groupLights.length === 0) {
-                log("info", `Group ${group.id} has no lights, skipping`);
+                filteredLog("info", `Group ${group.id} has no lights, skipping`);
                 continue;
               }
               // Determine group state: on if any light is on
@@ -481,7 +481,7 @@ export const KeylightdControlToggle = GObject.registerClass(
               this._lightsContainer.add_child(groupSection);
               itemCount++;
             } catch (error) {
-              log("error", `Error loading group ${group.id}:`, error);
+              filteredLog("error", `Error loading group ${group.id}:`, error);
             }
           }
         }
@@ -540,7 +540,7 @@ export const KeylightdControlToggle = GObject.registerClass(
               this._lightsContainer.add_child(lightSection);
               itemCount++;
             } catch (error) {
-              log("error", `Error loading light ${light.id}:`, error);
+              filteredLog("error", `Error loading light ${light.id}:`, error);
             }
           }
         }
@@ -601,7 +601,7 @@ export const KeylightdControlToggle = GObject.registerClass(
         // Update state manager's error state
         this._stateManager.setErroring(false);
       } catch (error) {
-        log("error", "Error loading controls:", error);
+        filteredLog("error", "Error loading controls:", error);
 
         // Show error message
         const errorLabel = new St.Label({
@@ -627,7 +627,7 @@ export const KeylightdControlToggle = GObject.registerClass(
       let totalHeight = 0;
       let child = this._lightsContainer.get_first_child();
 
-      log("debug", "Starting scroll view height calculation");
+      filteredLog("debug", "Starting scroll view height calculation");
 
       // Helper function to safely get numeric style property
       const getNumericStyleProperty = (actor, property) => {
@@ -636,12 +636,12 @@ export const KeylightdControlToggle = GObject.registerClass(
           const style = actor.get_style();
           if (style && style[property]) {
             const value = parseFloat(style[property]);
-            log("debug", `Style property ${property}: ${value}`);
+            filteredLog("debug", `Style property ${property}: ${value}`);
             return isNaN(value) ? 0 : value;
           }
           return 0;
         } catch (e) {
-          log("debug", `Error getting style property ${property}: ${e}`);
+          filteredLog("debug", `Error getting style property ${property}: ${e}`);
           return 0;
         }
       };
@@ -649,7 +649,7 @@ export const KeylightdControlToggle = GObject.registerClass(
       // Helper function to get actor height
       const getActorHeight = (actor) => {
         if (!actor || actor.is_finalized) {
-          log("debug", "Actor is null or finalized, returning 0 height");
+          filteredLog("debug", "Actor is null or finalized, returning 0 height");
           return 0;
         }
 
@@ -660,26 +660,26 @@ export const KeylightdControlToggle = GObject.registerClass(
             actor.get_preferred_size();
           if (natHeight > 0) {
             height = natHeight;
-            log(
+            filteredLog(
               "debug",
               `Child ${childIndex} Using natural height: ${height} (min: ${minHeight}, nat: ${natHeight})`,
             );
           } else if (minHeight > 0) {
             height = minHeight;
-            log(
+            filteredLog(
               "debug",
               `Child ${childIndex} Using minimum height: ${height} (min: ${minHeight}, nat: ${natHeight})`,
             );
           } else {
             // Fallback to height property
             height = actor.height || 0;
-            log(
+            filteredLog(
               "debug",
               `Child ${childIndex} Using direct height property: ${height}`,
             );
           }
         } catch (e) {
-          log("debug", `Error getting height, using 0: ${e}`);
+          filteredLog("debug", `Error getting height, using 0: ${e}`);
           height = 0;
         }
         return height;
@@ -702,12 +702,12 @@ export const KeylightdControlToggle = GObject.registerClass(
             height + marginTop + marginBottom + paddingTop + paddingBottom;
           totalHeight += childTotal;
 
-          log(
+          filteredLog(
             "debug",
             `Running total: ${totalHeight}; Child ${childIndex} total: ${childTotal} (height: ${height}, margins: ${marginTop + marginBottom}, padding: ${paddingTop + paddingBottom})`,
           );
         } else {
-          log("debug", `Skipping finalized child ${childIndex}`);
+          filteredLog("debug", `Skipping finalized child ${childIndex}`);
         }
         child = child.get_next_sibling();
         childIndex++;
@@ -740,15 +740,15 @@ export const KeylightdControlToggle = GObject.registerClass(
           buttonMarginBottom +
           buttonPaddingTop +
           buttonPaddingBottom;
-        log(
+        filteredLog(
           "debug",
           `Settings button total: ${buttonTotal} (height: ${buttonHeight}, margins: ${buttonMarginTop + buttonMarginBottom}, padding: ${buttonPaddingTop + buttonPaddingBottom})`,
         );
 
         totalHeight += buttonTotal;
-        log("debug", `Final total height with settings button: ${totalHeight}`);
+        filteredLog("debug", `Final total height with settings button: ${totalHeight}`);
       } else {
-        log("debug", "Settings button not found or finalized");
+        filteredLog("debug", "Settings button not found or finalized");
       }
 
       // Ensure we have a valid positive height
@@ -928,11 +928,11 @@ export const KeylightdControlToggle = GObject.registerClass(
               }
             }
           } catch (err) {
-            log("error", `Error refreshing group ${group.id}:`, err);
+            filteredLog("error", `Error refreshing group ${group.id}:`, err);
           }
         }
       } catch (error) {
-        log("error", "Error refreshing all group states:", error);
+        filteredLog("error", "Error refreshing all group states:", error);
       }
     }
 
@@ -943,7 +943,7 @@ export const KeylightdControlToggle = GObject.registerClass(
      */
     async _toggleLightState(lightId, state) {
       try {
-        log("info", `Toggling light ${lightId} to ${state}`);
+        filteredLog("info", `Toggling light ${lightId} to ${state}`);
 
         // Find the section first to get immediate UI feedback
         const section = this._uiBuilder.getSectionById(
@@ -990,7 +990,7 @@ export const KeylightdControlToggle = GObject.registerClass(
         // Refresh all groups and their states to ensure UI consistency
         await this._refreshAllGroupStates();
       } catch (error) {
-        log("error", `Error toggling light ${lightId}:`, error);
+        filteredLog("error", `Error toggling light ${lightId}:`, error);
       }
     }
 
@@ -1001,7 +1001,7 @@ export const KeylightdControlToggle = GObject.registerClass(
      */
     async _toggleGroupState(groupId, state) {
       try {
-        log("info", `Toggling group ${groupId} to ${state}`);
+        filteredLog("info", `Toggling group ${groupId} to ${state}`);
 
         // Find the section first to get immediate UI feedback
         const section = this._uiBuilder.getSectionById(
@@ -1079,7 +1079,7 @@ export const KeylightdControlToggle = GObject.registerClass(
             }
           }
         } catch (err) {
-          log(
+          filteredLog(
             "error",
             `Error updating UI for lights in group ${groupId}:`,
             err,
@@ -1092,7 +1092,7 @@ export const KeylightdControlToggle = GObject.registerClass(
         // Update global toggle state to ensure it reflects the current state
         await this._updateToggleState();
       } catch (error) {
-        log("error", `Error toggling group ${groupId}:`, error);
+        filteredLog("error", `Error toggling group ${groupId}:`, error);
       }
     }
 
@@ -1126,7 +1126,7 @@ export const KeylightdControlToggle = GObject.registerClass(
         this._updateIcon(newState ? LightStates.ENABLED : LightStates.DISABLED);
 
         // Log what we're doing
-        log(
+        filteredLog(
           "debug",
           `Toggle all lights: Current state=${anyLightOn}, new state=${newState}`,
         );
@@ -1224,10 +1224,10 @@ export const KeylightdControlToggle = GObject.registerClass(
         }
 
         if (visibleGroups.length === 0 && visibleLights.length === 0) {
-          log("info", "No visible lights or groups to toggle");
+          filteredLog("info", "No visible lights or groups to toggle");
         }
       } catch (error) {
-        log("error", "Error toggling lights:", error);
+        filteredLog("error", "Error toggling lights:", error);
       }
     }
 
@@ -1343,11 +1343,11 @@ export const KeylightdControlToggle = GObject.registerClass(
           try {
             this.menu.setHeader(this._getIcon(newState), _("Lights"));
           } catch (e) {
-            log("debug", "Menu header not fully initialized yet: " + e);
+            filteredLog("debug", "Menu header not fully initialized yet: " + e);
           }
         }
       } catch (error) {
-        log("error", "Error updating toggle state:", error);
+        filteredLog("error", "Error updating toggle state:", error);
         this._updateIcon(LightStates.UNKNOWN);
       }
     }
@@ -1402,11 +1402,11 @@ export const KeylightdControlToggle = GObject.registerClass(
                 : "";
             this.menu.setHeader(this._getIcon(newState), _("Lights"), subtitle);
           } catch (e) {
-            log("debug", "Menu header not fully initialized yet: " + e);
+            filteredLog("debug", "Menu header not fully initialized yet: " + e);
           }
         }
       } catch (error) {
-        log("error", "Error updating toggle state:", error);
+        filteredLog("error", "Error updating toggle state:", error);
         this._updateIcon(LightStates.UNKNOWN);
       }
     }
