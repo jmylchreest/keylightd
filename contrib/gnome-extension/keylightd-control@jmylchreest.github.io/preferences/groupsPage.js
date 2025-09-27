@@ -7,7 +7,7 @@ import GObject from "gi://GObject";
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 // Import shared utilities
-import { fetchAPI, getErroring, log } from "../utils.js";
+import { fetchAPI, getErroring, filteredLog } from "../utils.js";
 import { SYSTEM_PREFS_GROUPS_ICON } from "../icon-names.js";
 
 // A dialog for adding/editing groups
@@ -150,10 +150,17 @@ const GroupDialog = GObject.registerClass(
         let groupLightIds = [];
         if (this._group) {
           try {
-            filteredLog("info", `Fetching details for group ${this._group.id}...`);
+            filteredLog(
+              "info",
+              `Fetching details for group ${this._group.id}...`,
+            );
             const groupDetails = await fetchAPI(`groups/${this._group.id}`);
             groupLightIds = groupDetails.lights || [];
-            filteredLog("info", `Group ${this._group.id} has lights:`, groupLightIds);
+            filteredLog(
+              "info",
+              `Group ${this._group.id} has lights:`,
+              groupLightIds,
+            );
           } catch (error) {
             filteredLog("error", `Error loading group details: ${error}`);
             this._showError(
@@ -282,7 +289,11 @@ const GroupDialog = GObject.registerClass(
 
         if (this._group) {
           // Update existing group
-          filteredLog("info", `Updating group ${this._group.id} with:`, groupData);
+          filteredLog(
+            "info",
+            `Updating group ${this._group.id} with:`,
+            groupData,
+          );
           const endpoint = `groups/${this._group.id}/lights`;
           const method = "PUT";
           const body = { light_ids: selectedLights };
@@ -499,20 +510,36 @@ export var GroupsPage = GObject.registerClass(
       this._settings.connect("changed::api-url", () => {
         try {
           this._loadGroups().catch((error) => {
-            filteredLog("error", "Error loading groups after API URL change:", error);
+            filteredLog(
+              "error",
+              "Error loading groups after API URL change:",
+              error,
+            );
           });
         } catch (error) {
-          filteredLog("error", "Error loading groups after API URL change:", error);
+          filteredLog(
+            "error",
+            "Error loading groups after API URL change:",
+            error,
+          );
         }
       });
 
       this._settings.connect("changed::api-key", () => {
         try {
           this._loadGroups().catch((error) => {
-            filteredLog("error", "Error loading groups after API key change:", error);
+            filteredLog(
+              "error",
+              "Error loading groups after API key change:",
+              error,
+            );
           });
         } catch (error) {
-          filteredLog("error", "Error loading groups after API key change:", error);
+          filteredLog(
+            "error",
+            "Error loading groups after API key change:",
+            error,
+          );
         }
       });
       // Listen for visible-groups changes and reload
@@ -839,7 +866,10 @@ export var GroupsPage = GObject.registerClass(
           // Then update the setting
           if (visible) {
             // Show all groups
-            filteredLog("info", `Setting all ${allGroupIds.length} groups to visible`);
+            filteredLog(
+              "info",
+              `Setting all ${allGroupIds.length} groups to visible`,
+            );
             this._settings.set_strv("visible-groups", allGroupIds);
           } else {
             // Hide all groups

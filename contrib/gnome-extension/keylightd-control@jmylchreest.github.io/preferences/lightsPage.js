@@ -7,7 +7,7 @@ import GObject from "gi://GObject";
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 // Import shared utilities
-import { fetchAPI, getErroring, log } from "../utils.js";
+import { fetchAPI, getErroring, filteredLog } from "../utils.js";
 import { SYSTEM_PREFS_LIGHTS_ICON } from "../icon-names.js";
 
 // Main Lights Page
@@ -354,7 +354,10 @@ export var LightsPage = GObject.registerClass(
           // Then update the setting
           if (visible) {
             // Show all lights
-            filteredLog("info", `Setting all ${allLightIds.length} lights to visible`);
+            filteredLog(
+              "info",
+              `Setting all ${allLightIds.length} lights to visible`,
+            );
             this._settings.set_strv("visible-lights", allLightIds);
           } else {
             // Hide all lights
