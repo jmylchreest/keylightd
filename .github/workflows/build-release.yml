@@ -274,6 +274,49 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload extension to EGO (extensions.gnome.org)
+        if: steps.version.outputs.IS_SNAPSHOT == 'false' && secrets.EGO_USERNAME != '' && secrets.EGO_PASSWORD != ''
+        continue-on-error: true
+        run: |
+          set +e
+          echo "Preparing GNOME Extensions (EGO) upload (non-fatal step)"
+          echo "Installing gnome-extensions CLI (if needed)"
+          sudo apt-get update
+          sudo apt-get install -y gnome-shell-extension-prefs || true
+
+          if ! command -v gnome-extensions >/dev/null 2>&1; then
+            echo "gnome-extensions CLI not found; attempting fallback install of gnome-shell-common"
+            sudo apt-get install -y gnome-shell-common || true
+          fi
+
+          if ! command -v gnome-extensions >/dev/null 2>&1; then
+            echo "::warning::Skipping EGO upload: gnome-extensions CLI not available after install attempts."
+            exit 0
+          fi
+
+          ZIP_FILE=$(find dist/gnome-extension -maxdepth 1 -name "*.zip" -print -quit)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::warning::Skipping EGO upload: no extension zip found in dist/gnome-extension."
+            exit 0
+          fi
+
+          echo "Uploading ${ZIP_FILE} to EGO (accepting ToS)"
+          gnome-extensions upload --accept-tos --force "$ZIP_FILE" \
+            --user "${EGO_USERNAME}" \
+            --password "${EGO_PASSWORD}"
+          STATUS=$?
+
+          if [ $STATUS -ne 0 ]; then
+            echo "::warning::EGO upload failed with status ${STATUS} (continuing build)."
+          else
+            echo "EGO upload completed successfully."
+          fi
+
+          echo "EGO upload step finished (non-fatal)."
+        env:
+          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
+          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+
   # flatpak:
   #   name: Build Flatpak
   #   needs: goreleaser
