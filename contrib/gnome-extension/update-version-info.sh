@@ -8,6 +8,7 @@ set -e
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSION_FILE="$SCRIPT_DIR/keylightd-control@jmylchreest.github.io/version-info.json"
+METADATA_FILE="$SCRIPT_DIR/keylightd-control@jmylchreest.github.io/metadata.json"
 
 # Default values
 PROJECT_NAME="keylightd gnome-extension"
@@ -47,6 +48,28 @@ if [[ ${#COMMIT} -eq 40 ]]; then
     COMMIT="${COMMIT:0:7}"
 fi
 
+# Normalize VERSION (remove any leading 'v' again defensively)
+VERSION="${VERSION#v}"
+
+# Derive integer extension version from semantic version (MAJOR.MINOR.PATCH)
+# Encoding scheme: MAJOR * 10000 + MINOR * 100 + PATCH
+if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+    MAJOR="${BASH_REMATCH[1]}"
+    MINOR="${BASH_REMATCH[2]}"
+    PATCH="${BASH_REMATCH[3]}"
+else
+    # Fallback if version is not strict semver
+    MAJOR=0
+    MINOR=0
+    PATCH=0
+fi
+# Overflow guard: ensure MINOR and PATCH stay within 0-99 to avoid encoding collisions.
+if [ "$MINOR" -ge 100 ] || [ "$PATCH" -ge 100 ]; then
+    echo "Version component overflow: minor=$MINOR patch=$PATCH exceed encoding limits (0-99). Update encoding scheme before releasing." >&2
+    exit 1
+fi
+EXT_INT_VERSION=$(( MAJOR * 10000 + MINOR * 100 + PATCH ))
+
 # Create the version-info.json file
 cat > "$VERSION_FILE" << EOF
 {
@@ -58,6 +81,22 @@ cat > "$VERSION_FILE" << EOF
 EOF
 
 echo "Updated version info:"
-echo "  Version: $VERSION"
+echo "  Version (semver): $VERSION"
 echo "  Commit: $COMMIT"
 echo "  File: $VERSION_FILE"
+echo "  Computed extension integer version: $EXT_INT_VERSION"
+
+# Update metadata.json version field (integer for EGO)
+if [ -f "$METADATA_FILE" ]; then
+    if command -v jq >/dev/null 2>&1; then
+        TMP_META="$(mktemp)"
+        jq --argjson v "$EXT_INT_VERSION" '.version = $v' "$METADATA_FILE" > "$TMP_META"
+        mv "$TMP_META" "$METADATA_FILE"
+    else
+        # Sed fallback (simple pattern replacement)
+        sed -i -E "s/\"version\": *[0-9]+/\"version\": ${EXT_INT_VERSION}/" "$METADATA_FILE"
+    fi
+    echo "metadata.json updated with version: $EXT_INT_VERSION"
+else
+    echo "WARNING: metadata.json not found at $METADATA_FILE"
+fi
