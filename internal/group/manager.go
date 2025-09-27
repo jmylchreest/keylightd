@@ -13,6 +13,17 @@ import (
 )
 
 // Manager handles light group management
+// Concurrency contract:
+//   - All access to m.groups is protected by mu (RWMutex).
+//   - Read methods (GetGroup, GetGroups, GetGroupsByName) acquire RLock.
+//   - Mutating methods (CreateGroup, DeleteGroup, SetGroupLights, AddLightsToGroup, RemoveLightsFromGroup, UpdateGroupName)
+//     hold Lock only for in-memory modifications and release it before persistence.
+//   - Persistence (saveGroups) snapshots groups under a read lock, then updates config & saves outside the write path.
+//   - Returned *Group pointers must be treated as read-only by callers; mutating them directly risks data races.
+//
+// Future considerations:
+// - Return defensive copies (DTOs) to avoid accidental external mutation.
+// - Add batch operations with structured result reporting for partial failures.
 type Manager struct {
 	logger *slog.Logger
 	lights keylight.LightManager

@@ -9,6 +9,17 @@ import (
 )
 
 // Manager handles API key business logic
+// Concurrency contract:
+//   - All mutations & persistence go through config.Config which encapsulates its own mutex.
+//   - This manager does not layer additional locking; config methods (AddAPIKey, SetAPIKeyDisabledStatus, Save, etc.)
+//     are assumed to be safe for concurrent invocation.
+//   - Returned *config.APIKey pointers must be treated as read-only; callers should not modify fields directly.
+//   - ValidateAPIKey performs a mutation (LastUsedAt) via config which handles synchronization.
+//
+// Future considerations:
+//   - If additional in-memory (non-config) state is added here, introduce a dedicated RWMutex.
+//   - Consider returning defensive copies if external mutation risk is observed in reviews.
+//   - Add metrics hooks (e.g., validations, creations) once a metrics subsystem is introduced.
 type Manager struct {
 	cfg *config.Config
 	log *slog.Logger

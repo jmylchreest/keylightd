@@ -73,6 +73,17 @@ type ConfigBlock struct {
 }
 
 // Config represents the application configuration (top-level)
+//
+// Concurrency contract:
+//   - saveMutex protects BOTH in-memory mutation of State (APIKeys / Groups) and on-disk persistence in Save().
+//   - All mutator methods (AddAPIKey, DeleteAPIKey, SetAPIKeyDisabledStatus, UpdateAPIKeyLastUsed, SetAPIKeys, Save, etc.) acquire this mutex.
+//   - Read helpers that expose internal slices/maps (GetAPIKeys, FindAPIKey) also lock to avoid races; GetAPIKeys returns a copy,
+//     while FindAPIKey returns a pointer into the slice (treat as read-only outside config).
+//   - Callers MUST NOT modify returned *APIKey directly; all changes go through config methods to ensure locking & persistence.
+//   - If future performance profiling shows contention, consider splitting saveMutex into (stateMu, persistMu) but only after evidence.
+//   - Consider renaming saveMutex -> mu for semantic clarity in a future refactor.
+//
+// NOTE: Any new exported method that reads or mutates State should follow the same locking discipline.
 type Config struct {
 	State  State       `yaml:"state"`
 	Config ConfigBlock `yaml:"config"`

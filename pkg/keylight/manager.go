@@ -1,3 +1,15 @@
+/*
+Concurrency Notes (audit):
+- Read operations (GetDiscoveredLights, GetLights) use RLock and return snapshots (map/slice copies or new structs) to avoid external mutation of internal state.
+- Mutations (AddLight, SetLightState*, cleanupStaleLights) perform network/device I/O outside the write lock; only the minimal in-memory updates are under Lock to reduce contention.
+- cleanupStaleLights uses a two-phase approach: RLock to collect stale IDs, then Lock to remove, minimizing time spent holding the write lock.
+- getOrCreateClient & state fetch patterns avoid holding locks during remote calls.
+- Returned *Light pointers from GetLight should be treated as read-only by callers; direct mutation risks data races unless routed through manager methods.
+Future considerations:
+- Enforce deep-copy semantics for GetLight to eliminate accidental external mutation risks.
+- Replace context.Background() usages with caller-provided contexts for cancellation propagation.
+- Consider a lightweight RW lock partitioning (e.g., sharded maps) only if contention is observed under profiling.
+*/
 package keylight
 
 import (
@@ -52,12 +64,12 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	ctx := context.Background()
 	needsInfo := light.ProductName == "" || light.SerialNumber == ""
 	var info *AccessoryInfo
-	
+
 	if needsInfo {
 		info, err = m.fetchAccessoryInfo(ctx, client, id)
 		// Errors are already logged in fetchAccessoryInfo, continue without info
 	}
-	
+
 	// Fetch current state
 	state, err := m.fetchLightState(ctx, client, id)
 	if err != nil {
@@ -75,13 +87,13 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	// Update both state and info if needed
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// First update state
 	updatedLight, err := m.updateLightState(id, state)
 	if err != nil {
 		return light, err
 	}
-	
+
 	// Then update info if we fetched it
 	if needsInfo && info != nil {
 		updatedLight, err = m.updateLightInfo(id, info)
@@ -93,13 +105,13 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	// Log light information
 	m.logger.Debug("GetLight returning light", slog.String("id", id), slog.Any("light", *updatedLight))
 	if updatedLight.ProductName == "" || updatedLight.SerialNumber == "" || updatedLight.FirmwareVersion == "" {
-		m.logger.Warn("GetLight: missing key fields in returned light", 
-			slog.String("id", id), 
-			slog.String("productname", updatedLight.ProductName), 
-			slog.String("serialnumber", updatedLight.SerialNumber), 
+		m.logger.Warn("GetLight: missing key fields in returned light",
+			slog.String("id", id),
+			slog.String("productname", updatedLight.ProductName),
+			slog.String("serialnumber", updatedLight.SerialNumber),
 			slog.String("firmwareversion", updatedLight.FirmwareVersion))
 	}
-	
+
 	return updatedLight, nil
 }
 
@@ -116,21 +128,21 @@ func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) err
 	if err != nil {
 		return err
 	}
-	
+
 	ctx := context.Background()
-	
+
 	// Get current state from the device
 	state, err := m.fetchLightState(ctx, client, id)
 	if err != nil {
 		return err
 	}
-	
+
 	// Validate and prepare state update
 	propertyName := propertyValue.PropertyName()
 	if err := m.validateAndPrepareStateUpdate(string(propertyName), propertyValue.Value(), state); err != nil {
 		return err
 	}
-	
+
 	// Send updated state to device
 	if err := client.SetLightState(
 		ctx,
@@ -151,7 +163,7 @@ func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) err
 	m.mu.Lock()
 	_, err = m.updateLightState(id, state)
 	m.mu.Unlock()
-	
+
 	if err != nil {
 		return errors.NotFoundf("light %s removed during state update", id)
 	}
@@ -172,21 +184,21 @@ func (m *Manager) SetLightStateOld(id string, property string, value any) error 
 			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
 		return m.SetLightState(id, OnValue(on))
-		
+
 	case string(PropertyBrightness):
 		brightness, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
 		return m.SetLightState(id, BrightnessValue(brightness))
-		
+
 	case string(PropertyTemperature):
 		temp, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for temperature: %T", value)
 		}
 		return m.SetLightState(id, TemperatureValue(temp))
-		
+
 	default:
 		return errors.InvalidInputf("unknown property: %s", property)
 	}
@@ -265,7 +277,7 @@ func (m *Manager) AddLight(light Light) {
 	// Check if light already exists
 	if existingLight, exists := m.lights[light.ID]; exists {
 		m.logger.Debug("light already exists, updating", slog.String("id", light.ID))
-		
+
 		// Preserve any fields that might be missing in the new light
 		if light.ProductName == "" {
 			light.ProductName = existingLight.ProductName
@@ -289,12 +301,12 @@ func (m *Manager) AddLight(light Light) {
 func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.Duration, timeout time.Duration) {
 	m.logger.Debug("light: StartCleanupWorker called", "interval", cleanupInterval, "timeout", timeout)
 	if cleanupInterval <= 0 {
-		m.logger.Warn("Cleanup interval must be positive, using default instead", 
-			"interval", cleanupInterval, 
+		m.logger.Warn("Cleanup interval must be positive, using default instead",
+			"interval", cleanupInterval,
 			"default", config.DefaultCleanupInterval)
 		cleanupInterval = config.DefaultCleanupInterval
 	}
-	
+
 	go func() {
 		ticker := time.NewTicker(cleanupInterval)
 		defer ticker.Stop()
@@ -315,25 +327,25 @@ func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.D
 func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 	// Use default timeout if the provided one is invalid
 	if timeout <= 0 {
-		m.logger.Debug("Invalid cleanup timeout, using default", 
-			"provided", timeout, 
+		m.logger.Debug("Invalid cleanup timeout, using default",
+			"provided", timeout,
 			"default", config.DefaultStateTimeout)
 		timeout = config.DefaultStateTimeout
 	}
 
 	now := time.Now()
-	
+
 	// First identify stale lights with read lock to minimize lock duration
 	m.mu.RLock()
 	staleLights := []string{}
-	
+
 	for id, light := range m.lights {
 		if now.Sub(light.LastSeen) > timeout {
 			staleLights = append(staleLights, id)
 		}
 	}
 	m.mu.RUnlock()
-	
+
 	// If no stale lights, return quickly without acquiring write lock
 	if len(staleLights) == 0 {
 		return
@@ -342,7 +354,7 @@ func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 	// Now remove the stale lights with write lock
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Double-check the lights are still stale after acquiring write lock
 	for _, id := range staleLights {
 		if light, exists := m.lights[id]; exists {
