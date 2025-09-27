@@ -203,9 +203,9 @@ Running GNOME Shell in a nested Wayland session allows you to test and debug you
 
 1. **Start a nested GNOME Shell session:**
    ```sh
-   dbus-run-session -- gnome-shell --nested --wayland
+   dbus-run-session -- gnome-shell --devkit
    ```
-   This will open a new GNOME Shell window inside your current session.
+   This opens a development (devkit) GNOME Shell instance inside your current session (recommended for GNOME Shell 49+). For older shells (<49) you can still use: dbus-run-session -- gnome-shell --nested --wayland
 
 2. **Install and enable your extension inside the nested session:**
    - Open a terminal inside the nested session (e.g., with `Ctrl+Alt+T` or from the app grid).
