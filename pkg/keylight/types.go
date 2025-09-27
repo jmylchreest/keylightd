@@ -33,13 +33,13 @@ type Light struct {
 // LightManager defines the interface for managing Keylight devices
 type LightManager interface {
 	GetDiscoveredLights() []*Light
-	GetLight(id string) (*Light, error)
-	SetLightState(id string, propertyValue LightPropertyValue) error
-	SetLightBrightness(id string, brightness int) error
-	SetLightTemperature(id string, temperature int) error
-	SetLightPower(id string, on bool) error
+	GetLight(ctx context.Context, id string) (*Light, error)
+	SetLightState(ctx context.Context, id string, propertyValue LightPropertyValue) error
+	SetLightBrightness(ctx context.Context, id string, brightness int) error
+	SetLightTemperature(ctx context.Context, id string, temperature int) error
+	SetLightPower(ctx context.Context, id string, on bool) error
 	GetLights() map[string]*Light
-	AddLight(light Light)
+	AddLight(ctx context.Context, light Light)
 	StartCleanupWorker(ctx context.Context, cleanupInterval time.Duration, timeout time.Duration)
 }
 

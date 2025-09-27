@@ -20,7 +20,6 @@ import (
 
 type mockRoundTripper struct{}
 
-
 func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Method == http.MethodGet && req.URL.Path == "/elgato/lights" {
 		resp := map[string]any{
@@ -50,7 +49,6 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return &http.Response{StatusCode: 404, Body: io.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
 }
 
-
 func newTestManager(logger *slog.Logger) (*Manager, *http.Client) {
 	m := NewManager(logger)
 	mockClient := &http.Client{Transport: &mockRoundTripper{}}
@@ -73,6 +71,7 @@ func TestLightManagement(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 	manager, mockHTTP := newTestManager(logger)
+	ctx := context.Background()
 
 	// Add a test light with mock HTTP client
 	light := Light{
@@ -85,50 +84,50 @@ func TestLightManagement(t *testing.T) {
 	manager.clients[light.ID] = NewKeyLightClient(light.IP.String(), light.Port, logger, mockHTTP)
 
 	// Test getting light by ID
-	retrievedLight, err := manager.GetLight("test-light")
+	retrievedLight, err := manager.GetLight(ctx, "test-light")
 	require.NoError(t, err)
 	assert.Equal(t, light.ID, retrievedLight.ID)
 	assert.Equal(t, light.Name, retrievedLight.Name)
-	
+
 	// Test getting non-existent light
-	_, err = manager.GetLight("non-existent")
+	_, err = manager.GetLight(ctx, "non-existent")
 	assert.Error(t, err)
 
 	// Test setting on/off state
-	err = manager.SetLightState("test-light", OnValue(true))
+	err = manager.SetLightState(ctx, "test-light", OnValue(true))
 	require.NoError(t, err)
 
 	// Test setting light brightness
-	err = manager.SetLightState("test-light", BrightnessValue(50))
+	err = manager.SetLightState(ctx, "test-light", BrightnessValue(50))
 	require.NoError(t, err)
 
-	// Test setting light temperature 
-	err = manager.SetLightState("test-light", TemperatureValue(5000))
+	// Test setting light temperature
+	err = manager.SetLightState(ctx, "test-light", TemperatureValue(5000))
 	require.NoError(t, err)
 
 	// Test setting state for non-existent light
-	err = manager.SetLightState("non-existent", OnValue(true))
+	err = manager.SetLightState(ctx, "non-existent", OnValue(true))
 	assert.Error(t, err)
 
 	// Test input validation - brightness too high
-	err = manager.SetLightState("test-light", BrightnessValue(500))
+	err = manager.SetLightState(ctx, "test-light", BrightnessValue(500))
 	assert.Error(t, err)
 
 	// Test helper methods (these call SetLightState internally)
-	err = manager.SetLightBrightness("test-light", 75)
+	err = manager.SetLightBrightness(ctx, "test-light", 75)
 	require.NoError(t, err)
-	
-	err = manager.SetLightTemperature("test-light", 4500)
+
+	err = manager.SetLightTemperature(ctx, "test-light", 4500)
 	require.NoError(t, err)
-	
-	err = manager.SetLightPower("test-light", false)
+
+	err = manager.SetLightPower(ctx, "test-light", false)
 	require.NoError(t, err)
-	
+
 	// Test GetLights and GetDiscoveredLights
 	lights := manager.GetLights()
 	assert.NotEmpty(t, lights)
 	assert.Contains(t, lights, "test-light")
-	
+
 	discoveredLights := manager.GetDiscoveredLights()
 	assert.Len(t, discoveredLights, 1)
 	assert.Equal(t, light.ID, discoveredLights[0].ID)
@@ -171,7 +170,7 @@ func TestCleanupStaleDevices(t *testing.T) {
 		Port:     9123,
 		LastSeen: time.Now(), // Just now
 	}
-	
+
 	manager.lights[staleLight.ID] = staleLight
 	manager.lights[freshLight.ID] = freshLight
 	manager.clients[staleLight.ID] = NewKeyLightClient(staleLight.IP.String(), staleLight.Port, logger, mockHTTP)
@@ -179,7 +178,7 @@ func TestCleanupStaleDevices(t *testing.T) {
 
 	// Run cleanup with 5 minute timeout
 	manager.cleanupStaleLights(5 * time.Minute)
-	
+
 	// Stale light should be removed, fresh light should remain
 	assert.NotContains(t, manager.lights, staleLight.ID)
 	assert.NotContains(t, manager.clients, staleLight.ID)
@@ -195,24 +194,24 @@ func TestAddLight(t *testing.T) {
 
 	// Create a light to add
 	newLight := Light{
-		ID:       "new-light",
-		Name:     "New Light",
-		IP:       net.ParseIP("192.168.1.4"),
-		Port:     9123,
+		ID:   "new-light",
+		Name: "New Light",
+		IP:   net.ParseIP("192.168.1.4"),
+		Port: 9123,
 	}
-	
+
 	// Add the light
-	manager.AddLight(newLight)
-	
+	manager.AddLight(context.Background(), newLight)
+
 	// Verify the light was added
 	assert.Contains(t, manager.lights, newLight.ID)
 	assert.Contains(t, manager.clients, newLight.ID)
-	
+
 	// Test adding a light that already exists (should update)
 	updatedLight := newLight
 	updatedLight.Name = "Updated Light"
-	manager.AddLight(updatedLight)
-	
+	manager.AddLight(context.Background(), updatedLight)
+
 	// Verify the light was updated
 	assert.Equal(t, "Updated Light", manager.lights[newLight.ID].Name)
 }
@@ -222,28 +221,28 @@ func TestStartCleanupWorker(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 	manager, _ := newTestManager(logger)
-	
+
 	// Create a context with immediate cancellation
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	// Start the cleanup worker with minimal intervals
 	manager.StartCleanupWorker(ctx, 10*time.Millisecond, 5*time.Minute)
-	
+
 	// Give it a moment to start
 	time.Sleep(20 * time.Millisecond)
-	
+
 	// Cancel the context to stop the worker
 	cancel()
-	
+
 	// Give it a moment to stop
 	time.Sleep(20 * time.Millisecond)
-	
+
 	// Test with invalid interval (should use default)
 	ctx2, cancel2 := context.WithCancel(context.Background())
 	defer cancel2()
-	
+
 	manager.StartCleanupWorker(ctx2, -1*time.Second, 5*time.Minute)
-	
+
 	// Give it a moment to start
 	time.Sleep(20 * time.Millisecond)
 }

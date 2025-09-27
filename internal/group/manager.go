@@ -1,6 +1,7 @@
 package group
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -16,7 +17,7 @@ import (
 // Concurrency contract:
 //   - All access to m.groups is protected by mu (RWMutex).
 //   - Read methods (GetGroup, GetGroups, GetGroupsByName) acquire RLock.
-//   - Mutating methods (CreateGroup, DeleteGroup, SetGroupLights, AddLightsToGroup, RemoveLightsFromGroup, UpdateGroupName)
+//   - Mutating methods (CreateGroup, DeleteGroup, SetGroupLights, SetGroupState, SetGroupBrightness, SetGroupTemperature)
 //     hold Lock only for in-memory modifications and release it before persistence.
 //   - Persistence (saveGroups) snapshots groups under a read lock, then updates config & saves outside the write path.
 //   - Returned *Group pointers must be treated as read-only by callers; mutating them directly risks data races.
@@ -144,7 +145,7 @@ func (m *Manager) saveGroups() error {
 }
 
 // CreateGroup creates a new group of lights
-func (m *Manager) CreateGroup(name string, lightIDs []string) (*Group, error) {
+func (m *Manager) CreateGroup(ctx context.Context, name string, lightIDs []string) (*Group, error) {
 	m.logger.Debug("Creating group", "name", name, "lights", lightIDs)
 
 	m.mu.Lock()
@@ -156,7 +157,7 @@ func (m *Manager) CreateGroup(name string, lightIDs []string) (*Group, error) {
 
 	// Verify all lights exist
 	for _, id := range lightIDs {
-		if _, err := m.lights.GetLight(id); err != nil {
+		if _, err := m.lights.GetLight(ctx, id); err != nil {
 			m.mu.Unlock()
 			m.logger.Error("Light not found", "id", id, "error", err)
 			return nil, fmt.Errorf("light not found: %s", err)
@@ -228,7 +229,7 @@ func (m *Manager) GetGroups() []*Group {
 }
 
 // SetGroupLights sets the lights in a group
-func (m *Manager) SetGroupLights(id string, lightIDs []string) error {
+func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []string) error {
 	m.mu.Lock()
 	group, exists := m.groups[id]
 	if !exists {
@@ -238,7 +239,7 @@ func (m *Manager) SetGroupLights(id string, lightIDs []string) error {
 
 	// Verify all lights exist
 	for _, lightID := range lightIDs {
-		if _, err := m.lights.GetLight(lightID); err != nil {
+		if _, err := m.lights.GetLight(ctx, lightID); err != nil {
 			m.mu.Unlock()
 			return fmt.Errorf("light not found: %s", err)
 		}
@@ -257,7 +258,7 @@ func (m *Manager) SetGroupLights(id string, lightIDs []string) error {
 }
 
 // SetGroupState sets the power state for all lights in a group
-func (m *Manager) SetGroupState(groupID string, on bool) error {
+func (m *Manager) SetGroupState(ctx context.Context, groupID string, on bool) error {
 	group, err := m.GetGroup(groupID)
 	if err != nil {
 		return err
@@ -269,7 +270,7 @@ func (m *Manager) SetGroupState(groupID string, on bool) error {
 		wg.Add(1)
 		go func(lightID string) {
 			defer wg.Done()
-			if err := m.lights.SetLightState(lightID, keylight.OnValue(on)); err != nil {
+			if err := m.lights.SetLightState(ctx, lightID, keylight.OnValue(on)); err != nil {
 				errCh <- fmt.Errorf("light %s: %w", lightID, err)
 			}
 		}(id)
@@ -288,7 +289,7 @@ func (m *Manager) SetGroupState(groupID string, on bool) error {
 }
 
 // SetGroupBrightness sets the brightness for all lights in a group
-func (m *Manager) SetGroupBrightness(groupID string, brightness int) error {
+func (m *Manager) SetGroupBrightness(ctx context.Context, groupID string, brightness int) error {
 	group, err := m.GetGroup(groupID)
 	if err != nil {
 		return err
@@ -300,7 +301,7 @@ func (m *Manager) SetGroupBrightness(groupID string, brightness int) error {
 		wg.Add(1)
 		go func(lightID string) {
 			defer wg.Done()
-			if err := m.lights.SetLightBrightness(lightID, brightness); err != nil {
+			if err := m.lights.SetLightBrightness(ctx, lightID, brightness); err != nil {
 				errCh <- fmt.Errorf("light %s: %w", lightID, err)
 			}
 		}(id)
@@ -319,7 +320,7 @@ func (m *Manager) SetGroupBrightness(groupID string, brightness int) error {
 }
 
 // SetGroupTemperature sets the color temperature for all lights in a group
-func (m *Manager) SetGroupTemperature(groupID string, temperature int) error {
+func (m *Manager) SetGroupTemperature(ctx context.Context, groupID string, temperature int) error {
 	group, err := m.GetGroup(groupID)
 	if err != nil {
 		return err
@@ -331,7 +332,7 @@ func (m *Manager) SetGroupTemperature(groupID string, temperature int) error {
 		wg.Add(1)
 		go func(lightID string) {
 			defer wg.Done()
-			if err := m.lights.SetLightTemperature(lightID, temperature); err != nil {
+			if err := m.lights.SetLightTemperature(ctx, lightID, temperature); err != nil {
 				errCh <- fmt.Errorf("light %s: %w", lightID, err)
 			}
 		}(id)
@@ -346,93 +347,6 @@ func (m *Manager) SetGroupTemperature(groupID string, temperature int) error {
 	if len(errs) > 0 {
 		return fmt.Errorf("errors occurred: %v", errs)
 	}
-	return nil
-}
-
-// AddLightsToGroup adds lights to a group
-func (m *Manager) AddLightsToGroup(groupID string, lightIDs []string) error {
-	m.mu.Lock()
-	group, exists := m.groups[groupID]
-	if !exists {
-		m.mu.Unlock()
-		return fmt.Errorf("group not found: %s", groupID)
-	}
-
-	// Add only unique lights
-	lightSet := make(map[string]bool)
-	for _, id := range group.Lights {
-		lightSet[id] = true
-	}
-	for _, id := range lightIDs {
-		if !lightSet[id] {
-			group.Lights = append(group.Lights, id)
-			lightSet[id] = true
-		}
-	}
-	m.logger.Info("added lights to group", "group", groupID, "lights", lightIDs)
-	m.mu.Unlock()
-
-	// Save groups to config
-	if err := m.saveGroups(); err != nil {
-		m.logger.Error("failed to save groups", "error", err)
-	}
-
-	return nil
-}
-
-// RemoveLightsFromGroup removes lights from a group
-func (m *Manager) RemoveLightsFromGroup(groupID string, lightIDs []string) error {
-	m.mu.Lock()
-	group, exists := m.groups[groupID]
-	if !exists {
-		m.mu.Unlock()
-		return fmt.Errorf("group not found: %s", groupID)
-	}
-
-	// Create a map for faster lookups
-	toRemove := make(map[string]bool)
-	for _, id := range lightIDs {
-		toRemove[id] = true
-	}
-
-	// Filter out the lights to remove
-	newLights := make([]string, 0, len(group.Lights))
-	for _, id := range group.Lights {
-		if !toRemove[id] {
-			newLights = append(newLights, id)
-		}
-	}
-
-	group.Lights = newLights
-	m.logger.Info("removed lights from group", "group", groupID, "lights", lightIDs)
-	m.mu.Unlock()
-
-	// Save groups to config
-	if err := m.saveGroups(); err != nil {
-		m.logger.Error("failed to save groups", "error", err)
-	}
-
-	return nil
-}
-
-// UpdateGroupName updates the name of an existing group
-func (m *Manager) UpdateGroupName(groupID string, newName string) error {
-	m.mu.Lock()
-	group, exists := m.groups[groupID]
-	if !exists {
-		m.mu.Unlock()
-		return fmt.Errorf("group not found: %s", groupID)
-	}
-
-	group.Name = newName
-	m.logger.Info("updated group name", "group", groupID, "new_name", newName)
-	m.mu.Unlock()
-
-	// Save groups to config
-	if err := m.saveGroups(); err != nil {
-		m.logger.Error("failed to save groups", "error", err)
-	}
-
 	return nil
 }
 

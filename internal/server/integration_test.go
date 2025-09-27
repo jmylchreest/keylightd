@@ -79,7 +79,7 @@ func TestServerSocketStartStop(t *testing.T) {
 // TestSocketCommunication tests communication with the server over a Unix socket
 func TestSocketCommunication(t *testing.T) {
 	server, _, socketPath := setupIntegrationTest(t)
-	
+
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestHTTPSetLightState(t *testing.T) {
 // TestConcurrentRequests tests handling multiple concurrent requests
 func TestConcurrentRequests(t *testing.T) {
 	server, _, socketPath := setupIntegrationTest(t)
-	
+
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
@@ -183,5 +183,39 @@ func TestConcurrentRequests(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("Test timed out waiting for concurrent requests")
 		}
+	}
+}
+
+// TestServerShutdownGraceful verifies that Stop() terminates goroutines and prevents new connections.
+func TestServerShutdownGraceful(t *testing.T) {
+	server, _, socketPath := setupIntegrationTest(t)
+
+	// Start server
+	err := server.Start()
+	require.NoError(t, err)
+	// Give the server some time to start listener
+	time.Sleep(50 * time.Millisecond)
+
+	// Open a connection to ensure accept loop is active
+	conn, err := net.Dial("unix", socketPath)
+	require.NoError(t, err)
+	_ = conn.Close()
+
+	// Issue shutdown
+	shutdownStart := time.Now()
+	server.Stop()
+
+	// After Stop(), the socket should be removed
+	_, statErr := os.Stat(socketPath)
+	require.True(t, os.IsNotExist(statErr), "socket should be removed after shutdown")
+
+	// Attempt to connect again should fail quickly
+	_, dialErr := net.DialTimeout("unix", socketPath, 100*time.Millisecond)
+	require.Error(t, dialErr, "dial should fail after shutdown")
+
+	// Shutdown should complete within a bounded time (sanity check)
+	elapsed := time.Since(shutdownStart)
+	if elapsed > 2*time.Second {
+		t.Fatalf("shutdown exceeded expected time: %s", elapsed)
 	}
 }

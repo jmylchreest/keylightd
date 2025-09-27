@@ -22,7 +22,7 @@ type mockLightManager struct {
 	lights map[string]*keylight.Light
 }
 
-func (m *mockLightManager) AddLight(light keylight.Light) {
+func (m *mockLightManager) AddLight(_ context.Context, light keylight.Light) {
 	if m.lights == nil {
 		m.lights = make(map[string]*keylight.Light)
 	}
@@ -33,7 +33,7 @@ func (m *mockLightManager) RemoveLight(id string) {
 	delete(m.lights, id)
 }
 
-func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
+func (m *mockLightManager) GetLight(_ context.Context, id string) (*keylight.Light, error) {
 	light, ok := m.lights[id]
 	if !ok {
 		return nil, fmt.Errorf("light %s not found", id)
@@ -53,8 +53,8 @@ func (m *mockLightManager) GetDiscoveredLights() []*keylight.Light {
 	return lights
 }
 
-func (m *mockLightManager) SetLightBrightness(id string, brightness int) error {
-	light, err := m.GetLight(id)
+func (m *mockLightManager) SetLightBrightness(ctx context.Context, id string, brightness int) error {
+	light, err := m.GetLight(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -62,8 +62,8 @@ func (m *mockLightManager) SetLightBrightness(id string, brightness int) error {
 	return nil
 }
 
-func (m *mockLightManager) SetLightTemperature(id string, temperature int) error {
-	light, err := m.GetLight(id)
+func (m *mockLightManager) SetLightTemperature(ctx context.Context, id string, temperature int) error {
+	light, err := m.GetLight(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -71,8 +71,8 @@ func (m *mockLightManager) SetLightTemperature(id string, temperature int) error
 	return nil
 }
 
-func (m *mockLightManager) SetLightPower(id string, on bool) error {
-	light, err := m.GetLight(id)
+func (m *mockLightManager) SetLightPower(ctx context.Context, id string, on bool) error {
+	light, err := m.GetLight(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -80,8 +80,8 @@ func (m *mockLightManager) SetLightPower(id string, on bool) error {
 	return nil
 }
 
-func (m *mockLightManager) SetLightState(id string, propertyValue keylight.LightPropertyValue) error {
-	light, err := m.GetLight(id)
+func (m *mockLightManager) SetLightState(ctx context.Context, id string, propertyValue keylight.LightPropertyValue) error {
+	light, err := m.GetLight(ctx, id)
 	if err != nil {
 		return err
 	}

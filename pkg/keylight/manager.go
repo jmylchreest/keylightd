@@ -53,7 +53,7 @@ func (m *Manager) GetDiscoveredLights() []*Light {
 }
 
 // GetLight returns a light by ID and updates its state
-func (m *Manager) GetLight(id string) (*Light, error) {
+func (m *Manager) GetLight(ctx context.Context, id string) (*Light, error) {
 	// Get client and light information
 	client, light, err := m.getOrCreateClient(id)
 	if err != nil {
@@ -61,7 +61,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 	}
 
 	// Fetch accessory info if needed
-	ctx := context.Background()
+	// Using passed-in ctx (propagated from caller) instead of context.Background()
 	needsInfo := light.ProductName == "" || light.SerialNumber == ""
 	var info *AccessoryInfo
 
@@ -117,7 +117,7 @@ func (m *Manager) GetLight(id string) (*Light, error) {
 
 // SetLightState sets the state of a light using type-safe property values
 // It fetches the current state, updates the specified property, and sends the new state to the device.
-func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) error {
+func (m *Manager) SetLightState(ctx context.Context, id string, propertyValue LightPropertyValue) error {
 	// Validate the property value first
 	if err := propertyValue.Validate(); err != nil {
 		return errors.InvalidInputf("invalid property value: %w", err)
@@ -129,7 +129,7 @@ func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) err
 		return err
 	}
 
-	ctx := context.Background()
+	// Using passed-in ctx
 
 	// Get current state from the device
 	state, err := m.fetchLightState(ctx, client, id)
@@ -175,7 +175,7 @@ func (m *Manager) SetLightState(id string, propertyValue LightPropertyValue) err
 // Use the type-safe version with LightPropertyValue parameter instead.
 // This method is kept for backward compatibility with existing code.
 // Deprecated: Use SetLightState with LightPropertyValue instead.
-func (m *Manager) SetLightStateOld(id string, property string, value any) error {
+func (m *Manager) SetLightStateOld(ctx context.Context, id string, property string, value any) error {
 	// Convert the string property and interface value to our type-safe version
 	switch property {
 	case string(PropertyOn):
@@ -183,21 +183,21 @@ func (m *Manager) SetLightStateOld(id string, property string, value any) error 
 		if !ok {
 			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
-		return m.SetLightState(id, OnValue(on))
+		return m.SetLightState(ctx, id, OnValue(on))
 
 	case string(PropertyBrightness):
 		brightness, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for brightness: %T", value)
 		}
-		return m.SetLightState(id, BrightnessValue(brightness))
+		return m.SetLightState(ctx, id, BrightnessValue(brightness))
 
 	case string(PropertyTemperature):
 		temp, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for temperature: %T", value)
 		}
-		return m.SetLightState(id, TemperatureValue(temp))
+		return m.SetLightState(ctx, id, TemperatureValue(temp))
 
 	default:
 		return errors.InvalidInputf("unknown property: %s", property)
@@ -205,18 +205,18 @@ func (m *Manager) SetLightStateOld(id string, property string, value any) error 
 }
 
 // SetLightBrightness sets the brightness of a light
-func (m *Manager) SetLightBrightness(id string, brightness int) error {
-	return m.SetLightState(id, BrightnessValue(brightness))
+func (m *Manager) SetLightBrightness(ctx context.Context, id string, brightness int) error {
+	return m.SetLightState(ctx, id, BrightnessValue(brightness))
 }
 
 // SetLightTemperature sets the temperature of a light
-func (m *Manager) SetLightTemperature(id string, temperature int) error {
-	return m.SetLightState(id, TemperatureValue(temperature))
+func (m *Manager) SetLightTemperature(ctx context.Context, id string, temperature int) error {
+	return m.SetLightState(ctx, id, TemperatureValue(temperature))
 }
 
 // SetLightPower sets the power state of a light
-func (m *Manager) SetLightPower(id string, on bool) error {
-	return m.SetLightState(id, OnValue(on))
+func (m *Manager) SetLightPower(ctx context.Context, id string, on bool) error {
+	return m.SetLightState(ctx, id, OnValue(on))
 }
 
 // GetLights returns all discovered lights
@@ -235,10 +235,10 @@ func (m *Manager) GetLights() map[string]*Light {
 }
 
 // AddLight adds a light to the manager and fetches its initial state.
-func (m *Manager) AddLight(light Light) {
+func (m *Manager) AddLight(ctx context.Context, light Light) {
 	// Create client for this light - not blocking, can be done before lock
 	client := NewKeyLightClient(light.IP.String(), light.Port, m.logger)
-	ctx := context.Background()
+	// Using caller-provided ctx
 
 	// Get current state - happens OUTSIDE the lock
 	state, err := m.fetchLightState(ctx, client, light.ID)

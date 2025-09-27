@@ -2,6 +2,7 @@ package group
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -20,7 +21,7 @@ type mockLightManager struct {
 	lights map[string]*keylight.Light
 }
 
-func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
+func (m *mockLightManager) GetLight(_ context.Context, id string) (*keylight.Light, error) {
 	light, exists := m.lights[id]
 	if !exists {
 		return nil, keylight.ErrLightNotFound
@@ -28,7 +29,7 @@ func (m *mockLightManager) GetLight(id string) (*keylight.Light, error) {
 	return light, nil
 }
 
-func (m *mockLightManager) SetLightState(id string, propertyValue keylight.LightPropertyValue) error {
+func (m *mockLightManager) SetLightState(_ context.Context, id string, propertyValue keylight.LightPropertyValue) error {
 	_, exists := m.lights[id]
 	if !exists {
 		return keylight.ErrLightNotFound
@@ -36,16 +37,16 @@ func (m *mockLightManager) SetLightState(id string, propertyValue keylight.Light
 	return nil
 }
 
-func (m *mockLightManager) SetLightBrightness(id string, brightness int) error {
-	return m.SetLightState(id, keylight.BrightnessValue(brightness))
+func (m *mockLightManager) SetLightBrightness(ctx context.Context, id string, brightness int) error {
+	return m.SetLightState(ctx, id, keylight.BrightnessValue(brightness))
 }
 
-func (m *mockLightManager) SetLightTemperature(id string, temperature int) error {
-	return m.SetLightState(id, keylight.TemperatureValue(temperature))
+func (m *mockLightManager) SetLightTemperature(ctx context.Context, id string, temperature int) error {
+	return m.SetLightState(ctx, id, keylight.TemperatureValue(temperature))
 }
 
-func (m *mockLightManager) SetLightPower(id string, on bool) error {
-	return m.SetLightState(id, keylight.OnValue(on))
+func (m *mockLightManager) SetLightPower(ctx context.Context, id string, on bool) error {
+	return m.SetLightState(ctx, id, keylight.OnValue(on))
 }
 
 func (m *mockLightManager) GetLights() map[string]*keylight.Light {
@@ -115,14 +116,14 @@ func TestGroupManagement(t *testing.T) {
 	manager := NewManager(logger, lights, cfg)
 
 	// Test creating group
-	group, err := manager.CreateGroup("test-group", []string{"light1", "light2"})
+	group, err := manager.CreateGroup(context.Background(), "test-group", []string{"light1", "light2"})
 	require.NoError(t, err)
 	assert.NotNil(t, group)
 	assert.Equal(t, "test-group", group.Name)
 	assert.Len(t, group.Lights, 2)
 
 	// Test creating group with non-existent light
-	_, err = manager.CreateGroup("invalid-group", []string{"non-existent"})
+	_, err = manager.CreateGroup(context.Background(), "invalid-group", []string{"non-existent"})
 	assert.Error(t, err)
 
 	// Test getting group
@@ -162,29 +163,29 @@ func TestGroupOperations(t *testing.T) {
 	manager := NewManager(logger, lights, cfg)
 
 	// Create a group
-	group, err := manager.CreateGroup("test-group", []string{"light1", "light2"})
+	group, err := manager.CreateGroup(context.Background(), "test-group", []string{"light1", "light2"})
 	require.NoError(t, err)
 
 	// Test setting group state
-	err = manager.SetGroupState(group.ID, true)
+	err = manager.SetGroupState(context.Background(), group.ID, true)
 	require.NoError(t, err)
 
 	// Test setting group brightness
-	err = manager.SetGroupBrightness(group.ID, 50)
+	err = manager.SetGroupBrightness(context.Background(), group.ID, 75)
 	require.NoError(t, err)
 
 	// Test setting group temperature
-	err = manager.SetGroupTemperature(group.ID, 5000)
+	err = manager.SetGroupTemperature(context.Background(), group.ID, 4200)
 	require.NoError(t, err)
 
 	// Test operations on non-existent group
-	err = manager.SetGroupState("non-existent", true)
+	err = manager.SetGroupState(context.Background(), "non-existent", true)
 	assert.Error(t, err)
 
-	err = manager.SetGroupBrightness("non-existent", 50)
+	err = manager.SetGroupBrightness(context.Background(), "non-existent", 50)
 	assert.Error(t, err)
 
-	err = manager.SetGroupTemperature("non-existent", 5000)
+	err = manager.SetGroupTemperature(context.Background(), "non-existent", 5000)
 	assert.Error(t, err)
 }
 
@@ -238,11 +239,11 @@ func TestGetGroupsByKeys_MultiGroupAndByName(t *testing.T) {
 	manager := NewManager(logger, lights, cfg)
 
 	// Create groups with same name and different names
-	g1, err := manager.CreateGroup("office", []string{"light1"})
+	g2, err := manager.CreateGroup(context.Background(), "office", []string{"light1"})
 	require.NoError(t, err)
-	g2, err := manager.CreateGroup("office", []string{"light2"})
+	g1, err := manager.CreateGroup(context.Background(), "office", []string{"light1"})
 	require.NoError(t, err)
-	g3, err := manager.CreateGroup("studio", []string{"light1", "light2"})
+	g3, err := manager.CreateGroup(context.Background(), "studio", []string{"light1", "light2"})
 	require.NoError(t, err)
 
 	// Test by ID

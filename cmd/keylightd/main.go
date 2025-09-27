@@ -65,9 +65,10 @@ func main() {
 			go func() {
 				// Convert interval from seconds to duration
 				interval := time.Duration(cfg.Config.Discovery.Interval) * time.Second
-				if err := manager.DiscoverLights(ctx, interval); err != nil {
-					logger.Debug("Discovery routine terminated")
-				}
+				// Start supervised discovery loop that auto-restarts on panic,
+				// and exits cleanly when ctx is canceled.
+				manager.StartDiscoveryWithRestart(ctx, interval)
+				logger.Debug("Discovery routine terminated")
 			}()
 
 			if err := srv.Start(); err != nil {

@@ -49,6 +49,8 @@ type Server struct {
 	shutdown      chan struct{}
 	wg            sync.WaitGroup
 	apikeyManager *apikey.Manager
+	rootCtx       context.Context
+	rootCancel    context.CancelFunc
 	httpServer    *http.Server
 }
 
@@ -56,6 +58,8 @@ type Server struct {
 func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightManager) *Server {
 	groupManager := group.NewManager(logger, lightManager, cfg)
 	apikeyMgr := apikey.NewManager(cfg, logger)
+
+	rootCtx, rootCancel := context.WithCancel(context.Background())
 
 	return &Server{
 		logger:        logger,
@@ -65,6 +69,8 @@ func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightMan
 		socketPath:    cfg.Config.Server.UnixSocket,
 		shutdown:      make(chan struct{}),
 		apikeyManager: apikeyMgr,
+		rootCtx:       rootCtx,
+		rootCancel:    rootCancel,
 	}
 }
 
@@ -76,15 +82,20 @@ func (s *Server) Start() error {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		// Pass s.shutdown as the context for cancellation, assuming StartCleanupWorker is adapted or a new context is derived.
-		// For now, we'll assume StartCleanupWorker takes a context derived from s.shutdown or similar.
-		// Let's create a cancellable context for the worker.
-		workerCtx, cancelWorker := context.WithCancel(context.Background())
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in cleanup worker", "recover", r)
+			}
+		}()
+		// Create a cancellable context for the worker tied to rootCtx
+		workerCtx, cancelWorker := context.WithCancel(s.rootCtx)
 		go func() {
 			<-s.shutdown   // Wait for server shutdown signal
 			cancelWorker() // Cancel the worker's context
 		}()
-		s.lights.StartCleanupWorker(workerCtx, time.Duration(s.cfg.Config.Discovery.CleanupInterval)*time.Second, time.Duration(s.cfg.Config.Discovery.CleanupTimeout)*time.Second)
+		s.lights.StartCleanupWorker(workerCtx,
+			time.Duration(s.cfg.Config.Discovery.CleanupInterval)*time.Second,
+			time.Duration(s.cfg.Config.Discovery.CleanupTimeout)*time.Second)
 	}()
 
 	// Ensure socket directory exists
@@ -143,6 +154,11 @@ func (s *Server) Start() error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in HTTP server goroutine", "recover", r)
+				}
+			}()
 			if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				s.logger.Error("HTTP server failed", "error", err)
 			}
@@ -156,6 +172,7 @@ func (s *Server) Start() error {
 // Stop gracefully shuts down the server.
 func (s *Server) Stop() {
 	s.logger.Info("Shutting down keylightd server")
+	s.rootCancel()    // Cancel root context first
 	close(s.shutdown) // Signal all goroutines to stop
 
 	if s.listener != nil {
@@ -165,7 +182,7 @@ func (s *Server) Stop() {
 
 	if s.httpServer != nil {
 		s.logger.Info("Shutting down HTTP server")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(s.rootCtx, 5*time.Second)
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			s.logger.Error("HTTP server shutdown failed", "error", err)
@@ -179,6 +196,11 @@ func (s *Server) Stop() {
 
 func (s *Server) acceptConnections() {
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in acceptConnections", "recover", r)
+		}
+	}()
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -202,9 +224,14 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 	defer s.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("panic in connection handler", "recover", r)
+		}
+	}()
 
 	// Create a context that is cancelled when the server shuts down
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(s.rootCtx)
 	defer cancel()
 
 	go func() {
@@ -249,7 +276,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		}
 
 		action, _ := req["action"].(string)
-		id, _ := req["id"].(string)                     // Optional request ID for client tracking
+		id, _ := req["id"].(string)             // Optional request ID for client tracking
 		data, _ := req["data"].(map[string]any) // Data payload
 
 		s.logger.Debug("Received request", "action", action, "id", id, "data", data)
@@ -281,7 +308,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, "missing light ID for get_light")
 				return
 			}
-			light, err := s.lights.GetLight(lightID)
+			light, err := s.lights.GetLight(ctx, lightID)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to get light %s: %s", lightID, err))
 				return
@@ -318,21 +345,21 @@ func (s *Server) handleConnection(conn net.Conn) {
 				if !ok {
 					errSet = fmt.Errorf("invalid value type for 'on', expected boolean")
 				} else {
-					errSet = s.lights.SetLightState(lightID, keylight.OnValue(onVal))
+					errSet = s.lights.SetLightState(ctx, lightID, keylight.OnValue(onVal))
 				}
 			case "brightness":
 				brightnessVal, ok := value.(float64) // JSON numbers are float64
 				if !ok {
 					errSet = fmt.Errorf("invalid value type for 'brightness', expected number")
 				} else {
-					errSet = s.lights.SetLightBrightness(lightID, int(brightnessVal))
+					errSet = s.lights.SetLightBrightness(ctx, lightID, int(brightnessVal))
 				}
 			case "temperature":
 				tempVal, ok := value.(float64) // JSON numbers are float64
 				if !ok {
 					errSet = fmt.Errorf("invalid value type for 'temperature', expected number")
 				} else {
-					errSet = s.lights.SetLightTemperature(lightID, int(tempVal))
+					errSet = s.lights.SetLightTemperature(ctx, lightID, int(tempVal))
 				}
 			default:
 				errSet = fmt.Errorf("unknown property: %s", property)
@@ -355,7 +382,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, "missing name for create_group")
 				return
 			}
-			group, err := s.groups.CreateGroup(name, lightIDs)
+			group, err := s.groups.CreateGroup(ctx, name, lightIDs)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to create group: %s", err))
 				return
@@ -417,7 +444,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, "missing group ID for set_group_lights")
 				return
 			}
-			if err := s.groups.SetGroupLights(groupID, lightIDs); err != nil {
+			if err := s.groups.SetGroupLights(ctx, groupID, lightIDs); err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to set lights for group %s: %s", groupID, err))
 				return
 			}
@@ -445,21 +472,21 @@ func (s *Server) handleConnection(conn net.Conn) {
 					if !ok {
 						errSetGroup = fmt.Errorf("invalid value type for 'on', expected boolean")
 					} else {
-						errSetGroup = s.groups.SetGroupState(grp.ID, onVal)
+						errSetGroup = s.groups.SetGroupState(ctx, grp.ID, onVal)
 					}
 				case "brightness":
 					bVal, ok := value.(float64)
 					if !ok {
 						errSetGroup = fmt.Errorf("invalid value type for 'brightness', expected number")
 					} else {
-						errSetGroup = s.groups.SetGroupBrightness(grp.ID, int(bVal))
+						errSetGroup = s.groups.SetGroupBrightness(ctx, grp.ID, int(bVal))
 					}
 				case "temperature":
 					tVal, ok := value.(float64)
 					if !ok {
 						errSetGroup = fmt.Errorf("invalid value type for 'temperature', expected number")
 					} else {
-						errSetGroup = s.groups.SetGroupTemperature(grp.ID, int(tVal))
+						errSetGroup = s.groups.SetGroupTemperature(ctx, grp.ID, int(tVal))
 					}
 				default:
 					errSetGroup = fmt.Errorf("unknown property for group: %s", property)
@@ -783,7 +810,7 @@ func (s *Server) handleLightsList() http.HandlerFunc {
 func (s *Server) handleLightGet() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		lightID := r.PathValue("id")
-		light, err := s.lights.GetLight(lightID)
+		light, err := s.lights.GetLight(r.Context(), lightID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Light not found: %s", err), http.StatusNotFound)
 			return
@@ -804,17 +831,17 @@ func (s *Server) handleLightSetState() http.HandlerFunc {
 		var errs []string
 
 		if reqBody.On != nil {
-			if err := s.lights.SetLightState(lightID, keylight.OnValue(*reqBody.On)); err != nil {
+			if err := s.lights.SetLightState(r.Context(), lightID, keylight.OnValue(*reqBody.On)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
 		if reqBody.Brightness != nil {
-			if err := s.lights.SetLightState(lightID, keylight.BrightnessValue(*reqBody.Brightness)); err != nil {
+			if err := s.lights.SetLightState(r.Context(), lightID, keylight.BrightnessValue(*reqBody.Brightness)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
 		if reqBody.Temperature != nil {
-			if err := s.lights.SetLightState(lightID, keylight.TemperatureValue(*reqBody.Temperature)); err != nil {
+			if err := s.lights.SetLightState(r.Context(), lightID, keylight.TemperatureValue(*reqBody.Temperature)); err != nil {
 				errs = append(errs, err.Error())
 			}
 		}
@@ -850,7 +877,7 @@ func (s *Server) handleGroupCreate() http.HandlerFunc {
 			return
 		}
 
-		group, err := s.groups.CreateGroup(reqBody.Name, reqBody.LightIDs)
+		group, err := s.groups.CreateGroup(r.Context(), reqBody.Name, reqBody.LightIDs)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to create group: %s", err), http.StatusInternalServerError)
 			return
@@ -896,7 +923,7 @@ func (s *Server) handleGroupSetLights() http.HandlerFunc {
 			return
 		}
 
-		if err := s.groups.SetGroupLights(groupID, reqBody.LightIDs); err != nil {
+		if err := s.groups.SetGroupLights(r.Context(), groupID, reqBody.LightIDs); err != nil {
 			if strings.Contains(err.Error(), "not found") {
 				http.Error(w, "Group or light not found", http.StatusNotFound)
 			} else {
@@ -955,17 +982,17 @@ func (s *Server) handleGroupSetState() http.HandlerFunc {
 		var errs []string
 		for _, grp := range matchedGroups {
 			if reqBody.On != nil {
-				if err := s.groups.SetGroupState(grp.ID, *reqBody.On); err != nil {
+				if err := s.groups.SetGroupState(r.Context(), grp.ID, *reqBody.On); err != nil {
 					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
 				}
 			}
 			if reqBody.Brightness != nil {
-				if err := s.groups.SetGroupBrightness(grp.ID, *reqBody.Brightness); err != nil {
+				if err := s.groups.SetGroupBrightness(r.Context(), grp.ID, *reqBody.Brightness); err != nil {
 					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
 				}
 			}
 			if reqBody.Temperature != nil {
-				if err := s.groups.SetGroupTemperature(grp.ID, *reqBody.Temperature); err != nil {
+				if err := s.groups.SetGroupTemperature(r.Context(), grp.ID, *reqBody.Temperature); err != nil {
 					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
 				}
 			}

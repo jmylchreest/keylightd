@@ -77,6 +77,35 @@ type ServiceEntry struct {
 // There is a 500ms delay between attempts.
 // The interval parameter determines how often this discovery process repeats.
 // If interval is less than the total discovery time, it will be automatically increased.
+func (m *Manager) StartDiscoveryWithRestart(ctx context.Context, interval time.Duration) {
+	// Supervising wrapper that restarts discovery if it panics or returns unexpectedly.
+	// Exits cleanly when ctx is canceled.
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					m.logger.Error("panic in discovery loop (will restart)", "recover", r)
+				}
+			}()
+			if err := m.DiscoverLights(ctx, interval); err != nil && ctx.Err() == nil {
+				m.logger.Error("discovery loop exited with error (will restart)", "error", err)
+			}
+		}()
+		// If context canceled, stop; otherwise short backoff before restart
+		if ctx.Err() != nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
 func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) error {
 	params := defaultDiscoveryParams
 	minInterval := params.calculateMaxDiscoveryTime() + time.Second
@@ -156,7 +185,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 						"addr", light.IP,
 						"port", light.Port,
 						"attempt", attempt)
-					m.AddLight(light)
+					m.AddLight(ctx, light)
 					select {
 					case <-discoveredLights:
 						// Channel already closed
