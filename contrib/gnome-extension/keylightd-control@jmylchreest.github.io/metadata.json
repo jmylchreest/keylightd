@@ -2,8 +2,11 @@
   "uuid": "keylightd-control@jmylchreest.github.io",
   "name": "Keylightd Control",
   "description": "Control keylightd via the GNOME Shell Quick Settings menu.",
-  "shell-version": ["48", "49"],
+  "shell-version": [
+    "48",
+    "49"
+  ],
   "url": "https://github.com/jmylchreest/keylightd",
   "settings-schema": "org.gnome.shell.extensions.keylightd-control",
-  "version": 1
+  "version": 19
 }
