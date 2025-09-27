@@ -38,7 +38,7 @@ import sys
 try:
     with open('$VERSION_FILE', 'r') as f:
         data = json.load(f)
-    
+
     required_fields = ['project_name', 'about', 'version', 'commit']
     for field in required_fields:
         if field not in data:
@@ -47,7 +47,7 @@ try:
         if not isinstance(data[field], str):
             print(f'❌ FAIL: Field {field} is not a string')
             sys.exit(1)
-    
+
     print('✓ JSON structure is valid')
 except Exception as e:
     print(f'❌ FAIL: JSON validation error: {e}')
@@ -57,15 +57,14 @@ else
     echo "⚠ SKIP: python3 not available for JSON validation"
 fi
 
-# Test 4: Test schema compilation
-echo "Test 4: Testing schema compilation..."
+# Test 4: Validate schema XML presence (no precompilation in GNOME 45+)
+echo "Test 4: Validating schema XML presence..."
 make build >/dev/null 2>&1
-
-if [ ! -f "$EXT_DIR/schemas/gschemas.compiled" ]; then
-    echo "❌ FAIL: schemas not compiled"
+if [ ! -f "$EXT_DIR/schemas/org.gnome.shell.extensions.keylightd-control.gschema.xml" ]; then
+    echo "❌ FAIL: schema XML missing"
     exit 1
 fi
-echo "✓ Schemas compiled successfully"
+echo "✓ Schema XML present"
 
 # Test 5: Test packaging
 echo "Test 5: Testing extension packaging..."
@@ -86,7 +85,7 @@ REQUIRED_IN_ZIP=(
     "extension.js"
     "metadata.json"
     "prefs.js"
-    "schemas/gschemas.compiled"
+    "schemas/org.gnome.shell.extensions.keylightd-control.gschema.xml"
 )
 
 for file in "${REQUIRED_IN_ZIP[@]}"; do
@@ -117,7 +116,7 @@ echo "Build Integration Summary:"
 echo "- Clean build works correctly"
 echo "- Version info generation functions properly"
 echo "- JSON structure is valid"
-echo "- Schema compilation succeeds"
+echo "- Schema XML present (no precompiled schemas shipped)"
 echo "- Extension packaging works"
 echo "- All required files included in package"
 echo "- CI environment variable handling works"

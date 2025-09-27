@@ -4,7 +4,7 @@ DIST_DIR=$(CURDIR)/../../dist/gnome-extension
 
 .PHONY: all build clean pack version-info test
 
-all: clean build pack 
+all: clean build pack
 
 version-info:
 	@echo "Generating version info..."
@@ -15,8 +15,7 @@ test:
 	@cd tests && ./run-tests.sh
 
 build: clean version-info test
-	@echo "Building schemas..."
-	glib-compile-schemas $(EXT_DIR)/schemas
+	@echo "Running build tasks (version info + tests) - no schema compilation needed for GNOME 45+"
 	@echo "Build complete."
 
 pack: mkdist build

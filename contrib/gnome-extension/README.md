@@ -55,11 +55,11 @@ contrib/gnome-extension/
    ./update-version-info.sh
    ```
 
-2. **Build schemas:**
+2. **Build the extension:**
    ```sh
    make build
    ```
-   This automatically generates version info, runs tests, and compiles schemas.
+   This automatically generates version info and runs tests (no manual schema compilation needed for GNOME Shell 45+).
 
 3. **Package the extension:**
    ```sh
@@ -99,16 +99,12 @@ contrib/gnome-extension/
    ```sh
    cp -r contrib/gnome-extension/keylightd-control@jmylchreest.github.io ~/.local/share/gnome-shell/extensions/
    ```
-2. **Compile schemas (if not using the zip):**
-   ```sh
-   glib-compile-schemas ~/.local/share/gnome-shell/extensions/keylightd-control@jmylchreest.github.io/schemas
-   ```
-3. **Enable the extension:**
+2. **Enable the extension:**
    ```sh
    gnome-extensions enable keylightd-control@jmylchreest.github.io
    ```
-4. **Reload GNOME Shell:** (Alt+F2, type 'r', press Enter)
-5. **Configure:** Click the icon in the quick settings menu and set the API endpoint and key.
+3. **Reload GNOME Shell:** (Alt+F2, type 'r', press Enter)
+4. **Configure:** Click the icon in the quick settings menu and set the API endpoint and key.
 
 > **Note:** If the API key is not set, the extension will not attempt to interact with the API and will only show the configuration UI.
 
