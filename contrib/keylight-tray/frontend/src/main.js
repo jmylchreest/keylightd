@@ -279,7 +279,10 @@ function loadSettings() {
 
   document.getElementById("socket-path").value = socketPath;
   document.getElementById("refresh-interval").value = refreshMs;
-  document.getElementById("api-url").value = apiUrl;
+  // Only set API URL if there's a saved value, otherwise keep the default
+  if (apiUrl) {
+    document.getElementById("api-url").value = apiUrl;
+  }
   document.getElementById("api-key").value = apiKey;
 
   // Update refresh interval
@@ -535,6 +538,11 @@ function setupConnectionTypeToggle() {
       (el) => (el.style.display = isSocket ? "none" : "flex"),
     );
     localStorage.setItem("connectionType", isSocket ? "socket" : "http");
+
+    // Reset test connection result
+    const statusEl = document.getElementById("connection-status");
+    statusEl.textContent = "";
+    statusEl.className = "connection-status";
   }
 
   socketRadio.addEventListener("change", updateConnectionFields);
@@ -548,6 +556,25 @@ function setupConnectionTypeToggle() {
     socketRadio.checked = true;
   }
   updateConnectionFields();
+
+  // Setup API key show/hide toggle
+  const apiKeyToggle = document.getElementById("api-key-toggle");
+  const apiKeyInput = document.getElementById("api-key");
+
+  if (apiKeyToggle && apiKeyInput) {
+    apiKeyToggle.addEventListener("click", () => {
+      const isPassword = apiKeyInput.type === "password";
+      apiKeyInput.type = isPassword ? "text" : "password";
+
+      // Toggle icon visibility
+      const eyeIcon = apiKeyToggle.querySelector(".eye-icon");
+      const eyeOffIcon = apiKeyToggle.querySelector(".eye-off-icon");
+      if (eyeIcon && eyeOffIcon) {
+        eyeIcon.style.display = isPassword ? "none" : "block";
+        eyeOffIcon.style.display = isPassword ? "block" : "none";
+      }
+    });
+  }
 }
 
 // Refresh data from backend

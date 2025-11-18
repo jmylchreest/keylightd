@@ -428,7 +428,8 @@ body {
 }
 
 .setting-row input[type="text"],
-.setting-row input[type="number"] {
+.setting-row input[type="number"],
+.setting-row input[type="password"] {
     flex: 1;
     padding: 6px 10px;
     border: 1px solid var(--bg-tertiary);
@@ -441,6 +442,44 @@ body {
 .setting-row input:focus {
     outline: none;
     border-color: var(--accent);
+}
+
+/* Password input with toggle */
+.password-input-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.password-input-wrapper input {
+    flex: 1;
+    padding-right: 32px;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    padding: 0;
+}
+
+.password-toggle:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.password-toggle svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--text-muted);
 }
 
 .btn {
