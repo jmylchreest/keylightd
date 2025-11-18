@@ -1,12 +1,12 @@
 package server
 
 import (
-	"maps"
 	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -80,7 +80,7 @@ func (s *Server) Start() error {
 	s.logger.Info("Starting keylightd server")
 
 	// Start cleanup worker for stale lights
-	&{s wg}.Go(func() {
+	s.wg.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				s.logger.Error("panic in cleanup worker", "recover", r)
@@ -150,7 +150,7 @@ func (s *Server) Start() error {
 			Handler: s.loggingMiddleware(mux), // Apply logging middleware here
 		}
 
-		&{s wg}.Go(func() {
+		s.wg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					s.logger.Error("panic in HTTP server goroutine", "recover", r)
