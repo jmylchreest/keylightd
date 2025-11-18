@@ -1,8 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Keylightd Daemon
-Comment=Starts the Key Light daemon
-Exec=/app/bin/keylightd
-Terminal=false
-NoDisplay=true
-X-GNOME-Autostart-enabled=true

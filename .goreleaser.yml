@@ -4,6 +4,11 @@ before:
   hooks:
     - go mod tidy
     - go mod vendor
+    # Build keylight-tray frontend
+    - cmd: npm install
+      dir: contrib/keylight-tray/frontend
+    - cmd: npm run build
+      dir: contrib/keylight-tray/frontend
 
 builds:
   - id: keylightd
@@ -31,6 +36,24 @@ builds:
     goos:
       - linux
       - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.buildDate={{.Date}}
+
+  - id: keylight-tray
+    main: ./contrib/keylight-tray
+    binary: keylight-tray
+    env:
+      - CGO_ENABLED=1
+    tags:
+      - webkit2_41
+    goos:
+      - linux
     goarch:
       - amd64
       - arm64

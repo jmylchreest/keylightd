@@ -1,0 +1,50 @@
+package main
+
+import (
+	"embed"
+	"log"
+
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
+)
+
+//go:embed all:frontend/dist
+var assets embed.FS
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
+)
+
+func main() {
+	// Create application with options
+	app := NewApp(version)
+
+	err := wails.Run(&options.App{
+		Title:     "Keylight Control",
+		Width:     380,
+		Height:    600,
+		MinWidth:  320,
+		MinHeight: 400,
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+		},
+		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 46, A: 255},
+		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
+		Bind: []interface{}{
+			app,
+		},
+		Linux: &linux.Options{
+			ProgramName: "keylight-tray",
+		},
+		Frameless: false,
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}

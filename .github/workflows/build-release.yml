@@ -86,6 +86,18 @@ jobs:
           go-version: stable
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: contrib/keylight-tray/frontend/package-lock.json
+
+      - name: Install system dependencies for Wails
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
       - name: Generate commit info
         id: commit-info
         run: |

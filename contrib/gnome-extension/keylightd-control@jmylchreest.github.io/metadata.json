@@ -8,5 +8,5 @@
   ],
   "url": "https://github.com/jmylchreest/keylightd",
   "settings-schema": "org.gnome.shell.extensions.keylightd-control",
-  "version": 19
+  "version": 23
 }

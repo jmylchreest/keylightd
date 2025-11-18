@@ -7,7 +7,13 @@
 bin/
 dist/
 /keylightd
+cmd/keylightd/keylightd
 /keylightctl
+cmd/keylightctl/keylightctl
+/keylight-tray
+contrib/keylight-tray/build/
+contrib/keylight-tray/frontend/dist/
+contrib/keylight-tray/frontend/node_modules/
 
 # archives
 *.zip
@@ -32,7 +38,7 @@ go.work
 
 # OS specific files
 .DS_Store
-Thumbs.db 
+Thumbs.db
 
 # temporary files
 *.tmp
