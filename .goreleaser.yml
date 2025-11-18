@@ -4,11 +4,8 @@ before:
   hooks:
     - go mod tidy
     - go mod vendor
-    # Build keylight-tray frontend
-    - cmd: npm install
-      dir: contrib/keylight-tray/frontend
-    - cmd: npm run build
-      dir: contrib/keylight-tray/frontend
+    # Build keylightd-tray frontend
+    - bash -c "cd contrib/keylightd-tray && make frontend"
 
 builds:
   - id: keylightd
@@ -45,9 +42,9 @@ builds:
       - -X main.commit={{.ShortCommit}}
       - -X main.buildDate={{.Date}}
 
-  - id: keylight-tray
-    main: ./contrib/keylight-tray
-    binary: keylight-tray
+  - id: keylightd-tray
+    main: ./contrib/keylightd-tray
+    binary: keylightd-tray
     env:
       - CGO_ENABLED=1
     tags:
@@ -149,6 +146,9 @@ brews:
 
 aurs:
   - name: keylightd-bin
+    ids:
+      - keylightd
+      - keylightctl
     homepage: "https://github.com/jmylchreest/keylightd"
     description: "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
     maintainers:
@@ -179,6 +179,39 @@ aurs:
       install -dm755 "${pkgdir}/usr/lib/sysusers.d"
       echo 'u keylightd - "Key Light Daemon" /var/lib/keylightd' > "${pkgdir}/usr/lib/sysusers.d/keylightd.conf"
       echo 'g keylightd -' >> "${pkgdir}/usr/lib/sysusers.d/keylightd.conf"
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+
+  - name: keylightd-tray-bin
+    ids:
+      - keylightd-tray
+    homepage: "https://github.com/jmylchreest/keylightd"
+    description: "System tray application for controlling Key Lights via keylightd"
+    maintainers:
+      - "{{ .Env.AUR_MAINTAINER }}"
+    license: "MIT"
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/keylightd-tray-bin.git"
+    skip_upload: "{{ .IsSnapshot }}"
+    depends:
+      - gtk3
+      - webkit2gtk-4.1
+    optdepends:
+      - "keylightd: for local socket connection"
+    provides:
+      - keylightd-tray
+    conflicts:
+      - keylightd-tray
+    package: |-
+      # binary
+      install -Dm755 "./keylightd-tray" "${pkgdir}/usr/bin/keylightd-tray"
+
+      # license
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/keylightd-tray-bin/LICENSE"
+
+      # documentation
+      install -Dm644 "./README.md" "${pkgdir}/usr/share/doc/keylightd-tray-bin/README.md"
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

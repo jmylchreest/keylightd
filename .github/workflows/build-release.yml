@@ -91,7 +91,7 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: contrib/keylight-tray/frontend/package-lock.json
+          cache-dependency-path: contrib/keylightd-tray/frontend/package-lock.json
 
       - name: Install system dependencies for Wails
         run: |

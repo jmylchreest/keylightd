@@ -11,10 +11,10 @@ cmd/keylightd/keylightd
 /keylightctl
 cmd/keylightctl/keylightctl
 /keylight-tray
-contrib/keylight-tray/keylight-tray
-contrib/keylight-tray/build/
-contrib/keylight-tray/frontend/dist/
-contrib/keylight-tray/frontend/node_modules/
+contrib/keylightd-tray/keylightd-tray
+contrib/keylightd-tray/build/
+contrib/keylightd-tray/frontend/dist/
+contrib/keylightd-tray/frontend/node_modules/
 
 # archives
 *.zip

@@ -115,11 +115,12 @@ func (t *TrayManager) UpdateIconFromStatus(onCount, total int) {
 
 	// Format tooltip
 	tooltip := "Keylight Control - "
-	if onCount == 0 {
+	switch onCount {
+	case 0:
 		tooltip += "All off"
-	} else if onCount == total {
+	case total:
 		tooltip += "All on"
-	} else {
+	default:
 		tooltip += formatCount(onCount) + "/" + formatCount(total) + " on"
 	}
 	systray.SetTooltip(tooltip)

@@ -19,11 +19,13 @@ import (
 
 // App struct
 type App struct {
-	ctx     context.Context
-	version string
-	client  client.ClientInterface
-	logger  *slog.Logger
-	tray    *TrayManager
+	ctx       context.Context
+	version   string
+	commit    string
+	buildDate string
+	client    client.ClientInterface
+	logger    *slog.Logger
+	tray      *TrayManager
 }
 
 // SetTrayManager sets the tray manager reference
@@ -91,9 +93,11 @@ type Status struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(version string) *App {
+func NewApp(version, commit, buildDate string) *App {
 	return &App{
-		version: version,
+		version:   version,
+		commit:    commit,
+		buildDate: buildDate,
 	}
 }
 
@@ -157,7 +161,9 @@ func (a *App) watchCustomCSS() {
 	if err != nil {
 		return
 	}
-	defer watcher.Close()
+	defer func() {
+		_ = watcher.Close()
+	}()
 
 	// Watch the frontend/src directory for custom.css changes
 	cssDir := filepath.Join("frontend", "src")
@@ -193,7 +199,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 // GetVersion returns the app version
 func (a *App) GetVersion() string {
-	return a.version
+	return fmt.Sprintf("%s, commit: %s, date: %s", a.version, a.commit, a.buildDate)
 }
 
 // GetStatus returns the current status of all lights and groups

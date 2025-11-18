@@ -22,7 +22,7 @@ var (
 
 func main() {
 	// Create application with options
-	app := NewApp(version)
+	app := NewApp(version, commit, buildDate)
 	tray := NewTrayManager(app)
 	app.SetTrayManager(tray)
 
@@ -47,7 +47,7 @@ func main() {
 			app,
 		},
 		Linux: &linux.Options{
-			ProgramName: "keylight-tray",
+			ProgramName: "keylightd-tray",
 		},
 		Frameless: false,
 	})
