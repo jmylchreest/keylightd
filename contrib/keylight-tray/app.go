@@ -23,6 +23,33 @@ type App struct {
 	version string
 	client  client.ClientInterface
 	logger  *slog.Logger
+	tray    *TrayManager
+}
+
+// SetTrayManager sets the tray manager reference
+func (a *App) SetTrayManager(tray *TrayManager) {
+	a.tray = tray
+}
+
+// ShowWindow shows the main window
+func (a *App) ShowWindow() {
+	runtime.WindowShow(a.ctx)
+	if a.tray != nil {
+		a.tray.SetWindowShown(true)
+	}
+}
+
+// HideWindow hides the main window
+func (a *App) HideWindow() {
+	runtime.WindowHide(a.ctx)
+	if a.tray != nil {
+		a.tray.SetWindowShown(false)
+	}
+}
+
+// Quit exits the application
+func (a *App) Quit() {
+	runtime.Quit(a.ctx)
 }
 
 // Settings represents the connection settings
@@ -217,6 +244,11 @@ func (a *App) GetStatus() (*Status, error) {
 	sort.Slice(status.Groups, func(i, j int) bool {
 		return strings.ToLower(status.Groups[i].Name) < strings.ToLower(status.Groups[j].Name)
 	})
+
+	// Update tray icon based on light status
+	if a.tray != nil {
+		a.tray.UpdateIconFromStatus(status.OnCount, status.Total)
+	}
 
 	return status, nil
 }

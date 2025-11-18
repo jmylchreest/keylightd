@@ -11,6 +11,7 @@ cmd/keylightd/keylightd
 /keylightctl
 cmd/keylightctl/keylightctl
 /keylight-tray
+contrib/keylight-tray/keylight-tray
 contrib/keylight-tray/build/
 contrib/keylight-tray/frontend/dist/
 contrib/keylight-tray/frontend/node_modules/

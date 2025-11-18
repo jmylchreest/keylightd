@@ -22,7 +22,11 @@ export function GetVersion():Promise<string>;
 
 export function GetWindowSize():Promise<Record<string, number>>;
 
+export function HideWindow():Promise<void>;
+
 export function Ping():Promise<void>;
+
+export function Quit():Promise<void>;
 
 export function SaveSettings(arg1:main.Settings):Promise<void>;
 
@@ -32,4 +36,8 @@ export function SetGroupState(arg1:string,arg2:string,arg3:any):Promise<void>;
 
 export function SetLightState(arg1:string,arg2:string,arg3:any):Promise<void>;
 
+export function SetTrayManager(arg1:main.TrayManager):Promise<void>;
+
 export function SetWindowHeight(arg1:number,arg2:number):Promise<void>;
+
+export function ShowWindow():Promise<void>;

@@ -4,6 +4,7 @@ import (
 	"embed"
 	"log"
 
+	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -22,13 +23,20 @@ var (
 func main() {
 	// Create application with options
 	app := NewApp(version)
+	tray := NewTrayManager(app)
+	app.SetTrayManager(tray)
+
+	// Run systray in a goroutine
+	go systray.Run(tray.OnReady, tray.OnExit)
 
 	err := wails.Run(&options.App{
-		Title:     "Keylight Control",
-		Width:     380,
-		Height:    600,
-		MinWidth:  320,
-		MinHeight: 400,
+		Title:             "Keylight Control",
+		Width:             380,
+		Height:            600,
+		MinWidth:          320,
+		MinHeight:         400,
+		StartHidden:       true, // Start hidden, show via tray
+		HideWindowOnClose: true, // Close to tray instead of quit
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

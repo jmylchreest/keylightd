@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	fyne.io/systray v1.11.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/wailsapp/wails/v2 v2.11.0
 )

@@ -42,8 +42,16 @@ export function GetWindowSize() {
   return window['go']['main']['App']['GetWindowSize']();
 }
 
+export function HideWindow() {
+  return window['go']['main']['App']['HideWindow']();
+}
+
 export function Ping() {
   return window['go']['main']['App']['Ping']();
+}
+
+export function Quit() {
+  return window['go']['main']['App']['Quit']();
 }
 
 export function SaveSettings(arg1) {
@@ -62,6 +70,14 @@ export function SetLightState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetLightState'](arg1, arg2, arg3);
 }
 
+export function SetTrayManager(arg1) {
+  return window['go']['main']['App']['SetTrayManager'](arg1);
+}
+
 export function SetWindowHeight(arg1, arg2) {
   return window['go']['main']['App']['SetWindowHeight'](arg1, arg2);
+}
+
+export function ShowWindow() {
+  return window['go']['main']['App']['ShowWindow']();
 }
