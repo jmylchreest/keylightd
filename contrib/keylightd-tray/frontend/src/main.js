@@ -64,7 +64,8 @@ let CreateGroup,
   SetWindowHeight,
   GetWindowSize,
   SaveSettings,
-  GetSettings;
+  GetSettings,
+  GetCustomCSS;
 
 if (window.go && window.go.main && window.go.main.App) {
   CreateGroup = window.go.main.App.CreateGroup;
@@ -75,6 +76,7 @@ if (window.go && window.go.main && window.go.main.App) {
   GetWindowSize = window.go.main.App.GetWindowSize;
   SaveSettings = window.go.main.App.SaveSettings;
   GetSettings = window.go.main.App.GetSettings;
+  GetCustomCSS = window.go.main.App.GetCustomCSS;
 } else {
   CreateGroup = async (name) => {
     console.log(`CreateGroup: ${name}`);
@@ -116,6 +118,7 @@ if (window.go && window.go.main && window.go.main.App) {
     apiUrl: "",
     apiKey: "",
   });
+  GetCustomCSS = async () => "";
 }
 
 // State
@@ -486,39 +489,44 @@ window.toggleGroupLight = async function (groupId, lightId, checked) {
 
 // Setup custom CSS auto-reload via filesystem watcher
 function setupCustomCssReload() {
+  // Load initial custom CSS
+  loadCustomCss();
+
   // Listen for reload event from backend file watcher
   if (window.runtime && window.runtime.EventsOn) {
     window.runtime.EventsOn("reload-custom-css", () => {
-      reloadCustomCss();
+      loadCustomCss();
     });
   }
 }
 
-// Reload the custom CSS file with validation
-async function reloadCustomCss() {
-  const customCss = document.getElementById("custom-css");
-  if (!customCss) return;
-
-  const href = customCss.getAttribute("href").split("?")[0];
-  const newHref = href + "?t=" + Date.now();
-
+// Load custom CSS from backend (XDG config directory)
+async function loadCustomCss() {
   try {
-    // Fetch and validate CSS before applying
-    const response = await fetch(newHref);
-    if (!response.ok) return;
+    const cssText = await GetCustomCSS();
 
-    const cssText = await response.text();
+    // Get or create the custom style element
+    let customStyle = document.getElementById("custom-css-style");
+    if (!customStyle) {
+      customStyle = document.createElement("style");
+      customStyle.id = "custom-css-style";
+      document.head.appendChild(customStyle);
+    }
 
-    // Try to parse the CSS using CSSStyleSheet
-    const testSheet = new CSSStyleSheet();
-    await testSheet.replace(cssText);
+    if (cssText) {
+      // Try to parse the CSS using CSSStyleSheet for validation
+      const testSheet = new CSSStyleSheet();
+      await testSheet.replace(cssText);
 
-    // If we get here, CSS is valid - apply it
-    customCss.setAttribute("href", newHref);
-    console.log("Custom CSS reloaded successfully");
+      // If we get here, CSS is valid - apply it
+      customStyle.textContent = cssText;
+      console.log("Custom CSS loaded successfully");
+    } else {
+      // No custom CSS file, clear any existing custom styles
+      customStyle.textContent = "";
+    }
   } catch (e) {
-    console.error("Custom CSS validation failed:", e.message);
-    // Don't update the href - keep the old valid CSS
+    console.error("Custom CSS load failed:", e.message);
   }
 }
 

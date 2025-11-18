@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"log"
 
 	"fyne.io/systray"
@@ -21,8 +22,13 @@ var (
 )
 
 func main() {
+	// Parse command-line flags
+	customCSSPath := flag.String("css", "", "Path to custom CSS file (default: $XDG_CONFIG_HOME/keylightd/keylightd-tray/custom.css)")
+	flag.Parse()
+
 	// Create application with options
 	app := NewApp(version, commit, buildDate)
+	app.SetCustomCSSPath(*customCSSPath)
 	tray := NewTrayManager(app)
 	app.SetTrayManager(tray)
 

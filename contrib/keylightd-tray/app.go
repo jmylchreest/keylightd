@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,18 +20,24 @@ import (
 
 // App struct
 type App struct {
-	ctx       context.Context
-	version   string
-	commit    string
-	buildDate string
-	client    client.ClientInterface
-	logger    *slog.Logger
-	tray      *TrayManager
+	ctx           context.Context
+	version       string
+	commit        string
+	buildDate     string
+	client        client.ClientInterface
+	logger        *slog.Logger
+	tray          *TrayManager
+	customCSSPath string
 }
 
 // SetTrayManager sets the tray manager reference
 func (a *App) SetTrayManager(tray *TrayManager) {
 	a.tray = tray
+}
+
+// SetCustomCSSPath sets a custom path for the CSS file
+func (a *App) SetCustomCSSPath(path string) {
+	a.customCSSPath = path
 }
 
 // ShowWindow shows the main window
@@ -155,6 +162,37 @@ func (a *App) GetSettings() Settings {
 	}
 }
 
+// getConfigDir returns the config directory for keylightd-tray
+func (a *App) getConfigDir() string {
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		configDir = filepath.Join(homeDir, ".config")
+	}
+	return filepath.Join(configDir, "keylightd", "keylightd-tray")
+}
+
+// getCustomCSSPath returns the path to the custom CSS file
+func (a *App) getCustomCSSPath() string {
+	if a.customCSSPath != "" {
+		return a.customCSSPath
+	}
+	return filepath.Join(a.getConfigDir(), "custom.css")
+}
+
+// GetCustomCSS returns the custom CSS content from the config directory
+func (a *App) GetCustomCSS() string {
+	cssPath := a.getCustomCSSPath()
+	content, err := os.ReadFile(cssPath)
+	if err != nil {
+		return "" // Return empty if file doesn't exist
+	}
+	return string(content)
+}
+
 // watchCustomCSS watches the custom.css file for changes and notifies the frontend
 func (a *App) watchCustomCSS() {
 	watcher, err := fsnotify.NewWatcher()
@@ -165,8 +203,18 @@ func (a *App) watchCustomCSS() {
 		_ = watcher.Close()
 	}()
 
-	// Watch the frontend/src directory for custom.css changes
-	cssDir := filepath.Join("frontend", "src")
+	// Get CSS path and watch its directory
+	cssPath := a.getCustomCSSPath()
+	cssDir := filepath.Dir(cssPath)
+	if cssDir == "" {
+		return
+	}
+
+	// Create config directory if it doesn't exist
+	if err := os.MkdirAll(cssDir, 0755); err != nil {
+		return
+	}
+
 	err = watcher.Add(cssDir)
 	if err != nil {
 		return

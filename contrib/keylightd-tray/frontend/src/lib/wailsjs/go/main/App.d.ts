@@ -8,6 +8,8 @@ export function DeleteGroup(arg1:string):Promise<void>;
 
 export function FormatLastSeen(arg1:number):Promise<string>;
 
+export function GetCustomCSS():Promise<string>;
+
 export function GetGroups():Promise<Array<main.Group>>;
 
 export function GetLights():Promise<Array<main.Light>>;
@@ -29,6 +31,8 @@ export function Ping():Promise<void>;
 export function Quit():Promise<void>;
 
 export function SaveSettings(arg1:main.Settings):Promise<void>;
+
+export function SetCustomCSSPath(arg1:string):Promise<void>;
 
 export function SetGroupLights(arg1:string,arg2:Array<string>):Promise<void>;
 

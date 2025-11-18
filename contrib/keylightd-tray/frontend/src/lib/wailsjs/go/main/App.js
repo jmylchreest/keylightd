@@ -14,6 +14,10 @@ export function FormatLastSeen(arg1) {
   return window['go']['main']['App']['FormatLastSeen'](arg1);
 }
 
+export function GetCustomCSS() {
+  return window['go']['main']['App']['GetCustomCSS']();
+}
+
 export function GetGroups() {
   return window['go']['main']['App']['GetGroups']();
 }
@@ -56,6 +60,10 @@ export function Quit() {
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SetCustomCSSPath(arg1) {
+  return window['go']['main']['App']['SetCustomCSSPath'](arg1);
 }
 
 export function SetGroupLights(arg1, arg2) {

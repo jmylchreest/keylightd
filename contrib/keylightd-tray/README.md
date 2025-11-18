@@ -1,6 +1,26 @@
-# Keylight Tray
+# Keylightd Tray
 
 A desktop tray application for controlling Key Lights via keylightd. Built with [Wails](https://wails.io/).
+
+## Usage
+
+```bash
+keylightd-tray [flags]
+```
+
+### Flags
+
+- `-css <path>`: Path to custom CSS file (default: `$XDG_CONFIG_HOME/keylightd/keylightd-tray/custom.css`)
+
+### Examples
+
+```bash
+# Run with default config location
+keylightd-tray
+
+# Run with custom CSS file
+keylightd-tray -css /path/to/my/theme.css
+```
 
 ## Building
 
@@ -46,13 +66,23 @@ Settings are stored in the browser's localStorage and include:
 
 ## Custom CSS Theming
 
-The application supports custom CSS overrides for theming. Create or edit `frontend/src/custom.css` to customize colors and styling.
+The application supports custom CSS overrides for theming.
+
+### Default Location
+
+```
+~/.config/keylightd/keylightd-tray/custom.css
+```
+
+Or use `$XDG_CONFIG_HOME/keylightd/keylightd-tray/custom.css` if `XDG_CONFIG_HOME` is set.
+
+You can override this with the `-css` flag.
 
 ### How It Works
 
 1. The app loads `style.css` (default styles) first
-2. Then loads `custom.css` which can override any styles
-3. The app watches for changes to `custom.css` and reloads automatically
+2. Then loads `custom.css` from the config directory (if it exists)
+3. The app watches for changes to `custom.css` and reloads automatically (hot reload)
 
 ### Available CSS Variables
 
@@ -130,6 +160,7 @@ make build # instead of wails build
 
 ### Custom CSS not loading
 
-- Ensure `custom.css` exists in `frontend/src/`
-- Check browser console for 404 errors
+- Ensure `custom.css` exists at `~/.config/keylightd/keylightd-tray/custom.css`
+- Or specify a custom path with `-css /path/to/custom.css`
 - The file must be valid CSS (no syntax errors)
+- Check the app logs for any error messages
