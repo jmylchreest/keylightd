@@ -238,8 +238,7 @@ func TestStartCleanupWorker(t *testing.T) {
 	time.Sleep(20 * time.Millisecond)
 
 	// Test with invalid interval (should use default)
-	ctx2, cancel2 := context.WithCancel(context.Background())
-	defer cancel2()
+	ctx2 := t.Context()
 
 	manager.StartCleanupWorker(ctx2, -1*time.Second, 5*time.Minute)
 

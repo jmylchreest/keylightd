@@ -47,7 +47,7 @@ func (m *mockAPIKeyClient) ListAPIKeys() ([]map[string]any, error) {
 // parseKeyValueOutput parses CLI output lines of the form 'Key   Value' into a map.
 func parseKeyValueOutput(out string) map[string]string {
 	result := make(map[string]string)
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {
 			key := fields[0]

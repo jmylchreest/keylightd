@@ -1,6 +1,7 @@
 package server
 
 import (
+	"maps"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -79,9 +80,7 @@ func (s *Server) Start() error {
 	s.logger.Info("Starting keylightd server")
 
 	// Start cleanup worker for stale lights
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	&{s wg}.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				s.logger.Error("panic in cleanup worker", "recover", r)
@@ -96,7 +95,7 @@ func (s *Server) Start() error {
 		s.lights.StartCleanupWorker(workerCtx,
 			time.Duration(s.cfg.Config.Discovery.CleanupInterval)*time.Second,
 			time.Duration(s.cfg.Config.Discovery.CleanupTimeout)*time.Second)
-	}()
+	})
 
 	// Ensure socket directory exists
 	sockDir := filepath.Dir(s.socketPath)
@@ -151,9 +150,7 @@ func (s *Server) Start() error {
 			Handler: s.loggingMiddleware(mux), // Apply logging middleware here
 		}
 
-		s.wg.Add(1)
-		go func() {
-			defer s.wg.Done()
+		&{s wg}.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
 					s.logger.Error("panic in HTTP server goroutine", "recover", r)
@@ -163,7 +160,7 @@ func (s *Server) Start() error {
 				s.logger.Error("HTTP server failed", "error", err)
 			}
 			s.logger.Info("HTTP server stopped")
-		}()
+		})
 	}
 
 	return nil
@@ -601,9 +598,7 @@ func (s *Server) sendResponse(conn net.Conn, id string, data map[string]any) {
 	if id != "" {
 		response["id"] = id
 	}
-	for k, v := range data {
-		response[k] = v
-	}
+	maps.Copy(response, data)
 	if err := json.NewEncoder(conn).Encode(response); err != nil {
 		s.logger.Error("Failed to send response", "error", err)
 	}
@@ -670,7 +665,7 @@ type APIKeyResponse struct {
 	Name      string    `json:"name"`
 	Key       string    `json:"key,omitempty"` // Only present on creation, otherwise omitted
 	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at,omitempty"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // LightStateRequest represents the request body for setting a light's state.

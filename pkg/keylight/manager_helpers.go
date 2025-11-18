@@ -45,7 +45,7 @@ func (m *Manager) getOrCreateClient(id string) (*KeyLightClient, *Light, error) 
 	// Create new client and store it
 	client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
 	m.clients[id] = client
-	
+
 	return client, &light, nil
 }
 
@@ -67,10 +67,10 @@ func (m *Manager) updateLightState(id string, state *LightState) (*Light, error)
 
 	// Update last seen timestamp
 	light.LastSeen = time.Now()
-	
+
 	// Store updated light back into the map
 	m.lights[id] = light
-	
+
 	return &light, nil
 }
 
@@ -94,13 +94,13 @@ func (m *Manager) updateLightInfo(id string, info *AccessoryInfo) (*Light, error
 
 	// Store updated light back into the map
 	m.lights[id] = light
-	
+
 	return &light, nil
 }
 
 // fetchLightState retrieves the current state of a light from the device.
 func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, id string) (*LightState, error) {
-	
+
 	state, err := client.GetLightState(ctx)
 	if err != nil {
 		return nil, errors.LogErrorAndReturn(
@@ -115,7 +115,7 @@ func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, i
 
 // fetchAccessoryInfo retrieves accessory information for a light from the device.
 func (m *Manager) fetchAccessoryInfo(ctx context.Context, client *KeyLightClient, id string) (*AccessoryInfo, error) {
-	
+
 	info, err := client.GetAccessoryInfo(ctx)
 	if err != nil {
 		return nil, errors.LogErrorAndReturn(
@@ -143,7 +143,7 @@ func (m *Manager) validateAndPrepareStateUpdate(property string, value any, curr
 			return errors.InvalidInputf("invalid value type for on: %T", value)
 		}
 		currentState.Lights[0].On = boolToInt(on)
-		
+
 	case PropertyBrightness:
 		brightness, ok := value.(int)
 		if !ok {
@@ -157,19 +157,26 @@ func (m *Manager) validateAndPrepareStateUpdate(property string, value any, curr
 			brightness = config.MaxBrightness
 		}
 		currentState.Lights[0].Brightness = brightness
-		
+
 	case PropertyTemperature:
 		temp, ok := value.(int)
 		if !ok {
 			return errors.InvalidInputf("invalid value type for temperature: %T", value)
 		}
-		// Convert from Kelvin to mireds
-		currentState.Lights[0].Temperature = convertTemperatureToDevice(temp)
-		
+		// Auto-detect format: mireds (143-344) vs Kelvin (2900-7000)
+		// If temp is in mireds range, use as-is; otherwise convert from Kelvin
+		if temp >= 143 && temp <= 344 {
+			// Already in mireds format (from device)
+			currentState.Lights[0].Temperature = temp
+		} else {
+			// Kelvin format (from API/user), convert to mireds
+			currentState.Lights[0].Temperature = convertTemperatureToDevice(temp)
+		}
+
 	default:
 		return errors.InvalidInputf("unknown property: %s", property)
 	}
-	
+
 	return nil
 }
 
@@ -178,7 +185,7 @@ func (m *Manager) logLightInfo(level slog.Level, message string, light *Light) {
 	if light == nil {
 		return
 	}
-	
+
 	m.logger.Log(context.Background(), level, message,
 		slog.String("id", light.ID),
 		slog.String("ip", light.IP.String()),

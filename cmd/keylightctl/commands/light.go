@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -34,6 +35,8 @@ func NewLightCommand(logger *slog.Logger) *cobra.Command {
 // newLightListCommand creates the light list command
 func newLightListCommand() *cobra.Command {
 	var parseable bool
+	var jsonOutput bool
+	var waybar bool
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List discovered lights",
@@ -45,10 +48,36 @@ func newLightListCommand() *cobra.Command {
 			}
 
 			if len(lights) == 0 {
-				if parseable {
+				if parseable || jsonOutput {
+					if jsonOutput {
+						fmt.Println("[]")
+					}
+					return nil
+				}
+				if waybar {
+					fmt.Println(FormatWaybarOutput(lights))
 					return nil
 				}
 				pterm.Info.Println("No lights discovered")
+				return nil
+			}
+
+			if waybar {
+				fmt.Println(FormatWaybarOutput(lights))
+				return nil
+			}
+
+			if jsonOutput {
+				var lightsList []LightJSON
+				for id, light := range lights {
+					lightMap := light.(map[string]any)
+					lightsList = append(lightsList, LightToJSON(id, lightMap))
+				}
+				jsonBytes, err := json.MarshalIndent(lightsList, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+				fmt.Println(string(jsonBytes))
 				return nil
 			}
 
@@ -71,6 +100,8 @@ func newLightListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVarP(&parseable, "parseable", "p", false, "Output in parseable format (key=value)")
+	cmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
+	cmd.Flags().BoolVarP(&waybar, "waybar", "w", false, "Output in waybar-compatible JSON format")
 	return cmd
 }
 

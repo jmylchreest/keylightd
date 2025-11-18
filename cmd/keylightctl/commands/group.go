@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -34,6 +35,7 @@ func NewGroupCommand(logger *slog.Logger) *cobra.Command {
 // newGroupListCommand creates the group list command
 func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 	var parseable bool
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -47,6 +49,19 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 			groups, err := client.GetGroups()
 			if err != nil {
 				return fmt.Errorf("failed to get groups: %w", err)
+			}
+
+			if jsonOutput {
+				var groupsList []GroupJSON
+				for _, group := range groups {
+					groupsList = append(groupsList, GroupToJSON(group))
+				}
+				jsonBytes, err := json.MarshalIndent(groupsList, "", "  ")
+				if err != nil {
+					return fmt.Errorf("failed to marshal JSON: %w", err)
+				}
+				fmt.Println(string(jsonBytes))
+				return nil
 			}
 
 			if parseable {
@@ -93,6 +108,7 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&parseable, "parseable", "p", false, "Output in parseable format")
+	cmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
 	return cmd
 }
 

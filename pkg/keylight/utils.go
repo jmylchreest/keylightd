@@ -14,6 +14,14 @@ func boolToInt(b bool) int {
 }
 
 // convertTemperatureToDevice converts Kelvin to device mireds
+// Temperature formats:
+//   - Kelvin range: 2900-7000 (user-facing, API)
+//   - Mireds range: 143-344 (device internal)
+//   - Formula: mireds = 1000000 / kelvin
+//
+// The ranges don't overlap, so we can auto-detect format:
+//   - If value is 143-344: already in mireds, use as-is
+//   - If value is 2900-7000: in Kelvin, convert to mireds
 func convertTemperatureToDevice(kelvin int) int {
 	if kelvin < 2900 {
 		kelvin = 2900
