@@ -89,23 +89,27 @@ func (a *App) startup(ctx context.Context) {
 
 // SaveSettings saves the connection settings and reconnects the client
 func (a *App) SaveSettings(settings Settings) error {
-	var socketPath string
-
 	if settings.ConnectionType == "http" {
-		// For HTTP, we'd need to implement an HTTP client
-		// For now, return an error
-		return fmt.Errorf("HTTP API connection not yet implemented")
-	}
+		// Validate HTTP settings
+		if settings.APIUrl == "" {
+			return fmt.Errorf("API URL is required for HTTP connection")
+		}
+		if settings.APIKey == "" {
+			return fmt.Errorf("API key is required for HTTP connection")
+		}
 
-	// Use provided socket path or default
-	if settings.SocketPath != "" {
-		socketPath = settings.SocketPath
+		// Create HTTP client
+		a.client = client.NewHTTP(a.logger, settings.APIUrl, settings.APIKey)
 	} else {
-		socketPath = config.GetRuntimeSocketPath()
-	}
+		// Use provided socket path or default
+		socketPath := settings.SocketPath
+		if socketPath == "" {
+			socketPath = config.GetRuntimeSocketPath()
+		}
 
-	// Recreate the client with new settings
-	a.client = client.New(a.logger, socketPath)
+		// Create socket client
+		a.client = client.New(a.logger, socketPath)
+	}
 
 	return nil
 }

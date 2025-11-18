@@ -124,6 +124,7 @@ let debounceTimers = {};
 let activeSliders = {}; // Track sliders being dragged
 let refreshPaused = false; // Pause refresh during slider interaction
 let settingsDirty = false; // Track if settings have been modified
+let settingsUpdating = false; // Prevent concurrent settings panel updates
 
 // Icons
 const POWER_ICON = `<svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
@@ -165,10 +166,17 @@ function setupSettings() {
   const testConnectionBtn = document.getElementById("test-connection-btn");
   const saveSettingsBtn = document.getElementById("save-settings-btn");
 
-  settingsBtn.addEventListener("click", () => {
+  settingsBtn.addEventListener("click", async () => {
+    if (settingsUpdating) return;
+    settingsUpdating = true;
+
     settingsPanel.classList.add("open");
-    updateVisibilityLists();
-    updateGroupEditor();
+    try {
+      await updateVisibilityLists();
+      await updateGroupEditor();
+    } finally {
+      settingsUpdating = false;
+    }
   });
 
   // Setup group creation
@@ -238,7 +246,12 @@ async function saveSettings() {
     settingsDirty = false;
 
     // Test the new connection
-    await refresh();
+    try {
+      await refresh();
+    } catch (refreshErr) {
+      console.error("Refresh after save failed:", refreshErr);
+      // Don't fail the save, connection might need time
+    }
 
     // Reset button after delay
     setTimeout(() => {
@@ -246,6 +259,7 @@ async function saveSettings() {
       saveBtn.disabled = true;
     }, 1500);
   } catch (e) {
+    console.error("Save settings error:", e);
     saveBtn.textContent = "Failed";
 
     // Re-enable button on error
@@ -301,7 +315,7 @@ function loadSettings() {
   document.getElementById("conn-http").addEventListener("change", markDirty);
 }
 
-// Test connection
+// Test connection - tests with currently saved settings
 async function testConnection() {
   const statusEl = document.getElementById("connection-status");
   statusEl.textContent = "Testing...";
@@ -312,6 +326,7 @@ async function testConnection() {
     statusEl.textContent = "Connected";
     statusEl.className = "connection-status success";
   } catch (e) {
+    console.error("Test connection error:", e);
     statusEl.textContent = "Failed";
     statusEl.className = "connection-status error";
   }
