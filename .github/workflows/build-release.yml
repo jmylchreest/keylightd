@@ -128,7 +128,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: keylightd_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*.tar.gz
           retention-days: 1
 
@@ -158,7 +158,7 @@ jobs:
           cache: true
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
 
@@ -185,7 +185,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: keylightd-tray-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*.tar.gz
           retention-days: 1
 
@@ -212,7 +212,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: gnome-extension
+          name: keylightd-gnome-extension_${{ needs.prepare.outputs.version }}
           path: dist/gnome-extension/*.zip
           retention-days: 1
 
@@ -347,7 +347,7 @@ jobs:
       - name: Save checksums for publishing jobs
         uses: actions/upload-artifact@v5
         with:
-          name: checksums
+          name: keylightd_${{ needs.prepare.outputs.version }}_checksums
           path: release/keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
           retention-days: 1
 
@@ -363,7 +363,7 @@ jobs:
       - name: Download checksums
         uses: actions/download-artifact@v6
         with:
-          name: checksums
+          name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
 
       - name: Extract checksums
@@ -433,7 +433,7 @@ jobs:
           cat aur/keylightd-tray-bin/PKGBUILD
 
       - name: Publish keylightd-bin to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
         with:
           pkgname: keylightd-bin
           pkgbuild: aur/keylightd-bin/PKGBUILD
@@ -443,7 +443,7 @@ jobs:
           commit_message: "Update to ${{ needs.create-release.outputs.version }}"
 
       - name: Publish keylightd-tray-bin to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
         with:
           pkgname: keylightd-tray-bin
           pkgbuild: aur/keylightd-tray-bin/PKGBUILD
@@ -464,7 +464,7 @@ jobs:
       - name: Download checksums
         uses: actions/download-artifact@v6
         with:
-          name: checksums
+          name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
 
       - name: Extract checksums
@@ -562,9 +562,35 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Check if GNOME extension changed
+        id: check-changes
+        run: |
+          # Get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, will publish"
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            # Check if any files in the extension directory changed
+            CHANGED=$(git diff --name-only "$PREV_TAG" HEAD -- contrib/gnome-extension/keylightd-control@jmylchreest.github.io/)
+
+            if [ -n "$CHANGED" ]; then
+              echo "GNOME extension files changed:"
+              echo "$CHANGED"
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "No changes to GNOME extension since $PREV_TAG"
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
 
       - name: Upload to EGO
-        uses: murar8/gnome-extensions-action@v0.1.0
+        if: steps.check-changes.outputs.changed == 'true'
+        uses: murar8/gnome-extensions-action@0.1.0
         with:
           source-dir: contrib/gnome-extension/keylightd-control@jmylchreest.github.io
           username: ${{ secrets.EGO_USERNAME }}
