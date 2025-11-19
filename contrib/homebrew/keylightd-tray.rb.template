@@ -1,0 +1,76 @@
+# typed: false
+# frozen_string_literal: true
+
+class KeylightdTray < Formula
+  desc "System tray application for controlling Key Lights via keylightd"
+  homepage "https://github.com/jmylchreest/keylightd"
+  version "{{VERSION}}"
+  license "MIT"
+
+  # macOS builds are not currently available due to a symbol conflict
+  # between Wails and fyne.io/systray (duplicate AppDelegate).
+  # See: https://github.com/wailsapp/wails/issues/3003
+  # When this is resolved, uncomment the macOS sections below.
+  #
+  # on_macos do
+  #   on_intel do
+  #     url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_amd64.tar.gz"
+  #     sha256 "{{SHA256_DARWIN_AMD64}}"
+  #   end
+  #   on_arm do
+  #     url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_arm64.tar.gz"
+  #     sha256 "{{SHA256_DARWIN_ARM64}}"
+  #   end
+  # end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_amd64.tar.gz"
+      sha256 "{{SHA256_LINUX_AMD64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_amd64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_LINUX_AMD64}}"
+      end
+    end
+    on_arm do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_arm64.tar.gz"
+      sha256 "{{SHA256_LINUX_ARM64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_arm64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_LINUX_ARM64}}"
+      end
+    end
+  end
+
+  depends_on "gtk+3"
+  depends_on "webkit2gtk"
+
+  def install
+    bin.install "keylightd-tray"
+
+    resource("sbom").stage do
+      (share/"doc/keylightd-tray").install Dir["*.spdx.json"].first => "sbom.spdx.json"
+    end
+  end
+
+  test do
+    system "#{bin}/keylightd-tray", "--version"
+  end
+
+  def caveats
+    <<~EOS
+      keylightd-tray has been installed!
+
+      This is a system tray application for controlling Key Lights.
+      It requires keylightd to be running.
+
+      To start:
+        keylightd-tray
+
+      Note: macOS support is not currently available due to a build conflict.
+      See: https://github.com/wailsapp/wails/issues/3003
+    EOS
+  end
+end

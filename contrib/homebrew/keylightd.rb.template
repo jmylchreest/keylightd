@@ -1,0 +1,101 @@
+# typed: false
+# frozen_string_literal: true
+
+class Keylightd < Formula
+  desc "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
+  homepage "https://github.com/jmylchreest/keylightd"
+  version "{{VERSION}}"
+  license "MIT"
+
+  on_macos do
+    on_intel do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_darwin_amd64.tar.gz"
+      sha256 "{{SHA256_DARWIN_AMD64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_darwin_amd64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_DARWIN_AMD64}}"
+      end
+    end
+    on_arm do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_darwin_arm64.tar.gz"
+      sha256 "{{SHA256_DARWIN_ARM64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_darwin_arm64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_DARWIN_ARM64}}"
+      end
+    end
+  end
+
+  on_linux do
+    on_intel do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_linux_amd64.tar.gz"
+      sha256 "{{SHA256_LINUX_AMD64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_linux_amd64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_LINUX_AMD64}}"
+      end
+    end
+    on_arm do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_linux_arm64.tar.gz"
+      sha256 "{{SHA256_LINUX_ARM64}}"
+
+      resource "sbom" do
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd_{{VERSION}}_linux_arm64_sbom.spdx.json"
+        sha256 "{{SHA256_SBOM_LINUX_ARM64}}"
+      end
+    end
+  end
+
+  def install
+    bin.install "keylightd"
+    bin.install "keylightctl"
+
+    resource("sbom").stage do
+      (share/"doc/keylightd").install Dir["*.spdx.json"].first => "sbom.spdx.json"
+    end
+  end
+
+  service do
+    run bin/"keylightd"
+    keep_alive true
+    restart_delay 5
+    process_type :background
+    run_type :immediate
+  end
+
+  test do
+    system "#{bin}/keylightd", "-h"
+    system "#{bin}/keylightctl", "version"
+  end
+
+  def caveats
+    <<~EOS
+      keylightd daemon has been installed!
+
+      To start keylightd manually:
+        keylightd
+
+      To start automatically with Homebrew services:
+        brew services start keylightd
+
+      To stop the service:
+        brew services stop keylightd
+
+      To restart the service:
+        brew services restart keylightd
+
+      To check service status:
+        brew services list | grep keylightd
+
+      Once started, control your lights with:
+        keylightctl light list
+        keylightctl --help
+
+      Configuration will be created at: ~/.config/keylightd/
+      Service logs will be written to: $(brew --prefix)/var/log/keylightd.log
+    EOS
+  end
+end

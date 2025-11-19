@@ -6,105 +6,129 @@ on:
       - main
     tags:
       - "v*"
-      - "!*SNAPSHOT*"
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
   workflow_dispatch:
-  workflow_run:
-    workflows: ["Test"]
-    types:
-      - completed
-    branches:
-      - main
 
 jobs:
-  check-test-status:
-    name: Check Test Workflow Status
+  prepare:
+    name: Prepare Release
     runs-on: ubuntu-latest
-    if: |
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       (github.ref_type == 'tag' || github.ref_name == 'main'))
-    steps:
-      - name: Check Test Status
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_run" ]; then
-            echo "Test workflow has completed successfully."
-          else
-            echo "Direct workflow trigger. Proceeding with build."
-          fi
-
-  build-gnome-extension:
-    name: Build GNOME extension
-    runs-on: ubuntu-latest
-    needs: check-test-status
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
+      is_snapshot: ${{ steps.version.outputs.IS_SNAPSHOT }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Install dependencies
+      - name: Determine version
+        id: version
         run: |
-          sudo apt-get update
-          sudo apt-get install -y make zip
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Release build from tag
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            IS_SNAPSHOT="false"
+          else
+            # Snapshot build from main branch or workflow_dispatch
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            LAST_VERSION="${LAST_TAG#v}"
 
-      - name: Build extension
-        run: |
-          cd contrib/gnome-extension
-          make zip
-          echo "Extension built successfully"
-          echo "=== Checking what was created ==="
-          find $(pwd)/../../dist -name "*gnome-extension*" -o -name "*.zip" | sort
+            # Increment patch version
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$LAST_VERSION"
+            NEXT_PATCH=$((PATCH + 1))
+            NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
 
-      - name: Upload GNOME extension artifact
-        uses: actions/upload-artifact@v5
-        with:
-          name: gnome-extension
-          path: dist/gnome-extension/*.zip
-          retention-days: 1
+            SHORT_SHA=$(git rev-parse --short HEAD)
+            VERSION="${NEXT_VERSION}-${SHORT_SHA}-SNAPSHOT"
+            IS_SNAPSHOT="true"
+          fi
 
-  build-keylightd-tray:
-    name: Build keylightd-tray (${{ matrix.platform }})
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "IS_SNAPSHOT=${IS_SNAPSHOT}" >> $GITHUB_OUTPUT
+          echo "Determined version: ${VERSION} (snapshot: ${IS_SNAPSHOT})"
+
+  build-binaries:
+    name: Build binaries (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
-    needs: check-test-status
+    needs: prepare
     strategy:
       matrix:
         include:
-          - platform: linux/amd64
+          - goos: linux
+            goarch: amd64
             os: ubuntu-latest
-            arch: amd64
-            goos: linux
-          - platform: linux/arm64
+          - goos: linux
+            goarch: arm64
             os: ubuntu-24.04-arm
-            arch: arm64
-            goos: linux
-          # macOS disabled due to AppDelegate symbol conflict between Wails and fyne.io/systray
-          # See: https://github.com/wailsapp/wails/issues/3003
-          # - platform: darwin/universal
-          #   os: macos-latest
-          #   arch: universal
-          #   goos: darwin
+          - goos: darwin
+            goarch: amd64
+            os: macos-latest
+          - goos: darwin
+            goarch: arm64
+            os: macos-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Get version info
-        id: version
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+          cache: true
+
+      - name: Build keylightd
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
         run: |
-          if [ "${{ github.ref_type }}" == "tag" ]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-SNAPSHOT-$(git rev-parse --short HEAD)"
-          fi
-          COMMIT=$(git rev-parse --short HEAD)
-          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
-          echo "COMMIT=${COMMIT}" >> $GITHUB_OUTPUT
-          echo "DATE=${DATE}" >> $GITHUB_OUTPUT
+          go build -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o keylightd ./cmd/keylightd
+
+      - name: Build keylightctl
+        env:
+          CGO_ENABLED: 0
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o keylightctl ./cmd/keylightctl
+
+      - name: Create archive
+        run: |
+          mkdir -p dist
+          tar -czvf dist/keylightd_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            keylightd \
+            keylightctl \
+            LICENSE \
+            README.md \
+            contrib/systemd/keylightd.service
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
+          retention-days: 1
+
+  build-keylightd-tray:
+    name: Build keylightd-tray (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ${{ matrix.os }}
+    needs: prepare
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            os: ubuntu-latest
+          - goos: linux
+            goarch: arm64
+            os: ubuntu-24.04-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -121,7 +145,6 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
 
       - name: Install Linux dependencies
-        if: matrix.goos == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
@@ -129,194 +152,137 @@ jobs:
       - name: Build keylightd-tray
         working-directory: contrib/keylightd-tray
         run: |
-          wails build -tags webkit2_41,desktop -ldflags "-s -w -X main.version=${{ steps.version.outputs.VERSION }} -X main.commit=${{ steps.version.outputs.COMMIT }} -X main.buildDate=${{ steps.version.outputs.DATE }}"
+          wails build -tags webkit2_41,desktop -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-      - name: Prepare artifact
+      - name: Create archive
         run: |
-          mkdir -p dist/keylightd-tray
-          if [ "${{ matrix.goos }}" == "darwin" ]; then
-            cp contrib/keylightd-tray/build/bin/keylightd-tray.app dist/keylightd-tray/ 2>/dev/null || cp contrib/keylightd-tray/build/bin/keylightd-tray dist/keylightd-tray/
-          else
-            cp contrib/keylightd-tray/build/bin/keylightd-tray dist/keylightd-tray/
-          fi
-          cp LICENSE README.md dist/keylightd-tray/
-          cd dist
-          tar -czvf keylightd-tray_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz -C keylightd-tray .
+          mkdir -p dist
+          tar -czvf dist/keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz \
+            -C contrib/keylightd-tray/build/bin keylightd-tray \
+            -C ${{ github.workspace }} LICENSE README.md
 
-      - name: Upload keylightd-tray artifact
+      - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: keylightd-tray-${{ matrix.goos }}-${{ matrix.arch }}
-          path: dist/keylightd-tray_*.tar.gz
+          name: keylightd-tray-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*.tar.gz
           retention-days: 1
 
-  goreleaser:
-    name: Run GoReleaser
-    needs: [build-gnome-extension, build-keylightd-tray]
+  build-gnome-extension:
+    name: Build GNOME extension
     runs-on: ubuntu-latest
-    outputs:
-      VERSION: ${{ steps.extract-version.outputs.VERSION }}
-      CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
-      IS_SNAPSHOT: ${{ steps.version.outputs.IS_SNAPSHOT }}
-      RELEASE_ID: ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && steps.create_release.outputs.id || steps.get_release.outputs.RELEASE_ID }}
+    needs: prepare
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version: stable
-          cache: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make zip
 
-      - name: Download keylightd-tray artifacts
-        uses: actions/download-artifact@v6
-        with:
-          pattern: keylightd-tray-*
-          path: artifacts/keylightd-tray
-          merge-multiple: true
+      - name: Build extension
+        run: |
+          cd contrib/gnome-extension
+          make zip
 
-      - name: Download GNOME extension artifact
-        uses: actions/download-artifact@v6
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
         with:
           name: gnome-extension
-          path: artifacts/gnome-extension
+          path: dist/gnome-extension/*.zip
+          retention-days: 1
 
-      - name: Verify artifacts
-        run: |
-          echo "=== keylightd-tray artifacts ==="
-          ls -la artifacts/keylightd-tray/ || echo "Directory not found"
-          echo "=== GNOME extension artifacts ==="
-          ls -la artifacts/gnome-extension/ || echo "Directory not found"
-          echo "=== All artifacts ==="
-          find artifacts -type f
-
-      - name: Generate commit info
-        id: commit-info
-        run: |
-          COMMIT_HASH=$(git rev-parse --short HEAD)
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -n 1)
-          echo "COMMIT_HASH=${COMMIT_HASH}" >> $GITHUB_OUTPUT
-          echo "COMMIT_MSG=${COMMIT_MSG}" >> $GITHUB_OUTPUT
-          echo "Commit hash: ${COMMIT_HASH}"
-          echo "Commit message: ${COMMIT_MSG}"
-
-      - name: Find previous and current versions
-        id: version
-        run: |
-          # Get all tags
-          git fetch --tags
-
-          # List all tags for diagnostics
-          echo "=== All tags (newest first) ==="
-          git tag --sort=-v:refname
-
-          # Determine if this is a snapshot build
-          IS_SNAPSHOT="false"
-          if [ "${{ github.ref_type }}" != "tag" ] || [[ "${{ github.ref_name }}" == *"SNAPSHOT"* ]]; then
-            IS_SNAPSHOT="true"
-          fi
-
-          if [ "$IS_SNAPSHOT" == "true" ]; then
-            # Snapshot build logic
-            LATEST_RELEASE_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
-            if [ -z "$LATEST_RELEASE_TAG" ]; then
-              LATEST_RELEASE_TAG="v0.0.0"
-            fi
-            echo "Latest release tag: ${LATEST_RELEASE_TAG}"
-
-            BASE_VERSION=${LATEST_RELEASE_TAG}
-            echo "Using base version: ${BASE_VERSION}"
-
-            PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-            if [[ "$PREVIOUS_TAG" == *"SNAPSHOT"* ]]; then
-              PREVIOUS_TAG=${LATEST_RELEASE_TAG}
-            fi
-            CURRENT_TAG=${BASE_VERSION}
-          else
-            # Release build logic
-            CURRENT_TAG="${{ github.ref_name }}"
-            if [ -z "$CURRENT_TAG" ] || [[ "$CURRENT_TAG" == *"SNAPSHOT"* ]]; then
-              CURRENT_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | head -n1)
-            fi
-            echo "Current tag: ${CURRENT_TAG}"
-
-            PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -v "SNAPSHOT" | grep -v "^${CURRENT_TAG}$" | head -n1)
-            if [ -z "$PREVIOUS_TAG" ]; then
-              PREVIOUS_TAG="v0.0.0"
-            fi
-            echo "Previous tag: ${PREVIOUS_TAG}"
-          fi
-
-          echo "IS_SNAPSHOT=${IS_SNAPSHOT}" >> $GITHUB_OUTPUT
-          echo "PREVIOUS_TAG=${PREVIOUS_TAG}" >> $GITHUB_OUTPUT
-          echo "CURRENT_TAG=${CURRENT_TAG}" >> $GITHUB_OUTPUT
-
-      - name: Debug GoReleaser environment
-        run: |
-          echo "=== Full contents ==="
-          find ./ -type f
-
-          echo "=== GoReleaser Environment ==="
-          echo "IS_SNAPSHOT: ${{ steps.version.outputs.IS_SNAPSHOT }}"
-          echo "CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}"
-          echo "PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}"
-
-      - name: Run GoReleaser
-        id: goreleaser
-        uses: goreleaser/goreleaser-action@v6
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs:
+      [prepare, build-binaries, build-keylightd-tray, build-gnome-extension]
+    outputs:
+      version: ${{ needs.prepare.outputs.version }}
+      is_snapshot: ${{ needs.prepare.outputs.is_snapshot }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
         with:
-          distribution: goreleaser
-          version: "latest"
-          args: release --clean ${{ steps.version.outputs.IS_SNAPSHOT == 'true' && '--snapshot' || '' }} --timeout 30m
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          AUR_MAINTAINER: ${{ secrets.AUR_MAINTAINER }}
-          AUR_KEY: ${{ secrets.AUR_KEY }}
-          GORELEASER_CURRENT_TAG: ${{ steps.version.outputs.CURRENT_TAG }}
-          GORELEASER_PREVIOUS_TAG: ${{ steps.version.outputs.PREVIOUS_TAG }}
+          fetch-depth: 0
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+          merge-multiple: false
 
-      - name: Extract version information
-        id: extract-version
+      - name: Prepare release assets
         run: |
-          echo "=== Content of metadata.json ==="
-          cat ./dist/metadata.json
+          mkdir -p release
 
-          # Extract version using jq
-          VERSION=$(jq -r .version ./dist/metadata.json | sed 's/^v//')
-          echo "Extracted version (without v prefix): ${VERSION}"
+          # Move all tarballs to release directory
+          find artifacts -name "*.tar.gz" -exec mv {} release/ \;
 
-          # Print debug info
-          echo "Final version for release: ${VERSION}"
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          # Move GNOME extension
+          find artifacts -name "*.zip" -exec cp {} release/keylightd-control@jmylchreest.github.io.shell-extension.zip \;
 
-      - name: Debug GoReleaser output
+          # List all release assets
+          echo "=== Release assets ==="
+          ls -la release/
+
+      - name: Generate SBOMs
         run: |
-          echo "=== GoReleaser output files ==="
-          find ./dist -type f | sort
+          # Install syft
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-          echo "=== GoReleaser artifacts.json content ==="
-          if [ -f ./dist/artifacts.json ]; then
-            jq . ./dist/artifacts.json
+          # Generate SBOM for each tarball
+          cd release
+          for tarball in *.tar.gz; do
+            name="${tarball%.tar.gz}"
+            syft "$tarball" -o spdx-json > "${name}_sbom.spdx.json"
+            echo "Generated SBOM for $tarball"
+          done
+
+          echo "=== Generated SBOMs ==="
+          ls -la *_sbom.spdx.json
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum *.tar.gz *.zip *.spdx.json > keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
+          echo "=== Checksums ==="
+          cat keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          if [[ "${{ needs.prepare.outputs.is_snapshot }}" == "true" ]]; then
+            echo "Snapshot build from commit ${{ github.sha }}" > changelog.txt
+            echo "" >> changelog.txt
+            echo "Commit: $(git log -1 --pretty=%B)" >> changelog.txt
           else
-            echo "artifacts.json not found"
+            # Get previous tag
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+            if [ -n "$PREV_TAG" ]; then
+              echo "## Changelog" > changelog.txt
+              echo "" >> changelog.txt
+              # Filter out docs, test, ci commits and merge commits
+              git log --pretty=format:"* %h %s" $PREV_TAG..${{ github.ref_name }} | \
+                grep -v "^* [a-f0-9]* docs:" | \
+                grep -v "^* [a-f0-9]* test:" | \
+                grep -v "^* [a-f0-9]* ci:" | \
+                grep -v "^* [a-f0-9]* Merge pull request" | \
+                grep -v "^* [a-f0-9]* Merge branch" >> changelog.txt || echo "* No notable changes" >> changelog.txt
+            else
+              echo "* Initial release" > changelog.txt
+            fi
           fi
 
-          echo "=== GoReleaser metadata.json content ==="
-          if [ -f ./dist/metadata.json ]; then
-            jq . ./dist/metadata.json
-          else
-            echo "metadata.json not found"
-          fi
+          echo "=== Changelog ==="
+          cat changelog.txt
 
-      - name: Clean up old snapshot releases
-        if: steps.version.outputs.IS_SNAPSHOT == 'true'
+      - name: Clean up old snapshots
+        if: needs.prepare.outputs.is_snapshot == 'true'
         run: |
           echo "Cleaning up old snapshot releases (keeping 5 most recent)..."
 
@@ -345,93 +311,241 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create GitHub Release (Snapshot only)
-        id: create_release
-        if: steps.version.outputs.IS_SNAPSHOT == 'true'
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Snapshot ${{ steps.extract-version.outputs.VERSION }}"
-          tag_name: "${{ steps.extract-version.outputs.VERSION }}"
-          body: |
-            Automated snapshot build from commit ${{ github.sha }}
-
-            Commit message: ${{ steps.commit-info.outputs.COMMIT_MSG }}
-
-            This is an automated snapshot build and is not intended for production use.
-          files: |
-            ./dist/*.tar.gz
-            ./contrib/systemd/*
-          prerelease: true
+          name: ${{ needs.prepare.outputs.is_snapshot == 'true' && format('Snapshot {0}', needs.prepare.outputs.version) || format('v{0}', needs.prepare.outputs.version) }}
+          tag_name: ${{ needs.prepare.outputs.is_snapshot == 'true' && needs.prepare.outputs.version || github.ref_name }}
+          body_path: changelog.txt
+          files: release/*
           draft: false
-          generate_release_notes: false
+          prerelease: ${{ needs.prepare.outputs.is_snapshot == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get Release ID (Release only)
-        id: get_release
-        if: steps.version.outputs.IS_SNAPSHOT == 'false'
+      - name: Save checksums for publishing jobs
+        uses: actions/upload-artifact@v5
+        with:
+          name: checksums
+          path: release/keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
+          retention-days: 1
+
+  publish-aur:
+    name: Publish to AUR
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: needs.create-release.outputs.is_snapshot == 'false'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download checksums
+        uses: actions/download-artifact@v6
+        with:
+          name: checksums
+          path: checksums
+
+      - name: Extract checksums
+        id: checksums
         run: |
-          # For release builds, GoReleaser should have created the release
-          # Get the release ID for the current tag
-          sleep 5  # Give GoReleaser time to create the release
-          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.version.outputs.CURRENT_TAG }} --jq '.id' 2>/dev/null || echo "")
-          echo "RELEASE_ID=${RELEASE_ID}" >> $GITHUB_OUTPUT
-          echo "Found release ID: ${RELEASE_ID}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION="${{ needs.create-release.outputs.version }}"
+          CHECKSUM_FILE="checksums/keylightd_${VERSION}_checksums.txt"
 
-      - name: Upload extension to EGO (extensions.gnome.org)
-        if: steps.version.outputs.IS_SNAPSHOT == 'false'
-        continue-on-error: true
+          # Extract checksums for keylightd
+          SHA256_LINUX_AMD64=$(grep "keylightd_${VERSION}_linux_amd64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep "keylightd_${VERSION}_linux_arm64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # Extract checksums for keylightd-tray
+          SHA256_TRAY_AMD64=$(grep "keylightd-tray_v${VERSION}_linux_amd64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_TRAY_ARM64=$(grep "keylightd-tray_v${VERSION}_linux_arm64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # Extract SBOM checksums for keylightd
+          SHA256_SBOM_AMD64=$(grep "keylightd_${VERSION}_linux_amd64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_ARM64=$(grep "keylightd_${VERSION}_linux_arm64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # Extract SBOM checksums for keylightd-tray
+          SHA256_SBOM_TRAY_AMD64=$(grep "keylightd-tray_v${VERSION}_linux_amd64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_TRAY_ARM64=$(grep "keylightd-tray_v${VERSION}_linux_arm64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          echo "SHA256_LINUX_AMD64=${SHA256_LINUX_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_LINUX_ARM64=${SHA256_LINUX_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_TRAY_AMD64=${SHA256_TRAY_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_TRAY_ARM64=${SHA256_TRAY_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_AMD64=${SHA256_SBOM_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_ARM64=${SHA256_SBOM_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_TRAY_AMD64=${SHA256_SBOM_TRAY_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_TRAY_ARM64=${SHA256_SBOM_TRAY_ARM64}" >> $GITHUB_OUTPUT
+
+          echo "=== Extracted checksums ==="
+          cat "$CHECKSUM_FILE"
+
+      - name: Generate keylightd-bin PKGBUILD
         run: |
-          set +e
-          echo "Preparing GNOME Extensions (EGO) upload (non-fatal step)"
-          if [ -z "${EGO_USERNAME}" ] || [ -z "${EGO_PASSWORD}" ]; then
-            echo "::warning::Skipping EGO upload: credentials missing."
-            exit 0
-          fi
-          echo "Installing gnome-extensions CLI (if needed)"
-          sudo apt-get update
-          sudo apt-get install -y gnome-shell-extension-prefs || true
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p aur/keylightd-bin
 
-          if ! command -v gnome-extensions >/dev/null 2>&1; then
-            echo "gnome-extensions CLI not found; attempting fallback install of gnome-shell-common"
-            sudo apt-get install -y gnome-shell-common || true
-          fi
+          sed -e "s/{{VERSION}}/${VERSION}/g" \
+              -e "s/{{AUR_MAINTAINER}}/${{ secrets.AUR_MAINTAINER }}/g" \
+              -e "s/{{SHA256_AMD64}}/${{ steps.checksums.outputs.SHA256_LINUX_AMD64 }}/g" \
+              -e "s/{{SHA256_ARM64}}/${{ steps.checksums.outputs.SHA256_LINUX_ARM64 }}/g" \
+              -e "s/{{SHA256_SBOM_AMD64}}/${{ steps.checksums.outputs.SHA256_SBOM_AMD64 }}/g" \
+              -e "s/{{SHA256_SBOM_ARM64}}/${{ steps.checksums.outputs.SHA256_SBOM_ARM64 }}/g" \
+              contrib/aur/keylightd-bin/PKGBUILD.template > aur/keylightd-bin/PKGBUILD
 
-          if ! command -v gnome-extensions >/dev/null 2>&1; then
-            echo "::warning::Skipping EGO upload: gnome-extensions CLI not available after install attempts."
-            exit 0
-          fi
+          echo "=== Generated keylightd-bin PKGBUILD ==="
+          cat aur/keylightd-bin/PKGBUILD
 
-          ZIP_FILE=$(find artifacts/gnome-extension -maxdepth 1 -name "*.zip" -print -quit)
-          if [ -z "$ZIP_FILE" ]; then
-            echo "::warning::Skipping EGO upload: no extension zip found in dist/gnome-extension."
-            exit 0
-          fi
+      - name: Generate keylightd-tray-bin PKGBUILD
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          mkdir -p aur/keylightd-tray-bin
 
-          echo "Uploading ${ZIP_FILE} to EGO (accepting ToS)"
-          gnome-extensions upload --accept-tos --force "$ZIP_FILE" \
-            --user "${EGO_USERNAME}" \
-            --password "${EGO_PASSWORD}"
-          STATUS=$?
+          sed -e "s/{{VERSION}}/${VERSION}/g" \
+              -e "s/{{AUR_MAINTAINER}}/${{ secrets.AUR_MAINTAINER }}/g" \
+              -e "s/{{SHA256_AMD64}}/${{ steps.checksums.outputs.SHA256_TRAY_AMD64 }}/g" \
+              -e "s/{{SHA256_ARM64}}/${{ steps.checksums.outputs.SHA256_TRAY_ARM64 }}/g" \
+              -e "s/{{SHA256_SBOM_AMD64}}/${{ steps.checksums.outputs.SHA256_SBOM_TRAY_AMD64 }}/g" \
+              -e "s/{{SHA256_SBOM_ARM64}}/${{ steps.checksums.outputs.SHA256_SBOM_TRAY_ARM64 }}/g" \
+              contrib/aur/keylightd-tray-bin/PKGBUILD.template > aur/keylightd-tray-bin/PKGBUILD
 
-          if [ $STATUS -ne 0 ]; then
-            echo "::warning::EGO upload failed with status ${STATUS} (continuing build)."
-          else
-            echo "EGO upload completed successfully."
-          fi
+          echo "=== Generated keylightd-tray-bin PKGBUILD ==="
+          cat aur/keylightd-tray-bin/PKGBUILD
 
-          echo "EGO upload step finished (non-fatal)."
-        env:
-          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
-          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+      - name: Publish keylightd-bin to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: keylightd-bin
+          pkgbuild: aur/keylightd-bin/PKGBUILD
+          commit_username: goreleaserbot
+          commit_email: bot@goreleaser.com
+          ssh_private_key: ${{ secrets.AUR_KEY }}
+          commit_message: "Update to ${{ needs.create-release.outputs.version }}"
 
-  # flatpak:
-  #   name: Build Flatpak
-  #   needs: goreleaser
-  #   uses: ./.github/workflows/flatpak.yml
-  #   with:
-  #     tag_name: ${{ needs.goreleaser.outputs.IS_SNAPSHOT == 'true' && needs.goreleaser.outputs.VERSION || needs.goreleaser.outputs.CURRENT_TAG }}
-  #     version: ${{ needs.goreleaser.outputs.VERSION }}
-  #     release_id: ${{ needs.goreleaser.outputs.RELEASE_ID }}
+      - name: Publish keylightd-tray-bin to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: keylightd-tray-bin
+          pkgbuild: aur/keylightd-tray-bin/PKGBUILD
+          commit_username: goreleaserbot
+          commit_email: bot@goreleaser.com
+          ssh_private_key: ${{ secrets.AUR_KEY }}
+          commit_message: "Update to ${{ needs.create-release.outputs.version }}"
+
+  publish-homebrew:
+    name: Publish to Homebrew
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: needs.create-release.outputs.is_snapshot == 'false'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download checksums
+        uses: actions/download-artifact@v6
+        with:
+          name: checksums
+          path: checksums
+
+      - name: Extract checksums
+        id: checksums
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          CHECKSUM_FILE="checksums/keylightd_${VERSION}_checksums.txt"
+
+          # keylightd checksums
+          SHA256_DARWIN_AMD64=$(grep "keylightd_${VERSION}_darwin_amd64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_DARWIN_ARM64=$(grep "keylightd_${VERSION}_darwin_arm64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_LINUX_AMD64=$(grep "keylightd_${VERSION}_linux_amd64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep "keylightd_${VERSION}_linux_arm64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # keylightd-tray checksums (Linux only)
+          SHA256_TRAY_LINUX_AMD64=$(grep "keylightd-tray_v${VERSION}_linux_amd64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_TRAY_LINUX_ARM64=$(grep "keylightd-tray_v${VERSION}_linux_arm64.tar.gz" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # SBOM checksums for keylightd
+          SHA256_SBOM_DARWIN_AMD64=$(grep "keylightd_${VERSION}_darwin_amd64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_DARWIN_ARM64=$(grep "keylightd_${VERSION}_darwin_arm64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_LINUX_AMD64=$(grep "keylightd_${VERSION}_linux_amd64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_LINUX_ARM64=$(grep "keylightd_${VERSION}_linux_arm64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          # SBOM checksums for keylightd-tray (Linux only)
+          SHA256_SBOM_TRAY_LINUX_AMD64=$(grep "keylightd-tray_v${VERSION}_linux_amd64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+          SHA256_SBOM_TRAY_LINUX_ARM64=$(grep "keylightd-tray_v${VERSION}_linux_arm64_sbom.spdx.json" "$CHECKSUM_FILE" | awk '{print $1}')
+
+          echo "SHA256_DARWIN_AMD64=${SHA256_DARWIN_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_DARWIN_ARM64=${SHA256_DARWIN_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_LINUX_AMD64=${SHA256_LINUX_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_LINUX_ARM64=${SHA256_LINUX_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_TRAY_LINUX_AMD64=${SHA256_TRAY_LINUX_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_TRAY_LINUX_ARM64=${SHA256_TRAY_LINUX_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_DARWIN_AMD64=${SHA256_SBOM_DARWIN_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_DARWIN_ARM64=${SHA256_SBOM_DARWIN_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_LINUX_AMD64=${SHA256_SBOM_LINUX_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_LINUX_ARM64=${SHA256_SBOM_LINUX_ARM64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_TRAY_LINUX_AMD64=${SHA256_SBOM_TRAY_LINUX_AMD64}" >> $GITHUB_OUTPUT
+          echo "SHA256_SBOM_TRAY_LINUX_ARM64=${SHA256_SBOM_TRAY_LINUX_ARM64}" >> $GITHUB_OUTPUT
+
+      - name: Generate keylightd formula
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+
+          sed -e "s/{{VERSION}}/${VERSION}/g" \
+              -e "s/{{SHA256_DARWIN_AMD64}}/${{ steps.checksums.outputs.SHA256_DARWIN_AMD64 }}/g" \
+              -e "s/{{SHA256_DARWIN_ARM64}}/${{ steps.checksums.outputs.SHA256_DARWIN_ARM64 }}/g" \
+              -e "s/{{SHA256_LINUX_AMD64}}/${{ steps.checksums.outputs.SHA256_LINUX_AMD64 }}/g" \
+              -e "s/{{SHA256_LINUX_ARM64}}/${{ steps.checksums.outputs.SHA256_LINUX_ARM64 }}/g" \
+              -e "s/{{SHA256_SBOM_DARWIN_AMD64}}/${{ steps.checksums.outputs.SHA256_SBOM_DARWIN_AMD64 }}/g" \
+              -e "s/{{SHA256_SBOM_DARWIN_ARM64}}/${{ steps.checksums.outputs.SHA256_SBOM_DARWIN_ARM64 }}/g" \
+              -e "s/{{SHA256_SBOM_LINUX_AMD64}}/${{ steps.checksums.outputs.SHA256_SBOM_LINUX_AMD64 }}/g" \
+              -e "s/{{SHA256_SBOM_LINUX_ARM64}}/${{ steps.checksums.outputs.SHA256_SBOM_LINUX_ARM64 }}/g" \
+              contrib/homebrew/keylightd.rb.template > keylightd.rb
+
+          echo "=== Generated keylightd formula ==="
+          cat keylightd.rb
+
+      - name: Generate keylightd-tray formula
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+
+          sed -e "s/{{VERSION}}/${VERSION}/g" \
+              -e "s/{{SHA256_LINUX_AMD64}}/${{ steps.checksums.outputs.SHA256_TRAY_LINUX_AMD64 }}/g" \
+              -e "s/{{SHA256_LINUX_ARM64}}/${{ steps.checksums.outputs.SHA256_TRAY_LINUX_ARM64 }}/g" \
+              -e "s/{{SHA256_SBOM_LINUX_AMD64}}/${{ steps.checksums.outputs.SHA256_SBOM_TRAY_LINUX_AMD64 }}/g" \
+              -e "s/{{SHA256_SBOM_LINUX_ARM64}}/${{ steps.checksums.outputs.SHA256_SBOM_TRAY_LINUX_ARM64 }}/g" \
+              contrib/homebrew/keylightd-tray.rb.template > keylightd-tray.rb
+
+          echo "=== Generated keylightd-tray formula ==="
+          cat keylightd-tray.rb
+
+      - name: Push to Homebrew tap
+        run: |
+          git clone https://x-access-token:${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}@github.com/jmylchreest/homebrew-keylightd.git tap
+
+          mkdir -p tap/Formula
+          cp keylightd.rb tap/Formula/keylightd.rb
+          cp keylightd-tray.rb tap/Formula/keylightd-tray.rb
+
+          cd tap
+          git config user.name "goreleaserbot"
+          git config user.email "bot@goreleaser.com"
+          git add Formula/keylightd.rb Formula/keylightd-tray.rb
+          git commit -m "Update keylightd to ${{ needs.create-release.outputs.version }}"
+          git push
+
+  publish-ego:
+    name: Publish to EGO
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: needs.create-release.outputs.is_snapshot == 'false'
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Upload to EGO
+        uses: murar8/gnome-extensions-action@v0.1.0
+        with:
+          source-dir: contrib/gnome-extension/keylightd-control@jmylchreest.github.io
+          username: ${{ secrets.EGO_USERNAME }}
+          password: ${{ secrets.EGO_PASSWORD }}
+          accept-tos: true
