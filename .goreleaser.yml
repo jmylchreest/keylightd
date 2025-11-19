@@ -4,8 +4,6 @@ before:
   hooks:
     - go mod tidy
     - go mod vendor
-    # Build keylightd-tray frontend
-    - bash -c "cd contrib/keylightd-tray && make frontend"
 
 builds:
   - id: keylightd
@@ -42,28 +40,12 @@ builds:
       - -X main.commit={{.ShortCommit}}
       - -X main.buildDate={{.Date}}
 
-  - id: keylightd-tray
-    main: ./contrib/keylightd-tray
-    binary: keylightd-tray
-    env:
-      - CGO_ENABLED=1
-    tags:
-      - webkit2_41
-    goos:
-      - linux
-    goarch:
-      - amd64
-    ldflags:
-      - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.ShortCommit}}
-      - -X main.buildDate={{.Date}}
-
 release:
   disable: false
   extra_files:
     - glob: ./dist/gnome-extension/*.zip
       name_template: keylightd-control@jmylchreest.github.io.shell-extension.zip
+    - glob: ./dist/keylightd-tray-artifact/*.tar.gz
 
 archives:
   - id: default
@@ -76,15 +58,6 @@ archives:
       - LICENSE
       - README.md
       - contrib/systemd/keylightd.service
-
-  - id: tray
-    builds:
-      - keylightd-tray
-    formats: ["tar.gz"]
-    name_template: "keylightd-tray_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
 
 changelog:
   sort: asc
@@ -197,9 +170,10 @@ aurs:
       email: bot@goreleaser.com
 
   - name: keylightd-tray-bin
-    ids:
-      - tray
+    ids: []
+    url_template: "https://github.com/jmylchreest/keylightd/releases/download/{{ .Tag }}/keylightd-tray_{{ .Tag }}_linux_{{ .Arch }}.tar.gz"
     homepage: "https://github.com/jmylchreest/keylightd"
+    goamd64: v1
     description: "System tray application for controlling Key Lights via keylightd"
     maintainers:
       - "{{ .Env.AUR_MAINTAINER }}"

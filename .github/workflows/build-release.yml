@@ -65,9 +65,80 @@ jobs:
           path: dist/gnome-extension/*.zip
           retention-days: 1
 
+  build-keylightd-tray:
+    name: Build keylightd-tray (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    needs: check-test-status
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            os: ubuntu-latest
+            arch: amd64
+            goos: linux
+          - platform: linux/arm64
+            os: ubuntu-latest
+            arch: arm64
+            goos: linux
+          - platform: darwin/universal
+            os: macos-latest
+            arch: universal
+            goos: darwin
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Get version info
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" == "tag" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="$(git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)-SNAPSHOT-$(git rev-parse --short HEAD)"
+          fi
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          echo "COMMIT=${COMMIT}" >> $GITHUB_OUTPUT
+          echo "DATE=${DATE}" >> $GITHUB_OUTPUT
+
+      - name: Build keylightd-tray
+        uses: dAppServer/wails-build-action@v2.2
+        with:
+          build-name: keylightd-tray
+          build-platform: ${{ matrix.platform }}
+          package: false
+          go-version: "1.23"
+          node-version: "20"
+          wails-version: "v2.9.2"
+          build-dir: contrib/keylightd-tray
+          ldflags: "-s -w -X main.version=${{ steps.version.outputs.VERSION }} -X main.commit=${{ steps.version.outputs.COMMIT }} -X main.buildDate=${{ steps.version.outputs.DATE }}"
+          tags: webkit2_41
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p dist/keylightd-tray
+          if [ "${{ matrix.goos }}" == "darwin" ]; then
+            cp contrib/keylightd-tray/build/bin/keylightd-tray.app dist/keylightd-tray/ 2>/dev/null || cp contrib/keylightd-tray/build/bin/keylightd-tray dist/keylightd-tray/
+          else
+            cp contrib/keylightd-tray/build/bin/keylightd-tray dist/keylightd-tray/
+          fi
+          cp LICENSE README.md dist/keylightd-tray/
+          cd dist
+          tar -czvf keylightd-tray_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz -C keylightd-tray .
+
+      - name: Upload keylightd-tray artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keylightd-tray-${{ matrix.goos }}-${{ matrix.arch }}
+          path: dist/keylightd-tray_*.tar.gz
+          retention-days: 1
+
   goreleaser:
     name: Run GoReleaser
-    needs: build-gnome-extension
+    needs: [build-gnome-extension, build-keylightd-tray]
     runs-on: ubuntu-latest
     outputs:
       VERSION: ${{ steps.extract-version.outputs.VERSION }}
@@ -86,21 +157,12 @@ jobs:
           go-version: stable
           cache: true
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Download keylightd-tray artifacts
+        uses: actions/download-artifact@v4
         with:
-          node-version: "20"
-
-      - name: Install system dependencies for Wails
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
-
-      - name: Build keylightd-tray frontend
-        run: |
-          cd contrib/keylightd-tray/frontend
-          npm install
-          npm run build
+          pattern: keylightd-tray-*
+          path: dist/keylightd-tray-artifact
+          merge-multiple: true
 
       - name: Generate commit info
         id: commit-info
