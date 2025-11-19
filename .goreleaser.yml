@@ -99,6 +99,8 @@ changelog:
 # homebrew_casks:
 brews:
   - name: keylightd
+    ids:
+      - default
     description: "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
     homepage: "https://github.com/jmylchreest/keylightd"
     license: "MIT"
@@ -159,8 +161,7 @@ brews:
 aurs:
   - name: keylightd-bin
     ids:
-      - keylightd
-      - keylightctl
+      - default
     homepage: "https://github.com/jmylchreest/keylightd"
     description: "Daemon and CLI tool for managing HTTP-based Key Lights, including Elgato models"
     maintainers:
@@ -197,7 +198,7 @@ aurs:
 
   - name: keylightd-tray-bin
     ids:
-      - keylightd-tray
+      - tray
     homepage: "https://github.com/jmylchreest/keylightd"
     description: "System tray application for controlling Key Lights via keylightd"
     maintainers:
