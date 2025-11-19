@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -184,16 +185,75 @@ func (a *App) getCustomCSSPath() string {
 }
 
 // GetCustomCSS returns the custom CSS content from the config directory
+// It processes @import statements and inlines the imported files
 func (a *App) GetCustomCSS() string {
 	cssPath := a.getCustomCSSPath()
-	content, err := os.ReadFile(cssPath)
+	content, err := a.loadCSSWithImports(cssPath, make(map[string]bool))
 	if err != nil {
 		return "" // Return empty if file doesn't exist
 	}
-	return string(content)
+	return content
 }
 
-// watchCustomCSS watches the custom.css file for changes and notifies the frontend
+// loadCSSWithImports loads a CSS file and recursively processes @import statements
+func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool) (string, error) {
+	// Resolve to absolute path
+	absPath, err := filepath.Abs(cssPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Check for circular imports
+	if visited[absPath] {
+		return "", nil
+	}
+	visited[absPath] = true
+
+	content, err := os.ReadFile(absPath)
+	if err != nil {
+		return "", err
+	}
+
+	cssDir := filepath.Dir(absPath)
+	cssText := string(content)
+
+	// Match @import url("...") or @import "..."
+	importRegex := regexp.MustCompile(`@import\s+(?:url\s*\(\s*)?["']([^"']+)["']\s*\)?;?`)
+
+	// Process imports
+	result := importRegex.ReplaceAllStringFunc(cssText, func(match string) string {
+		matches := importRegex.FindStringSubmatch(match)
+		if len(matches) < 2 {
+			return match
+		}
+
+		importPath := matches[1]
+
+		// Skip remote URLs
+		if strings.HasPrefix(importPath, "http://") || strings.HasPrefix(importPath, "https://") {
+			return match
+		}
+
+		// Resolve relative path
+		fullPath := importPath
+		if !filepath.IsAbs(importPath) {
+			fullPath = filepath.Join(cssDir, importPath)
+		}
+
+		// Recursively load imported file
+		importedContent, err := a.loadCSSWithImports(fullPath, visited)
+		if err != nil {
+			// Return comment indicating failed import
+			return fmt.Sprintf("/* Failed to import %s: %v */", importPath, err)
+		}
+
+		return importedContent
+	})
+
+	return result, nil
+}
+
+// watchCustomCSS watches the custom.css file and imported files for changes and notifies the frontend
 func (a *App) watchCustomCSS() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -226,7 +286,8 @@ func (a *App) watchCustomCSS() {
 			if !ok {
 				return
 			}
-			if filepath.Base(event.Name) == "custom.css" {
+			// Watch for CSS file changes (custom.css or any .css file that might be imported)
+			if strings.HasSuffix(event.Name, ".css") {
 				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Remove) != 0 {
 					// Emit event to frontend to reload CSS
 					runtime.EventsEmit(a.ctx, "reload-custom-css")
