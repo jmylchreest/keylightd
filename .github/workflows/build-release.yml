@@ -80,10 +80,12 @@ jobs:
             os: ubuntu-24.04-arm
             arch: arm64
             goos: linux
-          - platform: darwin/universal
-            os: macos-latest
-            arch: universal
-            goos: darwin
+          # macOS disabled due to AppDelegate symbol conflict between Wails and fyne.io/systray
+          # See: https://github.com/wailsapp/wails/issues/3003
+          # - platform: darwin/universal
+          #   os: macos-latest
+          #   arch: universal
+          #   goos: darwin
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
