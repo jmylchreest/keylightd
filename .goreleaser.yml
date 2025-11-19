@@ -44,6 +44,8 @@ release:
   disable: false
   extra_files:
     - glob: ./artifacts/keylightd-tray/*.tar.gz
+    - glob: ./artifacts/gnome-extension/*.zip
+      name_template: keylightd-control@jmylchreest.github.io.shell-extension.zip
 
 archives:
   - id: default
