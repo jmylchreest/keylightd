@@ -25,8 +25,9 @@ var (
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "keylightd",
-		Short: "Key Light Daemon",
+		Use:     "keylightd",
+		Short:   "Key Light Daemon",
+		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, buildDate),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v := viper.New()
 			v.SetEnvPrefix("KEYLIGHT")

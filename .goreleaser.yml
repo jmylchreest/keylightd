@@ -59,6 +59,11 @@ archives:
       - README.md
       - contrib/systemd/keylightd.service
 
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  extra_files:
+    - glob: ./artifacts/keylightd-tray/*.tar.gz
+
 changelog:
   sort: asc
   filters:
