@@ -315,6 +315,36 @@ jobs:
             echo "metadata.json not found"
           fi
 
+      - name: Clean up old snapshot releases
+        if: steps.version.outputs.IS_SNAPSHOT == 'true'
+        run: |
+          echo "Cleaning up old snapshot releases (keeping 5 most recent)..."
+
+          # Get all snapshot releases sorted by creation date (oldest first)
+          SNAPSHOT_RELEASES=$(gh release list --limit 100 --json tagName,isPrerelease,createdAt \
+            --jq '[.[] | select(.isPrerelease == true and (.tagName | contains("SNAPSHOT")))] | sort_by(.createdAt) | .[].tagName')
+
+          # Count total snapshots
+          TOTAL=$(echo "$SNAPSHOT_RELEASES" | grep -c . || echo 0)
+          echo "Found $TOTAL snapshot releases"
+
+          # Calculate how many to delete (keep 4, since we're about to create 1 more = 5 total)
+          TO_DELETE=$((TOTAL - 4))
+
+          if [ "$TO_DELETE" -gt 0 ]; then
+            echo "Deleting $TO_DELETE old snapshot releases..."
+            echo "$SNAPSHOT_RELEASES" | head -n "$TO_DELETE" | while read -r tag; do
+              if [ -n "$tag" ]; then
+                echo "Deleting release: $tag"
+                gh release delete "$tag" --yes --cleanup-tag || true
+              fi
+            done
+          else
+            echo "No snapshot releases to delete"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create GitHub Release (Snapshot only)
         id: create_release
         if: steps.version.outputs.IS_SNAPSHOT == 'true'
