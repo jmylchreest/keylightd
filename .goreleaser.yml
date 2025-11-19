@@ -66,12 +66,25 @@ release:
       name_template: keylightd-control@jmylchreest.github.io.shell-extension.zip
 
 archives:
-  - formats: ["tar.gz"]
+  - id: default
+    builds:
+      - keylightd
+      - keylightctl
+    formats: ["tar.gz"]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
       - contrib/systemd/keylightd.service
+
+  - id: tray
+    builds:
+      - keylightd-tray
+    formats: ["tar.gz"]
+    name_template: "keylightd-tray_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
 
 changelog:
   sort: asc
