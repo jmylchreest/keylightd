@@ -7,6 +7,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Create a release (will create and push a version tag)"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   prepare:
@@ -29,7 +35,7 @@ jobs:
             VERSION="${GITHUB_REF#refs/tags/v}"
             IS_SNAPSHOT="false"
           else
-            # Snapshot build from main branch or workflow_dispatch
+            # Get last tag and calculate next version
             LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
             LAST_VERSION="${LAST_TAG#v}"
 
@@ -38,14 +44,29 @@ jobs:
             NEXT_PATCH=$((PATCH + 1))
             NEXT_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}"
 
-            SHORT_SHA=$(git rev-parse --short HEAD)
-            VERSION="${NEXT_VERSION}-${SHORT_SHA}-SNAPSHOT"
-            IS_SNAPSHOT="true"
+            if [[ "${{ github.event.inputs.release }}" == "true" ]]; then
+              # Manual release requested
+              VERSION="${NEXT_VERSION}"
+              IS_SNAPSHOT="false"
+            else
+              # Snapshot build from main branch or workflow_dispatch
+              SHORT_SHA=$(git rev-parse --short HEAD)
+              VERSION="${NEXT_VERSION}-${SHORT_SHA}-SNAPSHOT"
+              IS_SNAPSHOT="true"
+            fi
           fi
 
           echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
           echo "IS_SNAPSHOT=${IS_SNAPSHOT}" >> $GITHUB_OUTPUT
           echo "Determined version: ${VERSION} (snapshot: ${IS_SNAPSHOT})"
+
+      - name: Create and push release tag
+        if: github.event.inputs.release == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.version.outputs.VERSION }}" -m "Release v${{ steps.version.outputs.VERSION }}"
+          git push origin "v${{ steps.version.outputs.VERSION }}"
 
   build-binaries:
     name: Build binaries (${{ matrix.goos }}/${{ matrix.goarch }})
