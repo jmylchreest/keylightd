@@ -39,8 +39,11 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          # Exclude keylightd-tray as it requires frontend to be built
-          go test -race -coverprofile=coverage.txt -covermode=atomic $(go list ./... | grep -v contrib/keylightd-tray)
+          # Test all packages except keylightd-tray which requires frontend to be built
+          go test -race -coverprofile=coverage.txt -covermode=atomic \
+            ./cmd/... \
+            ./pkg/... \
+            ./internal/...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
