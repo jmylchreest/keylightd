@@ -59,7 +59,7 @@ jobs:
           find $(pwd)/../../dist -name "*gnome-extension*" -o -name "*.zip" | sort
 
       - name: Upload GNOME extension artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: gnome-extension
           path: dist/gnome-extension/*.zip
@@ -130,7 +130,7 @@ jobs:
           tar -czvf keylightd-tray_${{ steps.version.outputs.VERSION }}_${{ matrix.goos }}_${{ matrix.arch }}.tar.gz -C keylightd-tray .
 
       - name: Upload keylightd-tray artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: keylightd-tray-${{ matrix.goos }}-${{ matrix.arch }}
           path: dist/keylightd-tray_*.tar.gz
@@ -152,13 +152,13 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: stable
           cache: true
 
       - name: Download keylightd-tray artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           pattern: keylightd-tray-*
           path: dist/keylightd-tray-artifact
@@ -322,7 +322,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download GNOME extension artifact
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: gnome-extension
           path: dist/gnome-extension
