@@ -178,6 +178,13 @@ jobs:
           path: dist/keylightd-tray-artifact
           merge-multiple: true
 
+      - name: Verify keylightd-tray artifacts
+        run: |
+          echo "=== keylightd-tray artifacts ==="
+          ls -la dist/keylightd-tray-artifact/ || echo "Directory not found"
+          echo "=== All tar.gz files in dist ==="
+          find dist -name "*.tar.gz" -type f
+
       - name: Generate commit info
         id: commit-info
         run: |
@@ -363,6 +370,22 @@ jobs:
           find ./dist/gnome-extension -name "*.zip" -type f
           echo "=== Using find to upload files ==="
           find ./dist/gnome-extension -name "*.zip" -type f -exec gh release upload ${TAG_NAME} {} --clobber \;
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload keylightd-tray to release
+        run: |
+          if [ "${{ steps.version.outputs.IS_SNAPSHOT }}" == "true" ]; then
+            TAG_NAME="${{ steps.extract-version.outputs.VERSION }}"
+          else
+            TAG_NAME="${{ steps.version.outputs.CURRENT_TAG }}"
+          fi
+
+          echo "Uploading keylightd-tray artifacts to release: ${TAG_NAME}"
+          echo "=== Files to upload ==="
+          find ./dist/keylightd-tray-artifact -name "*.tar.gz" -type f
+          echo "=== Uploading files ==="
+          find ./dist/keylightd-tray-artifact -name "*.tar.gz" -type f -exec gh release upload ${TAG_NAME} {} --clobber \;
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
