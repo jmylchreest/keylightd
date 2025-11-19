@@ -160,7 +160,33 @@ keylightctl light set "Elgato Key Light ABC1._elg._tcp.local." brightness 50
 keylightctl light set "Elgato Key Light ABC1._elg._tcp.local." temperature 4000
 ```
 
-## GNOME Extension
+## Desktop Applications
+
+### Tray Application
+
+A cross-platform system tray application is available for controlling your lights with a graphical interface. It provides:
+
+- System tray icon with dynamic status indication
+- Brightness and color temperature sliders
+- Group management
+- Custom CSS theming with hot reload
+
+#### Install via AUR (Arch Linux)
+
+```bash
+yay -S keylightd-tray-bin
+```
+
+#### Build from Source
+
+```bash
+cd contrib/keylightd-tray
+make build
+```
+
+The binary will be in `build/bin/keylightd-tray`. See the [Tray Application documentation](tray-app.md) for detailed usage and theming options.
+
+### GNOME Extension
 
 There is a GNOME extension available that allows you to control your lights directly from the GNOME desktop. You can download the extension from the [GitHub releases page](https://github.com/jmylchreest/keylightd/releases) and install it using:
 

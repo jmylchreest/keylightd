@@ -54,8 +54,6 @@ extra_css:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - Screenshots:
-      - Gnome Extension: screenshots/gnome-extension.md
   - Supported Devices:
       - Overview: supported-devices/index.md
       - Elgato Key Light Series: supported-devices/elgato.md
@@ -67,6 +65,10 @@ nav:
       - CLI: groups/cli.md
       - HTTP API: groups/http.md
       - Socket API: groups/socket.md
+  - Desktop Apps:
+      - Tray Application: tray-app.md
+      - Gnome Extension: screenshots/gnome-extension.md
+      - Waybar Example: waybar-example.md
   - API Reference:
       - HTTP REST API: api/index.md
       - Unix Socket API: socket-api.md

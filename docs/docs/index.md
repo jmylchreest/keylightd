@@ -18,6 +18,7 @@ keylightd is a daemon service that discovers, monitors, and controls Elgato Key 
 - **Discovery**: Automatically find Key Light devices on your network
 - **Authentication**: Secure API with key-based authentication
 - **Unix Socket**: Local control without network overhead
+- **Desktop Apps**: System tray application and GNOME extension for GUI control
 
 ## Getting Started
 
@@ -39,6 +40,8 @@ For detailed information about available endpoints, request/response formats, an
 
 - [Lights](lights/cli.md) - Controlling individual lights
 - [Groups](groups/cli.md) - Managing groups of lights
+- [Tray Application](tray-app.md) - Desktop system tray app
+- [API Reference](api/index.md) - REST API documentation
 
 ## Support
 
