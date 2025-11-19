@@ -29,6 +29,8 @@ type App struct {
 	logger        *slog.Logger
 	tray          *TrayManager
 	customCSSPath string
+	cssWatcher    *fsnotify.Watcher
+	watchedDirs   map[string]bool
 }
 
 // SetTrayManager sets the tray manager reference
@@ -188,15 +190,20 @@ func (a *App) getCustomCSSPath() string {
 // It processes @import statements and inlines the imported files
 func (a *App) GetCustomCSS() string {
 	cssPath := a.getCustomCSSPath()
-	content, err := a.loadCSSWithImports(cssPath, make(map[string]bool))
+	importedFiles := make(map[string]bool)
+	content, err := a.loadCSSWithImports(cssPath, make(map[string]bool), importedFiles)
 	if err != nil {
 		return "" // Return empty if file doesn't exist
 	}
+
+	// Update watched directories based on imported files
+	a.updateWatchedDirs(importedFiles)
+
 	return content
 }
 
 // loadCSSWithImports loads a CSS file and recursively processes @import statements
-func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool) (string, error) {
+func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool, importedFiles map[string]bool) (string, error) {
 	// Resolve to absolute path
 	absPath, err := filepath.Abs(cssPath)
 	if err != nil {
@@ -208,6 +215,9 @@ func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool) (strin
 		return "", nil
 	}
 	visited[absPath] = true
+
+	// Track this file
+	importedFiles[absPath] = true
 
 	content, err := os.ReadFile(absPath)
 	if err != nil {
@@ -241,7 +251,7 @@ func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool) (strin
 		}
 
 		// Recursively load imported file
-		importedContent, err := a.loadCSSWithImports(fullPath, visited)
+		importedContent, err := a.loadCSSWithImports(fullPath, visited, importedFiles)
 		if err != nil {
 			// Return comment indicating failed import
 			return fmt.Sprintf("/* Failed to import %s: %v */", importPath, err)
@@ -253,14 +263,50 @@ func (a *App) loadCSSWithImports(cssPath string, visited map[string]bool) (strin
 	return result, nil
 }
 
+// updateWatchedDirs updates the file watcher to watch directories containing imported CSS files
+func (a *App) updateWatchedDirs(importedFiles map[string]bool) {
+	if a.cssWatcher == nil {
+		return
+	}
+
+	// Collect all directories that need to be watched
+	newDirs := make(map[string]bool)
+	for filePath := range importedFiles {
+		dir := filepath.Dir(filePath)
+		newDirs[dir] = true
+	}
+
+	// Remove directories no longer needed
+	for dir := range a.watchedDirs {
+		if !newDirs[dir] {
+			_ = a.cssWatcher.Remove(dir)
+		}
+	}
+
+	// Add new directories
+	for dir := range newDirs {
+		if !a.watchedDirs[dir] {
+			_ = a.cssWatcher.Add(dir)
+		}
+	}
+
+	a.watchedDirs = newDirs
+}
+
 // watchCustomCSS watches the custom.css file and imported files for changes and notifies the frontend
 func (a *App) watchCustomCSS() {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return
 	}
+
+	// Store watcher reference for dynamic updates
+	a.cssWatcher = watcher
+	a.watchedDirs = make(map[string]bool)
+
 	defer func() {
 		_ = watcher.Close()
+		a.cssWatcher = nil
 	}()
 
 	// Get CSS path and watch its directory
@@ -279,6 +325,7 @@ func (a *App) watchCustomCSS() {
 	if err != nil {
 		return
 	}
+	a.watchedDirs[cssDir] = true
 
 	for {
 		select {
