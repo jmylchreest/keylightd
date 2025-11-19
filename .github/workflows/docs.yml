@@ -10,17 +10,12 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"
-  workflow_run:
-    workflows: ["Test", "Release"]
-    types:
-      - completed
   workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy Documentation
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     container:
       image: squidfunk/mkdocs-material:latest
     permissions:

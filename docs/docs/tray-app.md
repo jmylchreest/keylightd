@@ -116,6 +116,12 @@ Override with `-css` flag.
     /* Surface colors */
     --surface: #181825;
     --overlay: #11111b;
+    
+    /* Component-specific colors */
+    --slider-track: var(--bg-tertiary);
+    --input-bg: var(--surface);
+    --input-border: var(--bg-tertiary);
+    --list-item-bg: var(--surface);
 }
 ```
 
