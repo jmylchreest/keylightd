@@ -38,7 +38,9 @@ jobs:
         run: go mod verify
 
       - name: Run tests with coverage
-        run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+        run: |
+          # Exclude keylightd-tray as it requires frontend to be built
+          go test -race -coverprofile=coverage.txt -covermode=atomic $(go list ./... | grep -v contrib/keylightd-tray)
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
