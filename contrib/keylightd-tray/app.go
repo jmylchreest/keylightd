@@ -360,6 +360,10 @@ func (a *App) GetVersion() string {
 
 // GetStatus returns the current status of all lights and groups
 func (a *App) GetStatus() (*Status, error) {
+	if a.client == nil {
+		return nil, fmt.Errorf("client not initialized")
+	}
+
 	lights, err := a.client.GetLights()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lights: %w", err)
@@ -407,9 +411,10 @@ func (a *App) GetStatus() (*Status, error) {
 		return strings.ToLower(status.Groups[i].Name) < strings.ToLower(status.Groups[j].Name)
 	})
 
-	// Update tray icon based on light status
+	// Update tray icon and menu based on light status
 	if a.tray != nil {
 		a.tray.UpdateIconFromStatus(status.OnCount, status.Total)
+		a.tray.UpdateMenu(status)
 	}
 
 	return status, nil
