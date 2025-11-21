@@ -7,21 +7,15 @@ class KeylightdTray < Formula
   version "{{VERSION}}"
   license "MIT"
 
-  # macOS builds are not currently available due to a symbol conflict
-  # between Wails and fyne.io/systray (duplicate AppDelegate).
-  # See: https://github.com/wailsapp/wails/issues/3003
-  # When this is resolved, uncomment the macOS sections below.
-  #
-  # on_macos do
-  #   on_intel do
-  #     url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_amd64.tar.gz"
-  #     sha256 "{{SHA256_DARWIN_AMD64}}"
-  #   end
-  #   on_arm do
-  #     url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_arm64.tar.gz"
-  #     sha256 "{{SHA256_DARWIN_ARM64}}"
-  #   end
-  # end
+  on_macos do
+    url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_universal.tar.gz"
+    sha256 "{{SHA256_DARWIN_UNIVERSAL}}"
+
+    resource "sbom" do
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_universal_sbom.spdx.json"
+      sha256 "{{SHA256_SBOM_DARWIN_UNIVERSAL}}"
+    end
+  end
 
   on_linux do
     on_intel do
@@ -44,11 +38,18 @@ class KeylightdTray < Formula
     end
   end
 
-  depends_on "gtk+3"
-  depends_on "webkit2gtk"
+  on_linux do
+    depends_on "gtk+3"
+    depends_on "webkit2gtk"
+  end
 
   def install
-    bin.install "keylightd-tray"
+    if OS.mac?
+      prefix.install "keylightd-tray.app"
+      bin.write_exec_script "#{prefix}/keylightd-tray.app/Contents/MacOS/keylightd-tray"
+    else
+      bin.install "keylightd-tray"
+    end
 
     resource("sbom").stage do
       (share/"doc/keylightd-tray").install Dir["*.spdx.json"].first => "sbom.spdx.json"
@@ -68,9 +69,6 @@ class KeylightdTray < Formula
 
       To start:
         keylightd-tray
-
-      Note: macOS support is not currently available due to a build conflict.
-      See: https://github.com/wailsapp/wails/issues/3003
     EOS
   end
 end

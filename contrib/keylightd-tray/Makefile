@@ -1,4 +1,4 @@
-.PHONY: dev build clean
+.PHONY: dev build build-darwin clean
 
 VERSION ?= dev
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -11,6 +11,9 @@ dev:
 
 build: frontend
 	wails build -tags webkit2_41 -ldflags "$(LDFLAGS)"
+
+build-darwin: frontend
+	wails build -platform darwin/universal -ldflags "$(LDFLAGS)"
 
 frontend:
 	cd frontend && npm install && npm run build

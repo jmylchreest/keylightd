@@ -48,6 +48,18 @@ func (t *TrayManager) OnReady() {
 	systray.SetTitle("Keylight Control")
 	systray.SetTooltip("Keylight Control")
 
+	// Set left-click to toggle window
+	systray.SetOnTapped(func() {
+		t.ToggleWindow()
+	})
+
+	// Right-click shows menu automatically (default behavior)
+	// SetOnSecondaryTapped is optional - menu shows by default on right-click
+	// but we can set it explicitly if we want to customize behavior later
+	systray.SetOnSecondaryTapped(func() {
+		// Menu will be shown automatically
+	})
+
 	// Build initial basic menu
 	t.buildBasicMenu()
 }
