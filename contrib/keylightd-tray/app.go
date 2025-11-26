@@ -411,9 +411,9 @@ func (a *App) GetStatus() (*Status, error) {
 		return strings.ToLower(status.Groups[i].Name) < strings.ToLower(status.Groups[j].Name)
 	})
 
-	// Update tray icon and menu based on light status
+	// Update tray icon, tooltip, and menu based on light status
 	if a.tray != nil {
-		a.tray.UpdateIconFromStatus(status.OnCount, status.Total)
+		a.tray.UpdateIconAndTooltip(status)
 		a.tray.UpdateMenu(status)
 	}
 
@@ -605,28 +605,22 @@ func (a *App) GetRefreshInterval() int {
 	return 1000 // 1 second
 }
 
-// SetWindowHeight adjusts window height to fit content, respecting max height
-func (a *App) SetWindowHeight(contentHeight int, maxHeight int) {
-	// Add padding for header and footer
-	totalHeight := contentHeight + 100
+// SetInitialWindowHeight sets window height based on content, called once on startup
+func (a *App) SetInitialWindowHeight(contentHeight int) {
+	const minHeight = 400
+	const maxHeight = 800
+	const padding = 100
 
-	// Clamp to max height
-	if maxHeight > 0 && totalHeight > maxHeight {
+	totalHeight := contentHeight + padding
+
+	if totalHeight < minHeight {
+		totalHeight = minHeight
+	}
+	if totalHeight > maxHeight {
 		totalHeight = maxHeight
 	}
 
-	// Minimum height
-	if totalHeight < 200 {
-		totalHeight = 200
-	}
-
 	runtime.WindowSetSize(a.ctx, 380, totalHeight)
-}
-
-// GetWindowSize returns current window dimensions
-func (a *App) GetWindowSize() map[string]int {
-	w, h := runtime.WindowGetSize(a.ctx)
-	return map[string]int{"width": w, "height": h}
 }
 
 // FormatLastSeen formats a timestamp for display

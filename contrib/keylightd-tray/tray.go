@@ -2,7 +2,6 @@ package main
 
 import (
 	_ "embed"
-	"strconv"
 
 	"fyne.io/systray"
 )
@@ -267,28 +266,39 @@ func (t *TrayManager) SetWindowShown(shown bool) {
 	}
 }
 
-// UpdateIconFromStatus updates the icon and tooltip based on light status
-func (t *TrayManager) UpdateIconFromStatus(onCount, total int) {
-	if total == 0 {
+// UpdateIconAndTooltip updates the icon and tooltip based on full status
+func (t *TrayManager) UpdateIconAndTooltip(status *Status) {
+	if status.Total == 0 {
 		systray.SetIcon(iconUnknown)
 		systray.SetTooltip("Keylight Control - No lights")
 		return
 	}
 
-	if onCount > 0 {
+	// Update icon based on on/off count
+	if status.OnCount > 0 {
 		systray.SetIcon(iconEnabled)
 	} else {
 		systray.SetIcon(iconDisabled)
 	}
 
-	tooltip := "Keylight Control - "
-	switch onCount {
-	case 0:
-		tooltip += "All off"
-	case total:
-		tooltip += "All on"
-	default:
-		tooltip += strconv.Itoa(onCount) + "/" + strconv.Itoa(total) + " on"
+	// Build detailed tooltip with groups and lights using same format as menu
+	tooltip := "Keylight Control\n"
+
+	// Add groups section
+	if len(status.Groups) > 0 {
+		tooltip += "\nGroups\n"
+		for _, group := range status.Groups {
+			tooltip += formatMenuTitle(group.Name, group.On) + "\n"
+		}
 	}
+
+	// Add lights section
+	if len(status.Lights) > 0 {
+		tooltip += "\nLights\n"
+		for _, light := range status.Lights {
+			tooltip += formatMenuTitle(light.Name, light.On) + "\n"
+		}
+	}
+
 	systray.SetTooltip(tooltip)
 }

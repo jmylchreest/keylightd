@@ -61,8 +61,7 @@ let CreateGroup,
   DeleteGroup,
   SetGroupLights,
   GetLights,
-  SetWindowHeight,
-  GetWindowSize,
+  SetInitialWindowHeight,
   SaveSettings,
   GetSettings,
   GetCustomCSS;
@@ -72,8 +71,7 @@ if (window.go && window.go.main && window.go.main.App) {
   DeleteGroup = window.go.main.App.DeleteGroup;
   SetGroupLights = window.go.main.App.SetGroupLights;
   GetLights = window.go.main.App.GetLights;
-  SetWindowHeight = window.go.main.App.SetWindowHeight;
-  GetWindowSize = window.go.main.App.GetWindowSize;
+  SetInitialWindowHeight = window.go.main.App.SetInitialWindowHeight;
   SaveSettings = window.go.main.App.SaveSettings;
   GetSettings = window.go.main.App.GetSettings;
   GetCustomCSS = window.go.main.App.GetCustomCSS;
@@ -105,10 +103,9 @@ if (window.go && window.go.main && window.go.main.App) {
       productName: "Key Light",
     },
   ];
-  SetWindowHeight = async (contentHeight, maxHeight) => {
-    console.log(`SetWindowHeight: ${contentHeight}, max: ${maxHeight}`);
+  SetInitialWindowHeight = async (contentHeight) => {
+    console.log(`SetInitialWindowHeight: ${contentHeight}`);
   };
-  GetWindowSize = async () => ({ width: 380, height: 600 });
   SaveSettings = async (settings) => {
     console.log(`SaveSettings:`, settings);
   };
@@ -128,6 +125,7 @@ let activeSliders = {}; // Track sliders being dragged
 let refreshPaused = false; // Pause refresh during slider interaction
 let settingsDirty = false; // Track if settings have been modified
 let settingsUpdating = false; // Prevent concurrent settings panel updates
+let isWindows = false; // Track if running on Windows
 
 // Icons
 const POWER_ICON = `<svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
@@ -136,6 +134,16 @@ const TEMP_ICON = `<svg viewBox="0 0 24 24"><path d="M15 13V5c0-1.66-1.34-3-3-3S
 
 // Initialize
 document.addEventListener("DOMContentLoaded", async () => {
+  // Detect platform
+  try {
+    if (window.runtime && window.runtime.Environment) {
+      const env = await window.runtime.Environment();
+      isWindows = env.platform === "windows";
+    }
+  } catch (e) {
+    console.error("Failed to get environment:", e);
+  }
+
   try {
     const version = await GetVersion();
     document.getElementById("version").textContent = `v${version}`;
@@ -151,11 +159,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Setup custom CSS auto-reload
   setupCustomCssReload();
 
-  // Setup window resize tracking
-  setupWindowResizeTracking();
-
   // Initial load
   await refresh();
+
+  // Set initial window height based on content (only once on startup)
+  const main = document.querySelector(".main");
+  if (main) {
+    try {
+      await SetInitialWindowHeight(main.scrollHeight);
+    } catch (e) {
+      // Ignore errors in browser mode
+    }
+  }
 
   // Start refresh interval
   refreshInterval = setInterval(refresh, 1000);
@@ -536,6 +551,15 @@ function setupConnectionTypeToggle() {
   const httpRadio = document.getElementById("conn-http");
   const socketSettings = document.querySelectorAll(".socket-setting");
   const httpSettings = document.querySelectorAll(".http-setting");
+  const socketOption = socketRadio.closest(".setting-group");
+
+  // Hide Unix socket option on Windows (not supported)
+  if (isWindows && socketOption) {
+    socketOption.style.display = "none";
+    // Force HTTP mode on Windows
+    httpRadio.checked = true;
+    localStorage.setItem("connectionType", "http");
+  }
 
   function updateConnectionFields() {
     const isSocket = socketRadio.checked;
@@ -556,9 +580,9 @@ function setupConnectionTypeToggle() {
   socketRadio.addEventListener("change", updateConnectionFields);
   httpRadio.addEventListener("change", updateConnectionFields);
 
-  // Load saved connection type
+  // Load saved connection type (or default to HTTP on Windows)
   const savedType = localStorage.getItem("connectionType") || "socket";
-  if (savedType === "http") {
+  if (savedType === "http" || isWindows) {
     httpRadio.checked = true;
   } else {
     socketRadio.checked = true;
@@ -618,41 +642,6 @@ function updateStatusBadge(on, total, connected) {
 function updateUI(status) {
   renderGroups(status.groups);
   renderLights(status.lights);
-  updateWindowHeight();
-}
-
-// Update window height to fit content
-async function updateWindowHeight() {
-  // Get the main content height
-  const main = document.querySelector(".main");
-  if (!main) return;
-
-  const contentHeight = main.scrollHeight;
-
-  // Get max height from localStorage (user's last manual resize)
-  const maxHeight = parseInt(localStorage.getItem("maxWindowHeight") || "600");
-
-  try {
-    await SetWindowHeight(contentHeight, maxHeight);
-  } catch (e) {
-    // Ignore errors in browser mode
-  }
-}
-
-// Track window resize to save max height preference
-function setupWindowResizeTracking() {
-  if (window.runtime && window.runtime.EventsOn) {
-    // Wails doesn't have a resize event, so we'll save on settings close
-    // User can manually resize and that becomes the new max
-  }
-
-  // Save current height as max when user manually resizes
-  window.addEventListener("resize", () => {
-    const height = window.innerHeight;
-    if (height > 200) {
-      localStorage.setItem("maxWindowHeight", height.toString());
-    }
-  });
 }
 
 // Render groups

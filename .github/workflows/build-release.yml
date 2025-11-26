@@ -148,6 +148,12 @@ jobs:
           - goos: darwin
             goarch: universal
             os: macos-latest
+          - goos: windows
+            goarch: amd64
+            os: windows-latest
+          - goos: windows
+            goarch: arm64
+            os: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -186,6 +192,17 @@ jobs:
         run: |
           wails build -platform darwin/universal -ldflags "-s -w -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+      - name: Build keylightd-tray (Windows)
+        if: matrix.goos == 'windows'
+        working-directory: contrib/keylightd-tray
+        shell: bash
+        run: |
+          if [ "${{ matrix.goarch }}" = "amd64" ]; then
+            wails build -platform windows/amd64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          else
+            wails build -platform windows/arm64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+
       - name: Create archive (Linux)
         if: matrix.goos == 'linux'
         run: |
@@ -202,11 +219,23 @@ jobs:
             -C contrib/keylightd-tray/build/bin keylightd-tray.app \
             -C ${{ github.workspace }} LICENSE README.md
 
+      - name: Create archive (Windows)
+        if: matrix.goos == 'windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cd contrib/keylightd-tray/build/bin
+          7z a -tzip ${{ github.workspace }}/dist/keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip keylightd-tray.exe
+          cd ${{ github.workspace }}
+          7z a dist/keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip LICENSE README.md
+
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
           name: keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
           retention-days: 1
 
   build-gnome-extension:

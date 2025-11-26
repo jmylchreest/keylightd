@@ -19,6 +19,8 @@ require (
 
 // Use master branch for SetOnTapped/SetOnSecondaryTapped support (added June 3, 2025)
 // Pinned to commit 4856ac3adc3c from August 12, 2025
+// To update: go mod edit -replace fyne.io/systray=github.com/fyne-io/systray@master && go mod tidy
+// When v1.12.0+ is released: go mod edit -dropreplace fyne.io/systray && go get fyne.io/systray@v1.12.0
 replace fyne.io/systray => github.com/fyne-io/systray v1.11.1-0.20250812065214-4856ac3adc3c
 
 require (
