@@ -195,13 +195,14 @@ jobs:
       - name: Build keylightd-tray (Windows)
         if: matrix.goos == 'windows'
         working-directory: contrib/keylightd-tray
-        shell: bash
+        shell: pwsh
         run: |
-          if [ "${{ matrix.goarch }}" = "amd64" ]; then
-            wails build -platform windows/amd64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          else
-            wails build -platform windows/arm64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          fi
+          $BuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          if ("${{ matrix.goarch }}" -eq "amd64") {
+            wails build -platform windows/amd64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$BuildDate"
+          } else {
+            wails build -platform windows/arm64 -ldflags "-s -w -H windowsgui -X main.version=${{ needs.prepare.outputs.version }} -X main.commit=${{ github.sha }} -X main.buildDate=$BuildDate"
+          }
 
       - name: Create archive (Linux)
         if: matrix.goos == 'linux'
@@ -221,13 +222,16 @@ jobs:
 
       - name: Create archive (Windows)
         if: matrix.goos == 'windows'
-        shell: bash
+        shell: pwsh
         run: |
-          mkdir -p dist
-          cd contrib/keylightd-tray/build/bin
-          7z a -tzip ${{ github.workspace }}/dist/keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip keylightd-tray.exe
-          cd ${{ github.workspace }}
-          7z a dist/keylightd-tray_v${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}.zip LICENSE README.md
+          New-Item -ItemType Directory -Force -Path dist
+          $version = "${{ needs.prepare.outputs.version }}"
+          $goos = "${{ matrix.goos }}"
+          $goarch = "${{ matrix.goarch }}"
+          $zipName = "keylightd-tray_v${version}_${goos}_${goarch}.zip"
+
+          Compress-Archive -Path "contrib/keylightd-tray/build/bin/keylightd-tray.exe" -DestinationPath "dist/$zipName"
+          Compress-Archive -Path "LICENSE","README.md" -DestinationPath "dist/$zipName" -Update
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
