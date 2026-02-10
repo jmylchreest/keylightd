@@ -44,15 +44,27 @@ func GenerateKey(length int) (string, error) {
 	if length <= 0 {
 		length = DefaultKeyLength
 	}
-	b := make([]byte, length)
-	// crypto/rand.Read is preferred for cryptographic security
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("failed to read random bytes: %w", err)
+	charsetLen := len(DefaultKeyCharset)
+	// Calculate the largest multiple of charsetLen that fits in a byte (256)
+	// to eliminate modulo bias
+	maxValid := byte(256 - (256 % charsetLen))
+
+	result := make([]byte, 0, length)
+	buf := make([]byte, length*2) // Over-allocate to reduce iterations
+	for len(result) < length {
+		if _, err := rand.Read(buf); err != nil {
+			return "", fmt.Errorf("failed to read random bytes: %w", err)
+		}
+		for _, v := range buf {
+			if v < maxValid {
+				result = append(result, DefaultKeyCharset[int(v)%charsetLen])
+				if len(result) >= length {
+					break
+				}
+			}
+		}
 	}
-	for i, v := range b {
-		b[i] = DefaultKeyCharset[int(v)%len(DefaultKeyCharset)]
-	}
-	return string(b), nil
+	return string(result), nil
 }
 
 // XDG helpers
@@ -89,7 +101,7 @@ type Config struct {
 	Config ConfigBlock `yaml:"config"`
 
 	v         *viper.Viper
-	saveMutex sync.Mutex `mapstructure:"-" yaml:"-"`
+	saveMutex sync.RWMutex `mapstructure:"-" yaml:"-"`
 }
 
 // APIConfig represents the API specific configuration
@@ -301,8 +313,8 @@ func (c *Config) Set(key string, value any) {
 
 // GetAPIKeys returns a copy of the API keys
 func (c *Config) GetAPIKeys() []APIKey {
-	c.saveMutex.Lock()
-	defer c.saveMutex.Unlock()
+	c.saveMutex.RLock()
+	defer c.saveMutex.RUnlock()
 	keys := make([]APIKey, len(c.State.APIKeys))
 	copy(keys, c.State.APIKeys)
 	return keys
@@ -346,8 +358,8 @@ func (c *Config) DeleteAPIKey(keyString string) bool {
 // FindAPIKey retrieves an API key by its key string.
 // NOTE: Returns a pointer to the internal slice element; do not store or modify outside config methods.
 func (c *Config) FindAPIKey(keyString string) (*APIKey, bool) {
-	c.saveMutex.Lock()
-	defer c.saveMutex.Unlock()
+	c.saveMutex.RLock()
+	defer c.saveMutex.RUnlock()
 	for i, k := range c.State.APIKeys {
 		if k.Key == keyString {
 			return &c.State.APIKeys[i], true

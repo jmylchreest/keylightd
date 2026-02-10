@@ -10,7 +10,9 @@ import (
 	"time"
 )
 
-var dial = net.Dial
+var dial = func(network, address string) (net.Conn, error) {
+	return net.DialTimeout(network, address, 10*time.Second)
+}
 
 // ClientInterface defines the methods for interacting with keylightd
 // Used for testability and mocking in CLI
@@ -63,6 +65,7 @@ func (c *Client) request(req any, resp any) error {
 		return fmt.Errorf("failed to connect to socket: %w", err)
 	}
 	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(30 * time.Second))
 
 	c.logger.Debug("Encoding request", "request", req)
 	// Encode request
@@ -96,7 +99,7 @@ func (c *Client) request(req any, resp any) error {
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
 		c.logger.Debug("Received response (nil target)", "response", tempResp)
-		
+
 		// Check for error in response
 		if err, ok := tempResp["error"].(string); ok {
 			c.logger.Error("Server returned error", "error", err)

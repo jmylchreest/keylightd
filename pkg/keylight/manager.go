@@ -171,39 +171,6 @@ func (m *Manager) SetLightState(ctx context.Context, id string, propertyValue Li
 	return nil
 }
 
-// SetLightStateOld is the legacy version of SetLightState (deprecated)
-// Use the type-safe version with LightPropertyValue parameter instead.
-// This method is kept for backward compatibility with existing code.
-// Deprecated: Use SetLightState with LightPropertyValue instead.
-func (m *Manager) SetLightStateOld(ctx context.Context, id string, property string, value any) error {
-	// Convert the string property and interface value to our type-safe version
-	switch property {
-	case string(PropertyOn):
-		on, ok := value.(bool)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for on: %T", value)
-		}
-		return m.SetLightState(ctx, id, OnValue(on))
-
-	case string(PropertyBrightness):
-		brightness, ok := value.(int)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for brightness: %T", value)
-		}
-		return m.SetLightState(ctx, id, BrightnessValue(brightness))
-
-	case string(PropertyTemperature):
-		temp, ok := value.(int)
-		if !ok {
-			return errors.InvalidInputf("invalid value type for temperature: %T", value)
-		}
-		return m.SetLightState(ctx, id, TemperatureValue(temp))
-
-	default:
-		return errors.InvalidInputf("unknown property: %s", property)
-	}
-}
-
 // SetLightBrightness sets the brightness of a light
 func (m *Manager) SetLightBrightness(ctx context.Context, id string, brightness int) error {
 	return m.SetLightState(ctx, id, BrightnessValue(brightness))

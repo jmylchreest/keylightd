@@ -2,12 +2,14 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // HTTPClient represents an HTTP connection to keylightd
@@ -27,7 +29,7 @@ func NewHTTP(logger *slog.Logger, baseURL string, apiKey string) *HTTPClient {
 		logger:  logger,
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
@@ -45,7 +47,7 @@ func (c *HTTPClient) request(method, path string, body any, resp any) error {
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequest(method, url, bodyReader)
+	req, err := http.NewRequestWithContext(context.Background(), method, url, bodyReader)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -164,7 +166,7 @@ func (c *HTTPClient) DeleteGroup(id string) error {
 // SetGroupLights sets the lights in a group
 func (c *HTTPClient) SetGroupLights(groupID string, lightIDs []string) error {
 	body := map[string]any{
-		"lights": lightIDs,
+		"light_ids": lightIDs,
 	}
 	return c.request("PUT", "/api/v1/groups/"+groupID+"/lights", body, nil)
 }

@@ -88,10 +88,18 @@ func (m *Manager) DeleteAPIKey(key string) error {
 
 	// Save the configuration to persist the deletion
 	if err := m.cfg.Save(); err != nil {
-		m.log.Error("failed to save config after deleting API key", "key_prefix", key[:4], "error", err)
+		keyPrefix := key
+		if len(keyPrefix) > 4 {
+			keyPrefix = keyPrefix[:4]
+		}
+		m.log.Error("failed to save config after deleting API key", "key_prefix", keyPrefix, "error", err)
 		return fmt.Errorf("API key deleted from memory but failed to save to disk: %w", err)
 	}
-	m.log.Info("deleted API key and saved to config", "key_prefix", key[:4])
+	keyPrefix := key
+	if len(keyPrefix) > 4 {
+		keyPrefix = keyPrefix[:4]
+	}
+	m.log.Info("deleted API key and saved to config", "key_prefix", keyPrefix)
 	return nil
 }
 
@@ -112,24 +120,14 @@ func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 		return nil, fmt.Errorf("API key has expired")
 	}
 
-	// Update LastUsedAt timestamp
+	// Update LastUsedAt timestamp in memory only (best-effort).
+	// Persisting on every validation is too expensive for high-traffic APIs.
+	// The timestamp will be persisted next time config is saved for other reasons
+	// (e.g., key creation, deletion, group changes).
 	if err := m.cfg.UpdateAPIKeyLastUsed(key, time.Now().UTC()); err != nil {
 		m.log.Error("failed to update last used timestamp for API key in memory", "key", key, "error", err)
-		// Do not save if in-memory update failed, but the key is still valid for this request.
-		return apiKey, nil // Return original apiKey data before failed update
 	}
 
-	// Save the configuration to persist the LastUsedAt update
-	if err := m.cfg.Save(); err != nil {
-		m.log.Error("failed to save config after updating API key LastUsedAt", "key", key, "error", err)
-		// Even if save fails, the key was validated and LastUsedAt is updated in memory for this session.
-		// The next validation might hit the old LastUsedAt if the daemon restarts before a successful save.
-	}
-
-	// FindAPIKey returns a pointer to the key in the slice. To avoid the caller modifying it directly
-	// after validation (if they hold onto the pointer), it might be safer to return a copy.
-	// However, for now, we return the direct pointer as the config methods are managing persistence.
-	// If LastUsedAt was updated, apiKey pointer already reflects this for the current request.
 	return apiKey, nil
 }
 

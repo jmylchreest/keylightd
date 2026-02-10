@@ -1,0 +1,134 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: vendor
+
+linters:
+  default: standard
+  enable:
+    # Bug detection
+    - bodyclose
+    - contextcheck
+    - durationcheck
+    - errcheck
+    - errorlint
+    - gosec
+    - govet
+    - nilerr
+    - noctx
+    - staticcheck
+    - unused
+
+    # Code quality
+    - ineffassign
+    - misspell
+    - unconvert
+    - unparam
+    - wastedassign
+
+    # Style
+    - dupword
+    - goprintffuncname
+    - usestdlibvars
+    - copyloopvar
+    - intrange
+
+    # Simplification
+    - perfsprint
+    - sloglint
+
+  disable:
+    # Too noisy / opinionated for this project
+    - exhaustruct      # Requires all struct fields to be set
+    - varnamelen       # Too restrictive on variable name length
+    - wrapcheck        # Not all errors need wrapping
+    - ireturn          # Returning interfaces is fine
+    - err113           # Not all errors need to be sentinel
+    - funlen           # Function length is managed by review
+    - gocognit         # Cognitive complexity is managed by review
+    - cyclop           # Cyclomatic complexity is managed by review
+    - lll              # Line length is managed by editor
+    - mnd              # Magic numbers are acceptable in some contexts
+    - wsl              # Whitespace style is too opinionated
+    - nlreturn         # Blank line before return is too opinionated
+    - godox            # TODO/FIXME comments are acceptable
+    - gochecknoglobals # Globals are used for config/constants
+    - exhaustive       # Exhaustive enum checks are too strict
+    - tagliatelle      # JSON tag naming is project convention
+    - nonamedreturns   # Named returns are fine when clear
+    - forcetypeassert  # We handle this manually where needed
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # Struct field alignment is not critical
+        - shadow         # Shadowing is handled by review
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: false
+
+    gosec:
+      excludes:
+        - G101 # Hard-coded credentials (false positives on test data)
+        - G115 # Integer overflow conversion (too noisy)
+        - G404 # Use of math/rand (we use crypto/rand for keys)
+
+    staticcheck:
+      checks:
+        - all
+        - -SA1019 # Allow deprecated usage (we manage deprecation ourselves)
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam       # Struct by value is fine for most cases
+        - rangeValCopy    # Acceptable in most iteration patterns
+
+    misspell:
+      locale: US
+
+    sloglint:
+      no-mixed-args: true
+      kv-only: false
+      attr-only: false
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+      - common-false-positives
+    rules:
+      # Relax checks for test files
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - dupl
+          - gocritic
+          - unparam
+      # Vendor directory
+      - path: vendor/
+        linters:
+          - all
+      # Contrib directory has separate build requirements
+      - path: contrib/
+        linters:
+          - all
+
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/jmylchreest/keylightd
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

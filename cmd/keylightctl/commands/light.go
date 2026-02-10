@@ -14,7 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var clientContextKey = &struct{}{}
+// ClientContextKey is the context key used to store the client in command contexts.
+// This must be the same key used when setting the client in cmd/keylightctl/main.go.
+// Defined once here and exported so all command files and main.go use the same pointer.
+var clientContextKey = ClientContextKey
 
 // NewLightCommand creates the light command
 func NewLightCommand(logger *slog.Logger) *cobra.Command {

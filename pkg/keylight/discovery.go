@@ -170,7 +170,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 						Port:   entry.Port,
 						Info:   fmt.Sprint(entry.Text),
 					}
-					light, valid := validateLight(localEntry, m.logger)
+					light, valid := validateLight(discoverCtx, localEntry, m.logger)
 					if !valid {
 						m.logger.Debug("zeroconf: entry did not validate as key light",
 							"instance", entry.Instance,
@@ -290,8 +290,14 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 }
 
 // validateLight checks if the mDNS entry is a valid Elgato Key Light by querying /elgato/accessory-info
-func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
-	if entry == nil || entry.AddrV4 == nil || entry.Port == 0 {
+func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
+	if entry == nil {
+		if logger != nil {
+			logger.Debug("validateLight: skipping nil service entry")
+		}
+		return Light{}, false
+	}
+	if entry.AddrV4 == nil || entry.Port == 0 {
 		if logger != nil {
 			logger.Debug("validateLight: skipping invalid service entry",
 				"name", entry.Name,
@@ -302,7 +308,7 @@ func validateLight(entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
 	}
 
 	client := NewKeyLightClient(entry.AddrV4.String(), entry.Port, logger)
-	info, err := client.GetAccessoryInfo(context.Background())
+	info, err := client.GetAccessoryInfo(ctx)
 	if err != nil {
 		if logger != nil {
 			errors.LogErrorAndReturn(

@@ -37,6 +37,11 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2
+
       - name: Run tests with coverage
         run: |
           # Test all packages except keylightd-tray which requires frontend to be built
