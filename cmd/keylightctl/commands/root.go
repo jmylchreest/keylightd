@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -46,9 +47,29 @@ func newVersionCommand(version, commit, buildDate string) *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Version: %s\n", version)
-			fmt.Printf("Commit: %s\n", commit)
-			fmt.Printf("Build Date: %s\n", buildDate)
+			fmt.Printf("Client:\n")
+			fmt.Printf("  Version:    %s\n", version)
+			fmt.Printf("  Commit:     %s\n", commit)
+			fmt.Printf("  Build Date: %s\n", buildDate)
+
+			// Try to query the daemon for its version
+			if c, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface); ok {
+				resp, err := c.GetVersion()
+				if err == nil {
+					fmt.Printf("\nDaemon:\n")
+					if v, ok := resp["version"].(string); ok {
+						fmt.Printf("  Version:    %s\n", v)
+					}
+					if c, ok := resp["commit"].(string); ok {
+						fmt.Printf("  Commit:     %s\n", c)
+					}
+					if d, ok := resp["build_date"].(string); ok {
+						fmt.Printf("  Build Date: %s\n", d)
+					}
+				} else {
+					fmt.Printf("\nDaemon: not reachable\n")
+				}
+			}
 		},
 	}
 }

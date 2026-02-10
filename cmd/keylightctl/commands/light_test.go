@@ -18,6 +18,8 @@ type mockClient struct{}
 
 var _ client.ClientInterface = (*mockClient)(nil)
 
+func (m *mockClient) GetVersion() (map[string]any, error) { return nil, nil }
+
 func (m *mockClient) GetLight(id string) (map[string]any, error) {
 	// Use a fixed time for predictable test output
 	lastSeenTime := time.Date(2023, time.October, 26, 10, 0, 0, 0, time.UTC)

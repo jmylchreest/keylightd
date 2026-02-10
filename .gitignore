@@ -12,6 +12,7 @@ cmd/keylightd/keylightd
 /keylightctl
 cmd/keylightctl/keylightctl
 /keylight-tray
+/keylightd-tray
 contrib/keylightd-tray/keylightd-tray
 contrib/keylightd-tray/build/
 contrib/keylightd-tray/frontend/dist/
@@ -35,6 +36,7 @@ go.work
 # IDE specific files
 .idea/
 .vscode/
+.aide/
 *.swp
 *.swo
 

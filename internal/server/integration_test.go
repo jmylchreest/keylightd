@@ -52,7 +52,7 @@ func setupIntegrationTest(t *testing.T) (*Server, *config.Config, string) {
 
 	// Create server with a simple logger
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	server := New(logger, v, lightManager)
+	server := New(logger, v, lightManager, VersionInfo{Version: "test", Commit: "abc1234", BuildDate: "2026-01-01T00:00:00Z"})
 
 	return server, v, socketPath
 }
@@ -167,7 +167,7 @@ func setupHTTPIntegrationTest(t *testing.T) (*Server, string, string) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	server := New(logger, cfg, lightManager)
+	server := New(logger, cfg, lightManager, VersionInfo{Version: "test", Commit: "abc1234", BuildDate: "2026-01-01T00:00:00Z"})
 
 	return server, apiKeyStr, fmt.Sprintf("http://%s", addr)
 }

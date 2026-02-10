@@ -42,10 +42,6 @@ export function GetVersion() {
   return window['go']['main']['App']['GetVersion']();
 }
 
-export function GetWindowSize() {
-  return window['go']['main']['App']['GetWindowSize']();
-}
-
 export function HideWindow() {
   return window['go']['main']['App']['HideWindow']();
 }
@@ -74,16 +70,16 @@ export function SetGroupState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetGroupState'](arg1, arg2, arg3);
 }
 
+export function SetInitialWindowHeight(arg1) {
+  return window['go']['main']['App']['SetInitialWindowHeight'](arg1);
+}
+
 export function SetLightState(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetLightState'](arg1, arg2, arg3);
 }
 
 export function SetTrayManager(arg1) {
   return window['go']['main']['App']['SetTrayManager'](arg1);
-}
-
-export function SetWindowHeight(arg1, arg2) {
-  return window['go']['main']['App']['SetWindowHeight'](arg1, arg2);
 }
 
 export function ShowWindow() {

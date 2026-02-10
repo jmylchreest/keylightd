@@ -18,6 +18,7 @@ var dial = func(network, address string) (net.Conn, error) {
 // Used for testability and mocking in CLI
 
 type ClientInterface interface {
+	GetVersion() (map[string]any, error)
 	GetLights() (map[string]any, error)
 	GetLight(id string) (map[string]any, error)
 	SetLightState(id string, property string, value any) error
@@ -109,6 +110,15 @@ func (c *Client) request(req any, resp any) error {
 	}
 
 	return nil
+}
+
+// GetVersion returns the running daemon's version information.
+func (c *Client) GetVersion() (map[string]any, error) {
+	var resp map[string]any
+	if err := c.request(map[string]string{"action": "version"}, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 // GetLights returns all discovered lights

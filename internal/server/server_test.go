@@ -141,7 +141,7 @@ func TestNewServer(t *testing.T) {
 	}))
 	lights := &mockLightManager{lights: make(map[string]*keylight.Light)}
 	cfg := setupTestConfig(t)
-	server := New(logger, cfg, lights)
+	server := New(logger, cfg, lights, VersionInfo{})
 	assert.NotNil(t, server)
 	assert.Equal(t, lights, server.lights)
 	assert.Equal(t, cfg, server.cfg)
@@ -153,7 +153,7 @@ func TestServerStartStop(t *testing.T) {
 	}))
 	lights := &mockLightManager{lights: make(map[string]*keylight.Light)}
 	cfg := setupTestConfig(t)
-	server := New(logger, cfg, lights)
+	server := New(logger, cfg, lights, VersionInfo{})
 
 	// Start server
 	err := server.Start()

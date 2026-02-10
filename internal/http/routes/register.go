@@ -19,6 +19,13 @@ func Register(api huma.API, h *Handlers) {
 
 	mw.HiddenGet(api, "/healthz", h.HealthCheck)
 
+	// --- Version ---
+	mw.PublicGet(api, "/api/v1/version", h.VersionCheck,
+		mw.WithTags("Version"),
+		mw.WithSummary("Daemon version"),
+		mw.WithDescription("Returns the running daemon's version, commit, and build date. This endpoint does not require authentication."),
+		mw.WithOperationID("getVersion"))
+
 	// --- Lights ---
 	mw.ProtectedGet(api, "/api/v1/lights", h.Light.ListLights,
 		mw.WithTags("Lights"),
