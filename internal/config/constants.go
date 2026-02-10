@@ -44,7 +44,7 @@ const (
 // Light constraints
 const (
 	// MinBrightness is the minimum allowed brightness value
-	MinBrightness = 0
+	MinBrightness = 3
 
 	// MaxBrightness is the maximum allowed brightness value
 	MaxBrightness = 100

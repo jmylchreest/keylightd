@@ -17,15 +17,13 @@ var (
 	buildDate = "unknown"
 )
 
-// Define the same clientContextKey as in commands/light.go and group.go
-var clientContextKey = &struct{}{}
+// Use the exported ClientContextKey from the commands package to ensure
+// all command handlers retrieve the client from the same context key.
+var clientContextKey = commands.ClientContextKey
 
 func main() {
-	var logLevel, logFormat string
-	var configFile string
-
 	// Load configuration first
-	cfg, err := config.Load(config.ClientConfigFilename, configFile)
+	cfg, err := config.Load(config.ClientConfigFilename, "")
 	if err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			logger := utils.SetupErrorLogger()
@@ -43,15 +41,6 @@ func main() {
 		}
 	}
 
-	// Override config with command line flags if set
-	if logLevel != "" {
-		cfg.Config.Logging.Level = logLevel
-	}
-	if logFormat != "" {
-		cfg.Config.Logging.Format = logFormat
-	}
-
-	// Set up logging with configured level
 	// Set up logging with the configured level and format
 	logger := utils.SetupLogger(cfg.Config.Logging.Level, cfg.Config.Logging.Format)
 	utils.SetAsDefaultLogger(logger)
@@ -64,11 +53,6 @@ func main() {
 
 	// Use the NewRootCommand from the commands package
 	rootCmd := commands.NewRootCommand(logger, version, commit, buildDate)
-
-	// Check for socket flag override
-	if socketFlag, _ := rootCmd.PersistentFlags().GetString("socket"); socketFlag != "" {
-		socket = socketFlag
-	}
 
 	apiClient := client.New(logger, socket)
 
@@ -84,5 +68,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-// Using utils.GetLogLevel instead

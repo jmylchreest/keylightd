@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/internal/config"
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 	"github.com/jmylchreest/keylightd/internal/group"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
@@ -146,8 +149,11 @@ func (s *Server) Start() error {
 		mux.Handle("PUT /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
 
 		s.httpServer = &http.Server{
-			Addr:    s.cfg.Config.API.ListenAddress,
-			Handler: s.loggingMiddleware(mux), // Apply logging middleware here
+			Addr:         s.cfg.Config.API.ListenAddress,
+			Handler:      s.loggingMiddleware(mux),
+			ReadTimeout:  15 * time.Second,
+			WriteTimeout: 15 * time.Second,
+			IdleTimeout:  60 * time.Second,
 		}
 
 		s.wg.Go(func() {
@@ -179,7 +185,7 @@ func (s *Server) Stop() {
 
 	if s.httpServer != nil {
 		s.logger.Info("Shutting down HTTP server")
-		ctx, cancel := context.WithTimeout(s.rootCtx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.httpServer.Shutdown(ctx); err != nil {
 			s.logger.Error("HTTP server shutdown failed", "error", err)
@@ -245,7 +251,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 	}()
 
 	reader := bufio.NewReader(conn)
-	encoder := json.NewEncoder(conn)
 
 	for {
 		select {
@@ -257,7 +262,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
-			if err.Error() == "EOF" || strings.Contains(err.Error(), "use of closed network connection") {
+			if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "use of closed network connection") {
 				s.logger.Debug("Client disconnected")
 			} else {
 				s.logger.Error("Failed to read from connection", "error", err)
@@ -303,25 +308,25 @@ func (s *Server) handleConnection(conn net.Conn) {
 			lightID, _ := data["id"].(string)
 			if lightID == "" {
 				s.sendError(conn, id, "missing light ID for get_light")
-				return
+				continue
 			}
 			light, err := s.lights.GetLight(ctx, lightID)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to get light %s: %s", lightID, err))
-				return
+				continue
 			}
 			// Marshal to JSON and then unmarshal to map[string]any
 			b, err := json.Marshal(light)
 			if err != nil {
 				s.logger.Error("Failed to marshal light for socket response", "id", lightID, "error", err)
 				s.sendError(conn, id, "internal error marshaling light")
-				return
+				continue
 			}
 			var m map[string]any
 			if err := json.Unmarshal(b, &m); err != nil {
 				s.logger.Error("Failed to unmarshal light for socket response", "id", lightID, "error", err)
 				s.sendError(conn, id, "internal error unmarshaling light")
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"light": m})
 		case "set_light_state":
@@ -332,7 +337,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 			if lightID == "" || property == "" || value == nil {
 				s.sendError(conn, id, "missing id, property, or value for set_light_state")
-				return
+				continue
 			}
 
 			var errSet error
@@ -364,7 +369,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 			if errSet != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to set light %s state %s: %s", lightID, property, errSet))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
@@ -377,12 +382,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			if name == "" {
 				s.sendError(conn, id, "missing name for create_group")
-				return
+				continue
 			}
 			group, err := s.groups.CreateGroup(ctx, name, lightIDs)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to create group: %s", err))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"group": group})
 
@@ -390,11 +395,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 			groupID, _ := data["id"].(string)
 			if groupID == "" {
 				s.sendError(conn, id, "missing group ID for delete_group")
-				return
+				continue
 			}
 			if err := s.groups.DeleteGroup(groupID); err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to delete group %s: %s", groupID, err))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
@@ -402,12 +407,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			groupID, _ := data["id"].(string)
 			if groupID == "" {
 				s.sendError(conn, id, "missing group ID for get_group")
-				return
+				continue
 			}
 			group, err := s.groups.GetGroup(groupID)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to get group %s: %s", groupID, err))
-				return
+				continue
 			}
 			lights := group.Lights
 			if lights == nil {
@@ -439,11 +444,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			if groupID == "" {
 				s.sendError(conn, id, "missing group ID for set_group_lights")
-				return
+				continue
 			}
 			if err := s.groups.SetGroupLights(ctx, groupID, lightIDs); err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to set lights for group %s: %s", groupID, err))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
@@ -453,12 +458,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			value := data["value"]
 			if groupKeys == "" || property == "" || value == nil {
 				s.sendError(conn, id, "missing id, property, or value for set_group_state")
-				return
+				continue
 			}
 			matchedGroups, notFound := s.groups.GetGroupsByKeys(groupKeys)
 			if len(matchedGroups) == 0 {
 				s.sendError(conn, id, "no groups found for: "+strings.Join(notFound, ", "))
-				return
+				continue
 			}
 			var errs []string
 			for _, grp := range matchedGroups {
@@ -506,18 +511,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 				expiresInSecs, err := strconv.ParseFloat(expiresInStr, 64)
 				if err != nil {
 					s.sendError(conn, id, fmt.Sprintf("invalid expires_in format: %s", err))
-					return
+					continue
 				}
 				expiresIn = time.Duration(expiresInSecs * float64(time.Second))
 			}
 			if name == "" {
 				s.sendError(conn, id, "missing name for apikey_add")
-				return
+				continue
 			}
 			apiKey, err := s.apikeyManager.CreateAPIKey(name, expiresIn)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to create API key: %s", err))
-				return
+				continue
 			}
 			// Construct a map with lowercase keys for the client
 			apiKeyResponse := map[string]any{
@@ -552,11 +557,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 			key, _ := data["key"].(string)
 			if key == "" {
 				s.sendError(conn, id, "missing key for apikey_delete")
-				return
+				continue
 			}
 			if err := s.apikeyManager.DeleteAPIKey(key); err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to delete API key: %s", err))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
@@ -566,29 +571,29 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 			if keyOrName == "" {
 				s.sendError(conn, id, "missing key_or_name for apikey_set_disabled_status")
-				return
+				continue
 			}
 			if disabledStr == "" {
 				s.sendError(conn, id, "missing disabled state for apikey_set_disabled_status")
-				return
+				continue
 			}
 
 			disabled, err := strconv.ParseBool(disabledStr)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("invalid boolean value for disabled state: %s", err))
-				return
+				continue
 			}
 
 			updatedKey, err := s.apikeyManager.SetAPIKeyDisabledStatus(keyOrName, disabled)
 			if err != nil {
 				s.sendError(conn, id, fmt.Sprintf("failed to set API key disabled status: %s", err))
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok", "key": updatedKey})
 
 		default:
 			s.logger.Warn("received unknown action", "action", action)
-			encoder.Encode(map[string]any{"id": id, "error": "unknown action: " + action})
+			s.sendError(conn, id, "unknown action: "+action)
 		}
 	}
 }
@@ -682,6 +687,7 @@ type GroupSetLightsRequest struct {
 
 func (s *Server) handleAPIKeyCreate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var req APIKeyRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -746,7 +752,7 @@ func (s *Server) handleAPIKeyDelete() http.HandlerFunc {
 		}
 
 		if err := s.apikeyManager.DeleteAPIKey(key); err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if kerrors.IsNotFound(err) {
 				http.Error(w, "API key not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("Failed to delete API key: %s", err), http.StatusInternalServerError)
@@ -760,7 +766,8 @@ func (s *Server) handleAPIKeyDelete() http.HandlerFunc {
 // handleAPIKeySetDisabled handles PUT /api/v1/apikeys/{key}/disabled
 func (s *Server) handleAPIKeySetDisabled() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		keyOrName := r.PathValue("key") // key could be the key string or its name
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
+		keyOrName := r.PathValue("key")                // key could be the key string or its name
 		if keyOrName == "" {
 			http.Error(w, "API key/name is required in path", http.StatusBadRequest)
 			return
@@ -776,7 +783,7 @@ func (s *Server) handleAPIKeySetDisabled() http.HandlerFunc {
 
 		updatedKey, err := s.apikeyManager.SetAPIKeyDisabledStatus(keyOrName, payload.Disabled)
 		if err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if kerrors.IsNotFound(err) {
 				http.Error(w, "API key not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("Failed to update API key: %s", err), http.StatusInternalServerError)
@@ -816,6 +823,7 @@ func (s *Server) handleLightGet() http.HandlerFunc {
 
 func (s *Server) handleLightSetState() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		lightID := r.PathValue("id")
 		var reqBody LightStateRequest
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -859,6 +867,7 @@ func (s *Server) handleGroupsList() http.HandlerFunc {
 
 func (s *Server) handleGroupCreate() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		var reqBody struct {
 			Name     string   `json:"name"`
 			LightIDs []string `json:"light_ids"`
@@ -898,7 +907,7 @@ func (s *Server) handleGroupDelete() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		groupID := r.PathValue("id")
 		if err := s.groups.DeleteGroup(groupID); err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if kerrors.IsNotFound(err) {
 				http.Error(w, "Group not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("Failed to delete group: %s", err), http.StatusInternalServerError)
@@ -911,6 +920,7 @@ func (s *Server) handleGroupDelete() http.HandlerFunc {
 
 func (s *Server) handleGroupSetLights() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 		groupID := r.PathValue("id")
 		var reqBody GroupSetLightsRequest
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -919,7 +929,7 @@ func (s *Server) handleGroupSetLights() http.HandlerFunc {
 		}
 
 		if err := s.groups.SetGroupLights(r.Context(), groupID, reqBody.LightIDs); err != nil {
-			if strings.Contains(err.Error(), "not found") {
+			if kerrors.IsNotFound(err) {
 				http.Error(w, "Group or light not found", http.StatusNotFound)
 			} else {
 				http.Error(w, fmt.Sprintf("Failed to set group lights: %s", err), http.StatusInternalServerError)
@@ -932,7 +942,8 @@ func (s *Server) handleGroupSetLights() http.HandlerFunc {
 
 func (s *Server) handleGroupSetState() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		groupParam := r.PathValue("id") // e.g., "office" or "group-1,office"
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
+		groupParam := r.PathValue("id")                // e.g., "office" or "group-1,office"
 		groupKeys := strings.Split(groupParam, ",")
 		var matchedGroups []*group.Group
 		var notFound []string
@@ -994,8 +1005,9 @@ func (s *Server) handleGroupSetState() http.HandlerFunc {
 		}
 
 		if len(errs) > 0 {
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusMultiStatus) // 207
-			writeJSONResponse(w, map[string]any{"status": "partial", "errors": errs})
+			json.NewEncoder(w).Encode(map[string]any{"status": "partial", "errors": errs})
 			return
 		}
 		writeJSONResponse(w, map[string]string{"status": "ok"})

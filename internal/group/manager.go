@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
@@ -87,9 +87,14 @@ func (m *Manager) loadGroups() error {
 			return fmt.Errorf("invalid group data for %s", id)
 		}
 
+		name, ok := groupMap["name"].(string)
+		if !ok {
+			return fmt.Errorf("invalid group name for %s", id)
+		}
+
 		group := &Group{
 			ID:   id,
-			Name: groupMap["name"].(string),
+			Name: name,
 		}
 
 		// Convert lights array
@@ -99,7 +104,11 @@ func (m *Manager) loadGroups() error {
 		}
 		group.Lights = make([]string, len(lightsArray))
 		for i, light := range lightsArray {
-			group.Lights[i] = light.(string)
+			s, ok := light.(string)
+			if !ok {
+				return fmt.Errorf("invalid light ID in group %s at index %d", id, i)
+			}
+			group.Lights[i] = s
 		}
 
 		groups[id] = group
@@ -116,18 +125,15 @@ func (m *Manager) loadGroups() error {
 // saveGroups saves groups to the configuration file
 func (m *Manager) saveGroups() error {
 	m.mu.RLock()
-	groups := m.groups
-	m.mu.RUnlock()
-
-	m.logger.Debug("Converting groups to map for config")
-	// Convert groups to map for config
+	// Deep copy the groups map to avoid data races
 	groupsMap := make(map[string]any)
-	for id, group := range groups {
+	for id, group := range m.groups {
 		groupsMap[id] = map[string]any{
 			"name":   group.Name,
-			"lights": group.Lights,
+			"lights": append([]string{}, group.Lights...),
 		}
 	}
+	m.mu.RUnlock()
 
 	m.logger.Debug("Updating config with groups", "count", len(groupsMap), "groups", groupsMap)
 	// Update config
@@ -148,20 +154,19 @@ func (m *Manager) saveGroups() error {
 func (m *Manager) CreateGroup(ctx context.Context, name string, lightIDs []string) (*Group, error) {
 	m.logger.Debug("Creating group", "name", name, "lights", lightIDs)
 
-	m.mu.Lock()
-	group := &Group{
-		ID:     fmt.Sprintf("group-%d", time.Now().UnixNano()),
-		Name:   name,
-		Lights: lightIDs,
-	}
-
-	// Verify all lights exist
+	// Verify all lights exist OUTSIDE the lock (network I/O)
 	for _, id := range lightIDs {
 		if _, err := m.lights.GetLight(ctx, id); err != nil {
-			m.mu.Unlock()
 			m.logger.Error("Light not found", "id", id, "error", err)
 			return nil, fmt.Errorf("light not found: %s", err)
 		}
+	}
+
+	m.mu.Lock()
+	group := &Group{
+		ID:     "group-" + uuid.New().String(),
+		Name:   name,
+		Lights: lightIDs,
 	}
 
 	// Add group to map
@@ -230,19 +235,18 @@ func (m *Manager) GetGroups() []*Group {
 
 // SetGroupLights sets the lights in a group
 func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []string) error {
+	// Verify all lights exist OUTSIDE the lock (network I/O)
+	for _, lightID := range lightIDs {
+		if _, err := m.lights.GetLight(ctx, lightID); err != nil {
+			return fmt.Errorf("light not found: %s", err)
+		}
+	}
+
 	m.mu.Lock()
 	group, exists := m.groups[id]
 	if !exists {
 		m.mu.Unlock()
 		return fmt.Errorf("group not found: %s", id)
-	}
-
-	// Verify all lights exist
-	for _, lightID := range lightIDs {
-		if _, err := m.lights.GetLight(ctx, lightID); err != nil {
-			m.mu.Unlock()
-			return fmt.Errorf("light not found: %s", err)
-		}
 	}
 
 	group.Lights = lightIDs
