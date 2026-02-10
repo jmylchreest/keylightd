@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	logfilter "github.com/jmylchreest/slog-logfilter"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -124,8 +125,9 @@ type DiscoveryConfig struct {
 
 // LoggingConfig represents the logging configuration
 type LoggingConfig struct {
-	Level  string `mapstructure:"level" yaml:"level"`
-	Format string `mapstructure:"format" yaml:"format"`
+	Level   string                `mapstructure:"level" yaml:"level"`
+	Format  string                `mapstructure:"format" yaml:"format"`
+	Filters []logfilter.LogFilter `mapstructure:"filters" yaml:"filters,omitempty"`
 }
 
 // New creates a new Config with the given viper instance
@@ -292,7 +294,12 @@ func isDefaultDiscovery(d DiscoveryConfig) bool {
 }
 
 func isDefaultLogging(l LoggingConfig) bool {
-	return l.Level == LogLevelInfo && l.Format == LogFormatText
+	return l.Level == LogLevelInfo && l.Format == LogFormatText && len(l.Filters) == 0
+}
+
+// Viper returns the underlying viper instance for config file watching.
+func (c *Config) Viper() *viper.Viper {
+	return c.v
 }
 
 // Get retrieves a value from the configuration

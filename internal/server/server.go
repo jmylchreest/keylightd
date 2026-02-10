@@ -120,6 +120,7 @@ func (s *Server) Start() error {
 		lightHandler := &handlers.LightHandler{Lights: s.lights}
 		groupHandler := &handlers.GroupHandler{Groups: s.groups, Lights: s.lights}
 		apiKeyHandler := &handlers.APIKeyHandler{Manager: s.apikeyManager}
+		loggingHandler := &handlers.LoggingHandler{Logger: s.logger}
 
 		// Create Chi router with middleware stack.
 		// Auth is enforced at the Chi level so it covers ALL routes uniformly
@@ -135,9 +136,10 @@ func (s *Server) Start() error {
 
 		// Register all routes via shared registration
 		routes.Register(api, &routes.Handlers{
-			Light:  lightHandler,
-			Group:  groupHandler,
-			APIKey: apiKeyHandler,
+			Light:   lightHandler,
+			Group:   groupHandler,
+			APIKey:  apiKeyHandler,
+			Logging: loggingHandler,
 		})
 
 		// Override the group state route with a raw handler for 207 Multi-Status support.

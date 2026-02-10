@@ -3,18 +3,23 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
+	logfilter "github.com/jmylchreest/slog-logfilter"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/errors"
+	"github.com/jmylchreest/keylightd/internal/logging"
 	"github.com/jmylchreest/keylightd/internal/server"
 	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -47,8 +52,24 @@ func main() {
 				os.Exit(1)
 			}
 
-			// Set up logging with configured level
-			logger := utils.SetupLogger(v.GetString("logging.level"), v.GetString("logging.format"))
+			// Validate any configured log filters before applying
+			level := v.GetString("logging.level")
+			format := v.GetString("logging.format")
+			filters := cfg.Config.Logging.Filters
+			if len(filters) > 0 {
+				if errs := logging.ValidateFilters(filters); len(errs) > 0 {
+					// Log warnings but start with no filters rather than crashing
+					errLogger := utils.SetupErrorLogger()
+					errLogger.Warn("Invalid log filters in config, starting without filters",
+						"errors", logging.FormatErrors(errs))
+					filters = nil
+				}
+			}
+
+			// Set up logging backed by slog-logfilter.
+			// Using SetDefault so the package-level hot-reload functions
+			// (logfilter.SetLevel, logfilter.SetFilters, etc.) work.
+			logger := utils.SetupLoggerWithFilters(level, format, filters)
 			utils.SetAsDefaultLogger(logger)
 
 			logger.Info("Starting keylightd",
@@ -56,6 +77,9 @@ func main() {
 				"commit", commit,
 				"buildDate", buildDate,
 			)
+			if len(filters) > 0 {
+				logger.Info("Log filters active", "count", len(filters))
+			}
 
 			manager := keylight.NewManager(logger)
 			srv := server.New(logger, cfg, manager)
@@ -74,6 +98,18 @@ func main() {
 
 			if err := srv.Start(); err != nil {
 				return errors.LogErrorAndReturn(logger, err, "Failed to start server")
+			}
+
+			// Watch config file for logging hot-reload (level + filters).
+			// Uses viper's built-in fsnotify watcher.
+			configViper := cfg.Viper()
+			if configViper != nil {
+				configViper.OnConfigChange(func(e fsnotify.Event) {
+					logger.Info("Config file changed, reloading logging configuration", "file", e.Name)
+					reloadLoggingConfig(logger, configViper)
+				})
+				configViper.WatchConfig()
+				logger.Debug("Config file watcher started")
 			}
 
 			sigChan := make(chan os.Signal, 1)
@@ -99,4 +135,29 @@ func main() {
 	}
 }
 
-// Using utils.GetLogLevel instead
+// reloadLoggingConfig handles hot-reload of logging level and filters when
+// the config file changes.  It validates filters before applying them; invalid
+// filters are rejected and the existing configuration is kept.
+func reloadLoggingConfig(logger *slog.Logger, v *viper.Viper) {
+	// Re-read level
+	newLevel := utils.ValidateLogLevel(v.GetString("config.logging.level"))
+	slogLevel := utils.GetLogLevel(newLevel)
+	logfilter.SetLevel(slogLevel)
+	logger.Info("Log level updated", "level", newLevel)
+
+	// Re-read filters from the raw config
+	var loggingCfg config.LoggingConfig
+	if err := v.UnmarshalKey("config.logging", &loggingCfg); err != nil {
+		logger.Error("Failed to unmarshal logging config on reload", "error", err)
+		return
+	}
+
+	if errs := logging.ValidateFilters(loggingCfg.Filters); len(errs) > 0 {
+		logger.Warn("Invalid log filters in config reload, keeping existing filters",
+			"errors", logging.FormatErrors(errs))
+		return
+	}
+
+	logfilter.SetFilters(loggingCfg.Filters)
+	logger.Info("Log filters reloaded", "count", len(loggingCfg.Filters))
+}

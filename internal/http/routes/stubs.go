@@ -14,9 +14,10 @@ import (
 // where Huma extracts type information from function signatures.
 func StubHandlers() *Handlers {
 	return &Handlers{
-		Light:  &stubLightHandlers{},
-		Group:  &stubGroupHandlers{},
-		APIKey: &stubAPIKeyHandlers{},
+		Light:   &stubLightHandlers{},
+		Group:   &stubGroupHandlers{},
+		APIKey:  &stubAPIKeyHandlers{},
+		Logging: &stubLoggingHandlers{},
 	}
 }
 
@@ -87,5 +88,21 @@ func (s *stubAPIKeyHandlers) DeleteAPIKey(_ context.Context, _ *handlers.DeleteA
 }
 
 func (s *stubAPIKeyHandlers) SetAPIKeyDisabled(_ context.Context, _ *handlers.SetAPIKeyDisabledInput) (*handlers.SetAPIKeyDisabledOutput, error) {
+	return nil, nil
+}
+
+// --- Logging stubs ---
+
+type stubLoggingHandlers struct{}
+
+func (s *stubLoggingHandlers) ListFilters(_ context.Context, _ *handlers.ListFiltersInput) (*handlers.ListFiltersOutput, error) {
+	return nil, nil
+}
+
+func (s *stubLoggingHandlers) SetFilters(_ context.Context, _ *handlers.SetFiltersInput) (*handlers.SetFiltersOutput, error) {
+	return nil, nil
+}
+
+func (s *stubLoggingHandlers) SetLevel(_ context.Context, _ *handlers.SetLevelInput) (*handlers.SetLevelOutput, error) {
 	return nil, nil
 }
