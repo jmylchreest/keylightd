@@ -1,10 +1,11 @@
 // Wails runtime bindings
-let GetStatus, GetVersion, SetLightState, SetGroupState;
+let GetStatus, GetVersion, GetDaemonVersion, SetLightState, SetGroupState;
 
 // Check if running in Wails or browser
 if (window.go && window.go.main && window.go.main.App) {
   GetStatus = window.go.main.App.GetStatus;
   GetVersion = window.go.main.App.GetVersion;
+  GetDaemonVersion = window.go.main.App.GetDaemonVersion;
   SetLightState = window.go.main.App.SetLightState;
   SetGroupState = window.go.main.App.SetGroupState;
 } else {
@@ -12,6 +13,7 @@ if (window.go && window.go.main && window.go.main.App) {
   console.warn("Wails runtime not available - using mock data");
 
   GetVersion = async () => "dev (browser)";
+  GetDaemonVersion = async () => "dev (browser)";
 
   GetStatus = async () => ({
     lights: [
@@ -147,9 +149,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const version = await GetVersion();
     document.getElementById("about-version").textContent =
-      `Version: ${version}`;
+      `Tray: ${version}`;
   } catch (e) {
-    console.error("Failed to get version:", e);
+    console.error("Failed to get tray version:", e);
+  }
+
+  try {
+    const daemonVersion = await GetDaemonVersion();
+    document.getElementById("about-daemon-version").textContent =
+      `Daemon: ${daemonVersion || "unavailable"}`;
+  } catch (e) {
+    console.error("Failed to get daemon version:", e);
   }
 
   // Setup settings panel

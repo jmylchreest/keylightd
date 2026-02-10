@@ -161,7 +161,7 @@ body {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    border: 2px solid var(--bg-tertiary);
+    border: 2px solid var(--text-muted);
     background-color: transparent;
     cursor: pointer;
     display: flex;
@@ -173,6 +173,7 @@ body {
 
 .power-button:hover {
     border-color: var(--accent);
+    box-shadow: 0 0 8px 2px rgba(137, 180, 250, 0.4);
 }
 
 .power-button.on {
@@ -183,12 +184,13 @@ body {
 .power-button.on:hover {
     background-color: #8bd89b;
     border-color: #8bd89b;
+    box-shadow: 0 0 8px 2px rgba(166, 227, 161, 0.4);
 }
 
 .power-button svg {
     width: 18px;
     height: 18px;
-    fill: var(--text-muted);
+    fill: var(--text-secondary);
 }
 
 .power-button.on svg {
@@ -229,8 +231,9 @@ body {
 .slider-icon {
     width: 16px;
     height: 16px;
-    fill: var(--text-secondary);
+    fill: var(--text-primary);
     flex-shrink: 0;
+    opacity: 0.8;
 }
 
 .slider-container {
