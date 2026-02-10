@@ -1,0 +1,69 @@
+---
+id: set-group-state
+title: "Set group state"
+description: "Set state for one or more groups. The ID parameter supports comma-separated IDs or names for multi-group targeting. Returns 200 on success, 207 on partial failure."
+sidebar_label: "Set group state"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVV21v2zYQ/isHfkmLyS9Jiw0QhgFJG2xGNjRIXGxAYKC0eJbYUKRKHp16hv/7cKTiOHa7ZFu/7JMlirx77uHdPee1IFkHUd6In72LXRCzQigMldcdaWdFKa6RIJAkhIXz4CyC89A6j1CnE0OYNgiTt9BJL1sk9BBi1zlPASrXtnIQkD8RKpi8DXzayhZDMtdGQ3qQDAFJXyNpWw/hCil6G+BkPAZnIcSqwhAKOBn/wO+d9KSlgYXUJnocikK4Dr1kxBMlShGQUjjXjFsUYguNI10L9i9KoZUohOYYO0mN2A88WQCt0JJeaPQvwsviIKKHIDJ8UQiPn6L2qERJPmIhQtVgK0W5FrTq2G8gr239jfxtNrPsEgOdObViP5WzhJb4UXad0VViZvQxsJ/1ISA3/4gVQ5dKad4qzaVnRkljEOVCmoCF6HaW1mLudd2QxRB2DGlLWKM/CO1suxkMLtHAi/HgeDx+mcKRxoDh70EUYuF8Kymb+v612BQiY+4dzJ0zKO2Bg0t3x3m3TdMHm6AtUNMnK9sjbFOuRI/PQP7GGedh58zTkNmHJsNWr3fzcGK7mK9ow3sep0laCJ2zIdN7Mh7zz2Mw7y5E8ezL3SQvChcyGjq0de69818313k3N9h+901zRiFJbZ6uhFNoYivtwKNUcm4Q8HNnpE3IIHRY6YWugBxQowO4qoreo60Q3CLddQ+e+wJ+lm1n2P2N6PGtYOEc6AD3NwDzSPze6hC4/YjZphDI/OzmtvRerg6gvksPktMhEPvXVumlVlEaSCYgB82Jognb8B8pNC5f0NMk/t6gx0RHxtHTpArAYT2Eo7lTq2GCdPNqNmQVOOLefMS9cEiNtvVAqyOumBZDkDU+7TLlFPTbgfAz8fGlNDEdfryZVSN9Akm5QvUSLWwD3K2jZPhtzh5e1zaQtNUzIJ3C+6sJeFxgzhBqJD302JAcbzPqbzNpW+bR673Eaoi6UI5G/dqwcu0okT4wrh7JeXV88iolFTeo+JyG+ct0epnaWWQRVXjYZh4heD0ezx7oepqT0DhPxX6Vhdi20q/2Ygc2xiKvQ39foXHRKLCOoGqkrRHmSHeIdofAcG8l8bBfiWdSwVXWrMRLxvuP79LtR6BcFVu0lDsFd+pHEPaucNsbhZy7SOXcSHv73KsN90tidpCpvzmFnKipAwesote0SpOH7PQFrk4jNaK8mbF0t0iN45mli9wK0iRSipHs9Gh5PMoj1mit1WaU1E08GLzmlpy7wq7ZLYsM/ZDDywnc4gpkpIaLIBfbECa2MlEhrFz0sN0U4AMbdV7/mfaVcIbSo4cfb3H10wfuFx/+GJxeTgYXuCr7VWY6yUUS7LQ/FS1LSX/prILnPX17s8Q4K34enR5p9TgV/sKlEHu6b3GVdFgx5oNgr86vpykYzgQWOu+M0baGc1NLcnCBK/iVj4PCpeakXWoJDzaVxNZZjmeJPmSbCpfc1DoXqJWpDffTJM/JeZC9v6hHYHamsv/JSN2nEbfxUWekthx39Em/c5recOIxO8eiEBm6KESZ5upMwqwQjQvEW9fruQz43pvNhpc/RfRcEzMWCK+5fFOFKB34WW3176ssvrjq9fsl/NtR/Ysh3uu9ZbXvxUuIgnMt/2nYcMtqUCr0CXL+8CYDG0z5+MPBgxltU9yfOK0q7BjG1/fuNojL91NRCJZt5qFlVSiFl3f8l0PeZYwu8ZR6QlpbCyNtHZN6pwLMsydX/+5UnYu0uH/goL7Iwnqdd0zdLdrNZksK8Tvzstn8BRx5/gs=
+sidebar_class_name: "put api-method"
+info_path: docs/api/rest/keylightd-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Set group state"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"put"}
+  path={"/api/v1/groups/{id}/state"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Set state for one or more groups. The ID parameter supports comma-separated IDs or names for multi-group targeting. Returns 200 on success, 207 on partial failure.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./set-group-state.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./set-group-state.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./set-group-state.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

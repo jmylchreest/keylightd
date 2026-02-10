@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"type":"object","additionalProperties":false,"properties":{"expires_in":{"type":"string","description":"Duration string (e.g., '720h', '30d')"},"name":{"type":"string","description":"Display name for the API key","minLength":1}},"required":["name"],"title":"CreateAPIKeyInputBody"}}},"required":true}}

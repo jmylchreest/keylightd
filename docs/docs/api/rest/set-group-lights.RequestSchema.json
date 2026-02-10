@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"type":"object","additionalProperties":false,"properties":{"light_ids":{"type":"array","description":"List of light IDs to assign to the group","items":{"type":"string"}}},"required":["light_ids"],"title":"SetGroupLightsInputBody"}}},"required":true}}

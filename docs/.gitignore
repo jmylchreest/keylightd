@@ -1,0 +1,8 @@
+node_modules/
+build/
+.docusaurus/
+.cache-loader/
+
+# Generated at build time by keylight-openapi
+static/openapi.yaml
+static/openapi.json
