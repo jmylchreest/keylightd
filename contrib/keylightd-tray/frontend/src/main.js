@@ -146,7 +146,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   try {
     const version = await GetVersion();
-    document.getElementById("version").textContent = `v${version}`;
     document.getElementById("about-version").textContent =
       `Version: ${version}`;
   } catch (e) {
@@ -155,6 +154,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Setup settings panel
   setupSettings();
+
+  // Setup master toggle
+  setupMasterToggle();
+
+  // Setup collapsible sections
+  setupCollapsibleSections();
 
   // Setup custom CSS auto-reload
   setupCustomCssReload();
@@ -609,6 +614,55 @@ function setupConnectionTypeToggle() {
   }
 }
 
+// Master toggle — toggle all lights on/off
+function setupMasterToggle() {
+  const btn = document.getElementById("master-toggle-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    try {
+      const status = await GetStatus();
+      // If any light is on, turn all off. Otherwise turn all on.
+      const targetState = status.onCount === 0;
+      const promises = status.lights.map((light) =>
+        SetLightState(light.id, "on", targetState),
+      );
+      await Promise.all(promises);
+      await refresh();
+    } catch (e) {
+      console.error("Failed to toggle all lights:", e);
+    }
+  });
+}
+
+// Update master toggle visual state
+function updateMasterToggle(onCount) {
+  const btn = document.getElementById("master-toggle-btn");
+  if (!btn) return;
+  if (onCount > 0) {
+    btn.classList.add("all-on");
+    btn.title = "Turn all lights off";
+  } else {
+    btn.classList.remove("all-on");
+    btn.title = "Turn all lights on";
+  }
+}
+
+// Collapsible sections
+function setupCollapsibleSections() {
+  document.querySelectorAll(".section").forEach((section) => {
+    // Start expanded
+    section.classList.add("expanded");
+
+    const heading = section.querySelector("h2");
+    if (heading) {
+      heading.addEventListener("click", () => {
+        section.classList.toggle("expanded");
+      });
+    }
+  });
+}
+
 // Refresh data from backend
 async function refresh() {
   // Skip refresh if paused (during slider interaction)
@@ -620,9 +674,12 @@ async function refresh() {
     const status = await GetStatus();
     updateUI(status);
     updateStatusBadge(status.onCount, status.total, true);
+    updateMasterToggle(status.onCount);
+    updateSectionVisibility(status);
   } catch (e) {
     console.error("Failed to refresh:", e);
     updateStatusBadge(0, 0, false);
+    updateMasterToggle(0);
   }
 }
 
@@ -642,6 +699,26 @@ function updateStatusBadge(on, total, connected) {
 function updateUI(status) {
   renderGroups(status.groups);
   renderLights(status.lights);
+}
+
+// Hide sections with no visible items
+function updateSectionVisibility(status) {
+  const groupsSection = document.getElementById("groups-section");
+  const visibleGroups = JSON.parse(
+    localStorage.getItem("visibleGroups") || "[]",
+  );
+  const filteredGroups =
+    visibleGroups.length === 0
+      ? status.groups
+      : status.groups.filter((g) => visibleGroups.includes(g.id));
+
+  if (groupsSection) {
+    if (filteredGroups.length === 0) {
+      groupsSection.classList.add("hidden");
+    } else {
+      groupsSection.classList.remove("hidden");
+    }
+  }
 }
 
 // Render groups
@@ -720,6 +797,7 @@ function updateSliderValues(items, type) {
       );
       if (brightnessSlider) {
         brightnessSlider.value = item.brightness;
+        brightnessSlider.style.setProperty("--fill", `${item.brightness}%`);
         const label =
           brightnessSlider.parentElement.querySelector(".slider-value");
         if (label) label.textContent = `${item.brightness}%`;
@@ -734,6 +812,9 @@ function updateSliderValues(items, type) {
       );
       if (tempSlider) {
         tempSlider.value = item.temperature;
+        const tempFill =
+          ((item.temperature - 2900) / (7000 - 2900)) * 100;
+        tempSlider.style.setProperty("--fill", `${tempFill}%`);
         const label = tempSlider.parentElement.querySelector(".slider-value");
         if (label) label.textContent = `${item.temperature}K`;
       }
@@ -767,6 +848,9 @@ function createControlCard(item, type) {
   const brightnessKey = `brightness-${id}`;
   const tempKey = `temperature-${id}`;
 
+  const brightnessFill = brightness;
+  const tempFill = ((temperature - 2900) / (7000 - 2900)) * 100;
+
   return `
         <div class="control-card ${on ? "on" : "off"}" data-id="${id}" data-type="${type}">
             <div class="control-header">
@@ -782,7 +866,8 @@ function createControlCard(item, type) {
                 <div class="slider-row">
                     <span class="slider-icon">${SUN_ICON}</span>
                     <div class="slider-container">
-                        <input type="range" class="slider" min="0" max="100" value="${brightness}"
+                        <input type="range" class="slider brightness-slider" min="0" max="100" value="${brightness}"
+                            style="--fill: ${brightnessFill}%"
                             data-slider-key="${brightnessKey}"
                             onmousedown="startSliderDrag('${brightnessKey}')"
                             onmouseup="endSliderDrag('${brightnessKey}')"
@@ -790,14 +875,15 @@ function createControlCard(item, type) {
                             ontouchstart="startSliderDrag('${brightnessKey}')"
                             ontouchend="endSliderDrag('${brightnessKey}')"
                             onchange="setBrightness('${id}', '${type}', this.value)"
-                            oninput="updateSliderLabel(this, '%')">
+                            oninput="updateSliderFill(this)">
                         <span class="slider-value">${brightness}%</span>
                     </div>
                 </div>
                 <div class="slider-row">
                     <span class="slider-icon">${TEMP_ICON}</span>
                     <div class="slider-container">
-                        <input type="range" class="slider" min="2900" max="7000" value="${temperature}"
+                        <input type="range" class="slider temperature-slider" min="2900" max="7000" value="${temperature}"
+                            style="--fill: ${tempFill}%"
                             data-slider-key="${tempKey}"
                             onmousedown="startSliderDrag('${tempKey}')"
                             onmouseup="endSliderDrag('${tempKey}')"
@@ -805,7 +891,7 @@ function createControlCard(item, type) {
                             ontouchstart="startSliderDrag('${tempKey}')"
                             ontouchend="endSliderDrag('${tempKey}')"
                             onchange="setTemperature('${id}', '${type}', this.value)"
-                            oninput="updateSliderLabel(this, 'K')">
+                            oninput="updateSliderFill(this)">
                         <span class="slider-value">${temperature}K</span>
                     </div>
                 </div>
@@ -893,10 +979,20 @@ window.endSliderDrag = function (key) {
   }, 500);
 };
 
-// Update slider label while dragging
-window.updateSliderLabel = function (slider, suffix) {
+// Update slider label and fill while dragging
+window.updateSliderFill = function (slider) {
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  const val = parseFloat(slider.value);
+  const pct = ((val - min) / (max - min)) * 100;
+  slider.style.setProperty("--fill", `${pct}%`);
+
   const valueSpan = slider.parentElement.querySelector(".slider-value");
-  valueSpan.textContent = `${slider.value}${suffix}`;
+  if (slider.classList.contains("brightness-slider")) {
+    valueSpan.textContent = `${slider.value}%`;
+  } else {
+    valueSpan.textContent = `${slider.value}K`;
+  }
 };
 
 // Escape HTML to prevent XSS
