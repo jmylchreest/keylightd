@@ -241,17 +241,16 @@ func (c *Client) GetGroups() ([]map[string]any, error) {
 
 	groupsField, ok := resp["groups"]
 	if !ok {
-		return nil, nil // or return an error if you prefer
+		return nil, nil
 	}
-	groupsMap, ok := groupsField.(map[string]any)
+	groupsSlice, ok := groupsField.([]any)
 	if !ok {
 		return nil, fmt.Errorf("invalid groups format in response")
 	}
 
-	groups := make([]map[string]any, 0, len(groupsMap))
-	for id, group := range groupsMap {
-		if groupMap, ok := group.(map[string]any); ok {
-			groupMap["id"] = id
+	groups := make([]map[string]any, 0, len(groupsSlice))
+	for _, g := range groupsSlice {
+		if groupMap, ok := g.(map[string]any); ok {
 			groups = append(groups, groupMap)
 		}
 	}

@@ -232,9 +232,9 @@ func TestClient_AllMethods(t *testing.T) {
 
 	t.Run("GetGroups", func(t *testing.T) {
 		resp := map[string]any{
-			"groups": map[string]any{
-				"g1": map[string]any{"name": "G1"},
-				"g2": map[string]any{"name": "G2"},
+			"groups": []any{
+				map[string]any{"id": "g1", "name": "G1", "lights": []any{}},
+				map[string]any{"id": "g2", "name": "G2", "lights": []any{}},
 			},
 		}
 		buf := &bytes.Buffer{}
