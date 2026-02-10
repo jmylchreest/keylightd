@@ -20,14 +20,16 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/errors"
+	"github.com/jmylchreest/keylightd/internal/events"
 )
 
 // Manager manages Key Light devices
 type Manager struct {
-	lights  map[string]Light
-	clients map[string]*KeyLightClient
-	mu      sync.RWMutex
-	logger  *slog.Logger
+	lights   map[string]Light
+	clients  map[string]*KeyLightClient
+	mu       sync.RWMutex
+	logger   *slog.Logger
+	eventBus *events.Bus
 }
 
 // NewManager creates a new manager
@@ -36,6 +38,19 @@ func NewManager(logger *slog.Logger) *Manager {
 		lights:  make(map[string]Light),
 		clients: make(map[string]*KeyLightClient),
 		logger:  logger,
+	}
+}
+
+// SetEventBus sets the event bus for publishing state change events.
+// If not set, no events are emitted (fire-and-forget mode).
+func (m *Manager) SetEventBus(bus *events.Bus) {
+	m.eventBus = bus
+}
+
+// emit publishes an event if an event bus is configured.
+func (m *Manager) emit(t events.EventType, data any) {
+	if m.eventBus != nil {
+		m.eventBus.Publish(events.NewEvent(t, data))
 	}
 }
 
@@ -161,11 +176,16 @@ func (m *Manager) SetLightState(ctx context.Context, id string, propertyValue Li
 
 	// Update local state in the manager with a write lock
 	m.mu.Lock()
-	_, err = m.updateLightState(id, state)
+	updatedLight, err := m.updateLightState(id, state)
 	m.mu.Unlock()
 
 	if err != nil {
 		return errors.NotFoundf("light %s removed during state update", id)
+	}
+
+	// Emit state change event
+	if updatedLight != nil {
+		m.emit(events.LightStateChanged, updatedLight)
 	}
 
 	return nil
@@ -262,6 +282,9 @@ func (m *Manager) AddLight(ctx context.Context, light Light) {
 
 	// Log the light addition/update
 	m.logLightInfo(slog.LevelInfo, "light: added/updated", &light)
+
+	// Emit discovered event (covers both new discoveries and re-discoveries with updated state)
+	m.emit(events.LightDiscovered, &light)
 }
 
 // StartCleanupWorker starts a background goroutine to remove stale lights.
@@ -320,18 +343,25 @@ func (m *Manager) cleanupStaleLights(timeout time.Duration) {
 
 	// Now remove the stale lights with write lock
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	// Double-check the lights are still stale after acquiring write lock
+	var removed []Light
 	for _, id := range staleLights {
 		if light, exists := m.lights[id]; exists {
 			// Re-check timeout condition to handle race condition
 			// where the light might have been updated while we were unlocked
 			if now.Sub(light.LastSeen) > timeout {
 				m.logger.Info("Removing stale light", "id", id)
+				removed = append(removed, light)
 				delete(m.lights, id)
 				delete(m.clients, id)
 			}
 		}
+	}
+	m.mu.Unlock()
+
+	// Emit removal events outside the lock
+	for i := range removed {
+		m.emit(events.LightRemoved, &removed[i])
 	}
 }

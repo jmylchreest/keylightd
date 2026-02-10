@@ -23,10 +23,12 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/internal/group"
 	"github.com/jmylchreest/keylightd/internal/http/handlers"
 	"github.com/jmylchreest/keylightd/internal/http/mw"
 	"github.com/jmylchreest/keylightd/internal/http/routes"
+	"github.com/jmylchreest/keylightd/internal/ws"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
@@ -44,12 +46,20 @@ type Server struct {
 	rootCtx       context.Context
 	rootCancel    context.CancelFunc
 	httpServer    *http.Server
+	eventBus      *events.Bus
 }
 
 // New creates a new server instance.
 func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightManager) *Server {
 	groupManager := group.NewManager(logger, lightManager, cfg)
 	apikeyMgr := apikey.NewManager(cfg, logger)
+	eventBus := events.NewBus()
+
+	// Wire the event bus into managers so they emit state change events.
+	if lm, ok := lightManager.(*keylight.Manager); ok {
+		lm.SetEventBus(eventBus)
+	}
+	groupManager.SetEventBus(eventBus)
 
 	rootCtx, rootCancel := context.WithCancel(context.Background())
 
@@ -63,6 +73,7 @@ func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightMan
 		apikeyManager: apikeyMgr,
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
+		eventBus:      eventBus,
 	}
 }
 
@@ -152,6 +163,19 @@ func (s *Server) Start() error {
 		// The Huma registration above still provides OpenAPI documentation.
 		rawAuth := mw.RawAPIKeyAuth(s.logger, s.apikeyManager)
 		router.With(rawAuth).Put("/api/v1/groups/{id}/state", groupHandler.SetGroupStateRaw(api))
+
+		// Start WebSocket hub and register the endpoint.
+		// The hub runs in a background goroutine and broadcasts events from the event bus.
+		wsHub := ws.NewHub(s.logger, s.eventBus)
+		s.wg.Go(func() {
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.Error("panic in WebSocket hub", "recover", r)
+				}
+			}()
+			wsHub.Run(s.rootCtx)
+		})
+		router.With(rawAuth).Get("/api/v1/ws", ws.Handler(wsHub, s.logger))
 
 		s.httpServer = &http.Server{
 			Addr:         s.cfg.Config.API.ListenAddress,
