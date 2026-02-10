@@ -8,31 +8,31 @@ class KeylightdTray < Formula
   license "MIT"
 
   on_macos do
-    url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_universal.tar.gz"
+    url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_darwin_universal.tar.gz"
     sha256 "{{SHA256_DARWIN_UNIVERSAL}}"
 
     resource "sbom" do
-      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_darwin_universal_sbom.spdx.json"
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_darwin_universal_sbom.spdx.json"
       sha256 "{{SHA256_SBOM_DARWIN_UNIVERSAL}}"
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_amd64.tar.gz"
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_linux_amd64.tar.gz"
       sha256 "{{SHA256_LINUX_AMD64}}"
 
       resource "sbom" do
-        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_amd64_sbom.spdx.json"
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_linux_amd64_sbom.spdx.json"
         sha256 "{{SHA256_SBOM_LINUX_AMD64}}"
       end
     end
     on_arm do
-      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_arm64.tar.gz"
+      url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_linux_arm64.tar.gz"
       sha256 "{{SHA256_LINUX_ARM64}}"
 
       resource "sbom" do
-        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_v{{VERSION}}_linux_arm64_sbom.spdx.json"
+        url "https://github.com/jmylchreest/keylightd/releases/download/v{{VERSION}}/keylightd-tray_{{VERSION}}_linux_arm64_sbom.spdx.json"
         sha256 "{{SHA256_SBOM_LINUX_ARM64}}"
       end
     end
