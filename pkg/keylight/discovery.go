@@ -30,10 +30,12 @@ var (
 		"Elgato Key Light Air",
 	}
 
-	// Discovery parameters - tuned for reliability across platforms
+	// Discovery parameters - tuned for reliability across platforms.
+	// initialBrowseTimeout must be >= the HTTP client timeout (5s) so that
+	// validateLight's HTTP calls don't get pre-empted by the discovery context.
 	defaultDiscoveryParams = DiscoveryParams{
 		browseAttempts:       3,
-		initialBrowseTimeout: 3 * time.Second,
+		initialBrowseTimeout: 6 * time.Second,
 		browseDelay:          500 * time.Millisecond,
 	}
 )
