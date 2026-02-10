@@ -6,63 +6,57 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/danielgtaylor/huma/v2"
-
 	"github.com/jmylchreest/keylightd/internal/apikey"
 )
 
-// HumaAuth returns a Huma middleware that handles API key authentication.
-// It checks the operation's security requirements and validates API keys
-// from either the Authorization: Bearer header or X-API-Key header.
-func HumaAuth(api huma.API, apikeyManager *apikey.Manager) func(ctx huma.Context, next func(huma.Context)) {
-	return func(ctx huma.Context, next func(huma.Context)) {
-		op := ctx.Operation()
-		if op == nil {
-			next(ctx)
-			return
-		}
+// APIKeyAuth returns a Chi middleware that validates API keys on every request.
+// It checks the Authorization: Bearer header first, then falls back to the
+// X-API-Key header. This runs at the Chi router level so it covers all routes
+// uniformly — both Huma-managed and raw handlers.
+//
+// The Huma security annotations in routes/ remain for OpenAPI documentation only.
+func APIKeyAuth(logger *slog.Logger, apikeyManager *apikey.Manager) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Extract API key from headers
+			key := r.Header.Get("Authorization")
+			const bearerPrefix = "Bearer "
+			if strings.HasPrefix(key, bearerPrefix) {
+				key = key[len(bearerPrefix):]
+			} else {
+				key = r.Header.Get("X-API-Key")
+			}
 
-		// Check if this operation requires auth
-		if !operationRequiresAuth(op) {
-			next(ctx)
-			return
-		}
+			if key == "" {
+				logger.Warn("API key missing",
+					"method", r.Method,
+					"path", r.URL.Path,
+					"remote_addr", r.RemoteAddr,
+				)
+				http.Error(w, "Unauthorized: API key required", http.StatusUnauthorized)
+				return
+			}
 
-		// Extract API key from headers
-		apiKey := ctx.Header("Authorization")
-		const bearerPrefix = "Bearer "
-		if strings.HasPrefix(apiKey, bearerPrefix) {
-			apiKey = apiKey[len(bearerPrefix):]
-		} else {
-			apiKey = ctx.Header("X-API-Key")
-		}
+			validKey, err := apikeyManager.ValidateAPIKey(key)
+			if err != nil {
+				logger.Warn("Invalid API key used",
+					"key_prefix", keyPrefix(key),
+					"error", err,
+					"method", r.Method,
+					"path", r.URL.Path,
+					"remote_addr", r.RemoteAddr,
+				)
+				http.Error(w, fmt.Sprintf("Unauthorized: %s", err.Error()), http.StatusUnauthorized)
+				return
+			}
 
-		if apiKey == "" {
-			slog.Warn("API key missing")
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized: API key required")
-			return
-		}
-
-		validKey, err := apikeyManager.ValidateAPIKey(apiKey)
-		if err != nil {
-			slog.Warn("Invalid API key used", "key_prefix", keyPrefix(apiKey), "error", err)
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, fmt.Sprintf("Unauthorized: %s", err.Error()))
-			return
-		}
-
-		slog.Debug("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
-		next(ctx)
+			logger.Debug("Authenticated API key",
+				"name", validKey.Name,
+				"key_prefix", keyPrefix(validKey.Key),
+			)
+			next.ServeHTTP(w, r)
+		})
 	}
-}
-
-// operationRequiresAuth checks if the operation has our security scheme in its security requirements.
-func operationRequiresAuth(op *huma.Operation) bool {
-	for _, secReq := range op.Security {
-		if _, ok := secReq[SecurityScheme]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 // keyPrefix returns the first 4 characters of a key for safe logging.
