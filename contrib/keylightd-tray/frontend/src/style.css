@@ -136,6 +136,18 @@ body {
     background-color: var(--bg-secondary);
     border-radius: 8px;
     padding: 12px;
+    border: 1px solid transparent;
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.control-card.on {
+    background-color: color-mix(in srgb, var(--bg-secondary) 90%, var(--success) 10%);
+    border-color: color-mix(in srgb, var(--bg-tertiary) 60%, var(--success) 40%);
+    box-shadow: 0 0 12px color-mix(in srgb, transparent 85%, var(--success) 15%);
+}
+
+.control-card.off {
+    opacity: 0.75;
 }
 
 .control-header {
@@ -232,21 +244,46 @@ body {
     flex: 1;
     -webkit-appearance: none;
     appearance: none;
-    height: 4px;
-    border-radius: 2px;
+    height: 6px;
+    border-radius: 3px;
     background: var(--slider-track);
     outline: none;
+}
+
+.slider.brightness-slider {
+    background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--fill, 0%), var(--slider-track) var(--fill, 0%));
+}
+
+.slider.temperature-slider {
+    --warm: #f5a623;
+    --cool: #7bb8e0;
+    background: linear-gradient(to right, var(--warm), var(--cool));
+    position: relative;
+}
+
+.slider.temperature-slider::before {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: calc(100% - var(--fill, 0%));
+    background: var(--slider-track);
+    border-radius: 0 3px 3px 0;
+    pointer-events: none;
 }
 
 .slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
     transition: transform 0.1s ease;
+    position: relative;
+    z-index: 1;
 }
 
 .slider::-webkit-slider-thumb:hover {
@@ -254,12 +291,14 @@ body {
 }
 
 .slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
     border: none;
+    position: relative;
+    z-index: 1;
 }
 
 .slider-value {
@@ -269,18 +308,7 @@ body {
     text-align: right;
 }
 
-/* Disabled state */
-.control-card.off .slider {
-    opacity: 0.5;
-}
-
-.control-card.off .slider-icon {
-    opacity: 0.5;
-}
-
-.control-card.off .slider-value {
-    opacity: 0.5;
-}
+/* Disabled state — card-level opacity handles the visual muting */
 
 /* Empty state */
 .empty-state {
@@ -289,13 +317,73 @@ body {
     color: var(--text-muted);
 }
 
-/* Footer */
-.footer {
-    padding: 8px 16px;
-    text-align: center;
-    font-size: 11px;
-    color: var(--text-muted);
-    border-top: 1px solid var(--bg-tertiary);
+/* Section collapsible */
+.section h2 {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+}
+
+.section h2::before {
+    content: '';
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid var(--text-muted);
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform 0.2s ease;
+}
+
+.section.expanded h2::before {
+    transform: rotate(90deg);
+}
+
+.section .controls-list {
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    max-height: 0;
+    opacity: 0;
+}
+
+.section.expanded .controls-list {
+    max-height: 2000px;
+    opacity: 1;
+}
+
+.section.hidden {
+    display: none;
+}
+
+/* Master toggle */
+.master-toggle {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.master-toggle:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.master-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: var(--text-secondary);
+    transition: fill 0.2s;
+}
+
+.master-toggle.all-on svg {
+    fill: var(--success);
 }
 
 /* Loading state */
@@ -348,12 +436,15 @@ body {
     bottom: 0;
     background-color: var(--bg-primary);
     z-index: 100;
-    display: none;
+    display: flex;
     flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+    will-change: transform;
 }
 
 .settings-panel.open {
-    display: flex;
+    transform: translateX(0);
 }
 
 .settings-header {
