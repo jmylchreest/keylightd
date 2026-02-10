@@ -43,7 +43,7 @@ func (a *App) SetCustomCSSPath(path string) {
 	a.customCSSPath = path
 }
 
-// ShowWindow shows the main window
+// ShowWindow shows the main window and updates tray state.
 func (a *App) ShowWindow() {
 	runtime.WindowShow(a.ctx)
 	if a.tray != nil {
@@ -51,12 +51,24 @@ func (a *App) ShowWindow() {
 	}
 }
 
-// HideWindow hides the main window
+// HideWindow hides the main window and updates tray state.
 func (a *App) HideWindow() {
 	runtime.WindowHide(a.ctx)
 	if a.tray != nil {
 		a.tray.SetWindowShown(false)
 	}
+}
+
+// showWindowDirect shows the window without calling back into tray state
+// (used by TrayManager.ToggleWindow to avoid mutex deadlock).
+func (a *App) showWindowDirect() {
+	runtime.WindowShow(a.ctx)
+}
+
+// hideWindowDirect hides the window without calling back into tray state
+// (used by TrayManager.ToggleWindow to avoid mutex deadlock).
+func (a *App) hideWindowDirect() {
+	runtime.WindowHide(a.ctx)
 }
 
 // Quit exits the application
@@ -353,9 +365,28 @@ func (a *App) shutdown(ctx context.Context) {
 	// Cleanup if needed
 }
 
-// GetVersion returns the app version
+// GetVersion returns the tray app version
 func (a *App) GetVersion() string {
 	return fmt.Sprintf("%s, commit: %s, date: %s", a.version, a.commit, a.buildDate)
+}
+
+// GetDaemonVersion returns the keylightd daemon version string.
+// Returns an empty string if the daemon is unreachable.
+func (a *App) GetDaemonVersion() string {
+	if a.client == nil {
+		return ""
+	}
+	info, err := a.client.GetVersion()
+	if err != nil {
+		return ""
+	}
+	v, _ := info["version"].(string)
+	c, _ := info["commit"].(string)
+	d, _ := info["build_date"].(string)
+	if v == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s, commit: %s, date: %s", v, c, d)
 }
 
 // GetStatus returns the current status of all lights and groups

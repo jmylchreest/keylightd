@@ -18,6 +18,10 @@ export function GetCustomCSS() {
   return window['go']['main']['App']['GetCustomCSS']();
 }
 
+export function GetDaemonVersion() {
+  return window['go']['main']['App']['GetDaemonVersion']();
+}
+
 export function GetGroups() {
   return window['go']['main']['App']['GetGroups']();
 }

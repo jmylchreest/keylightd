@@ -10,6 +10,8 @@ export function FormatLastSeen(arg1:number):Promise<string>;
 
 export function GetCustomCSS():Promise<string>;
 
+export function GetDaemonVersion():Promise<string>;
+
 export function GetGroups():Promise<Array<main.Group>>;
 
 export function GetLights():Promise<Array<main.Light>>;

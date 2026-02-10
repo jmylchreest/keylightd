@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"strconv"
+	"sync"
 
 	"fyne.io/systray"
 )
@@ -18,6 +19,7 @@ var iconUnknown []byte
 
 // TrayManager handles the system tray functionality
 type TrayManager struct {
+	mu             sync.Mutex
 	app            *App
 	mShow          *systray.MenuItem
 	mQuit          *systray.MenuItem
@@ -64,8 +66,14 @@ func (t *TrayManager) OnReady() {
 	t.buildBasicMenu()
 }
 
-// UpdateMenu updates the menu based on the current status (called by app when status changes)
+// UpdateMenu updates the menu based on the current status (called by app when status changes).
+// A mutex serialises access so that concurrent GetStatus polls (which overlap when
+// light HTTP requests are slow/timing out) cannot race through rebuildMenuStructure
+// and leave the menu half-built (e.g. missing the Quit item).
 func (t *TrayManager) UpdateMenu(status *Status) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	// Check if we need to rebuild (number of groups/lights changed OR upgrading from basic menu)
 	groupCount := len(status.Groups)
 	lightCount := len(status.Lights)
@@ -138,7 +146,8 @@ func (t *TrayManager) rebuildMenuStructure(status *Status) {
 		}
 	}
 
-	// 4. Quit at bottom
+	// 4. Separator + Quit at bottom
+	systray.AddSeparator()
 	t.mQuit = systray.AddMenuItem("Quit", "Quit the application")
 
 	// Start handlers for show/quit
@@ -249,21 +258,31 @@ func (t *TrayManager) OnExit() {
 	// Cleanup if needed
 }
 
-// ToggleWindow toggles the window visibility
+// ToggleWindow toggles the window visibility.
+// Called from tray click handlers — updates state directly to avoid the
+// app.ShowWindow → tray.SetWindowShown callback loop that would deadlock the mutex.
 func (t *TrayManager) ToggleWindow() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.windowShown {
-		t.app.HideWindow()
-		t.mShow.SetTitle("Show")
 		t.windowShown = false
+		t.mShow.SetTitle("Show")
+		// Call runtime directly to avoid app.HideWindow → tray.SetWindowShown re-lock
+		t.app.hideWindowDirect()
 	} else {
-		t.app.ShowWindow()
-		t.mShow.SetTitle("Hide")
 		t.windowShown = true
+		t.mShow.SetTitle("Hide")
+		t.app.showWindowDirect()
 	}
 }
 
-// SetWindowShown updates the window shown state
+// SetWindowShown updates the window shown state (called from app.go when
+// the window is shown/hidden externally, e.g. via Wails runtime).
 func (t *TrayManager) SetWindowShown(shown bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	t.windowShown = shown
 	if shown {
 		t.mShow.SetTitle("Hide")
