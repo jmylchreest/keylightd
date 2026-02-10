@@ -1,3 +1,7 @@
+---
+sidebar_position: 3
+---
+
 # Socket Interface
 
 This guide explains how to control lights using the keylightd Unix socket API.
@@ -73,7 +77,18 @@ Response format:
 
 ## Controlling Lights
 
-The Unix socket API requires setting properties individually, unlike the CLI and HTTP API which can set multiple properties at once.
+The socket API supports both single-property mode (`property` + `value`) and multi-property mode (`on`, `brightness`, `temperature` directly in `data`).
+
+### Multi-Property Mode
+
+Set multiple properties in a single request:
+
+```bash
+echo '{"action": "set_light_state", "data": {"id": "LIGHT_ID", "on": true, "brightness": 80, "temperature": 4500}}' | \
+  nc -U /run/user/$(id -u)/keylightd.sock
+```
+
+### Single-Property Mode
 
 ### Power Control
 
@@ -198,16 +213,16 @@ The `id` field is optional and will be included in the response if provided.
 
 ## Multiple Property Changes
 
-To change multiple properties, you need to send separate requests for each property:
+You can set multiple properties in a single request using multi-property mode:
 
 ```bash
-# Turn on light and set brightness and temperature
-echo '{"action": "set_light_state", "data": {"id": "LIGHT_ID", "property": "on", "value": true}}' | \
+echo '{"action": "set_light_state", "data": {"id": "LIGHT_ID", "on": true, "brightness": 80, "temperature": 3200}}' | \
   nc -U /run/user/$(id -u)/keylightd.sock
+```
 
+The single-property mode (`property` + `value`) is also supported for backwards compatibility:
+
+```bash
 echo '{"action": "set_light_state", "data": {"id": "LIGHT_ID", "property": "brightness", "value": 80}}' | \
-  nc -U /run/user/$(id -u)/keylightd.sock
-
-echo '{"action": "set_light_state", "data": {"id": "LIGHT_ID", "property": "temperature", "value": 3200}}' | \
   nc -U /run/user/$(id -u)/keylightd.sock
 ```

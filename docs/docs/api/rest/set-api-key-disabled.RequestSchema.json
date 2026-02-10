@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"type":"object","additionalProperties":false,"properties":{"disabled":{"type":"boolean","description":"Whether to disable the key"}},"required":["disabled"],"title":"SetAPIKeyDisabledInputBody"}}},"required":true}}

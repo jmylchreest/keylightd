@@ -4,36 +4,78 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
-      - "!*SNAPSHOT*"
     paths:
       - "docs/**"
+      - "cmd/keylight-openapi/**"
+      - "internal/http/routes/**"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
-  deploy:
-    name: Deploy Documentation
+  build:
+    name: Build Documentation
     runs-on: ubuntu-latest
-    container:
-      image: squidfunk/mkdocs-material:latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Set Git identity
-        run: |
-          git config --global --add safe.directory $GITHUB_WORKSPACE
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
-      - name: Deploy documentation
+      - name: Generate OpenAPI spec
         run: |
-          cd docs
-          # [skip ci] in the commit message prevents triggering another CI run when docs are deployed
-          mkdocs gh-deploy --force --config-file ./mkdocs.yml --message "Deploy docs [skip ci]"
+          go run ./cmd/keylight-openapi -yaml -output docs/static/openapi.yaml
+          go run ./cmd/keylight-openapi -output docs/static/openapi.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm ci
+
+      - name: Generate OpenAPI docs
+        working-directory: docs
+        run: npx docusaurus gen-api-docs keylightd
+
+      - name: Build documentation
+        working-directory: docs
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/build
+
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

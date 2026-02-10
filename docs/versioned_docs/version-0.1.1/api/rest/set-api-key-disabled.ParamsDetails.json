@@ -1,0 +1,1 @@
+{"parameters":[{"name":"key","in":"path","description":"API key string or name","required":true,"schema":{"type":"string","description":"API key string or name"}}]}

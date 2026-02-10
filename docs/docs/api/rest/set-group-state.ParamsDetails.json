@@ -1,0 +1,1 @@
+{"parameters":[{"name":"id","in":"path","description":"Group identifier(s), comma-separated for multi-target","required":true,"schema":{"type":"string","description":"Group identifier(s), comma-separated for multi-target"}}]}

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bulbGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Light rays -->
+  <g opacity="0.4">
+    <line x1="32" y1="4" x2="32" y2="12" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="14" x2="18" y2="20" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+    <line x1="52" y1="14" x2="46" y2="20" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+    <line x1="6" y1="32" x2="14" y2="32" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+    <line x1="58" y1="32" x2="50" y2="32" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  <!-- Bulb body -->
+  <path d="M 22 36 C 22 24 42 24 42 36 C 42 42 38 44 38 48 L 26 48 C 26 44 22 42 22 36 Z" fill="url(#bulbGlow)" />
+  <!-- Bulb base -->
+  <rect x="26" y="48" width="12" height="3" rx="1" fill="#a1a1aa" />
+  <rect x="27" y="51" width="10" height="3" rx="1" fill="#71717a" />
+  <rect x="28" y="54" width="8" height="2" rx="1" fill="#52525b" />
+  <!-- Filament -->
+  <path d="M 30 40 Q 32 34 34 40" fill="none" stroke="#dbeafe" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+</svg>
