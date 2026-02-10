@@ -14,6 +14,9 @@ import (
 // where Huma extracts type information from function signatures.
 func StubHandlers() *Handlers {
 	return &Handlers{
+		HealthCheck: func(_ context.Context, _ *handlers.HealthInput) (*handlers.HealthOutput, error) {
+			return nil, nil
+		},
 		Light:   &stubLightHandlers{},
 		Group:   &stubGroupHandlers{},
 		APIKey:  &stubAPIKeyHandlers{},

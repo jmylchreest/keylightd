@@ -122,31 +122,36 @@ func (s *Server) Start() error {
 		apiKeyHandler := &handlers.APIKeyHandler{Manager: s.apikeyManager}
 		loggingHandler := &handlers.LoggingHandler{Logger: s.logger}
 
-		// Create Chi router with middleware stack.
-		// Auth is enforced at the Chi level so it covers ALL routes uniformly
-		// (both Huma-managed routes and raw handlers like the 207 group state route).
+		// Create Chi router with global middleware.
+		// Rate limiting runs at Chi level (before auth) to protect against brute-force.
 		router := chi.NewRouter()
 		router.Use(mw.RequestLogging(s.logger))
-		router.Use(mw.APIKeyAuth(s.logger, s.apikeyManager))
 		router.Use(mw.RateLimitByIP(mw.DefaultRateLimitConfig()))
 
-		// Create Huma API (security annotations remain for OpenAPI docs only)
+		// Create Huma API
 		humaConfig := routes.NewHumaConfig("dev", "")
 		api := humachi.New(router, humaConfig)
 
+		// Add Huma-level auth middleware. This checks each operation's Security
+		// field to determine if auth is needed. Public routes (health, OpenAPI
+		// spec, docs) have no Security set and pass through unauthenticated.
+		api.UseMiddleware(mw.HumaAuth(api, s.logger, s.apikeyManager))
+
 		// Register all routes via shared registration
 		routes.Register(api, &routes.Handlers{
-			Light:   lightHandler,
-			Group:   groupHandler,
-			APIKey:  apiKeyHandler,
-			Logging: loggingHandler,
+			HealthCheck: handlers.HealthCheck,
+			Light:       lightHandler,
+			Group:       groupHandler,
+			APIKey:      apiKeyHandler,
+			Logging:     loggingHandler,
 		})
 
 		// Override the group state route with a raw handler for 207 Multi-Status support.
 		// Huma doesn't natively support 207, so we use a raw Chi route.
-		// Auth is already handled by the Chi middleware above.
+		// Auth is applied via router.With() since this bypasses Huma's middleware.
 		// The Huma registration above still provides OpenAPI documentation.
-		router.Put("/api/v1/groups/{id}/state", groupHandler.SetGroupStateRaw(api))
+		rawAuth := mw.RawAPIKeyAuth(s.logger, s.apikeyManager)
+		router.With(rawAuth).Put("/api/v1/groups/{id}/state", groupHandler.SetGroupStateRaw(api))
 
 		s.httpServer = &http.Server{
 			Addr:         s.cfg.Config.API.ListenAddress,
