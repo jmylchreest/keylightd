@@ -21,6 +21,8 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 
+	logfilter "github.com/jmylchreest/slog-logfilter"
+
 	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/events"
@@ -28,6 +30,8 @@ import (
 	"github.com/jmylchreest/keylightd/internal/http/handlers"
 	"github.com/jmylchreest/keylightd/internal/http/mw"
 	"github.com/jmylchreest/keylightd/internal/http/routes"
+	"github.com/jmylchreest/keylightd/internal/logging"
+	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/internal/ws"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
@@ -359,45 +363,52 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			s.sendResponse(conn, id, map[string]any{"light": m})
 		case "set_light_state":
-			// Always extract from 'data' map
 			lightID, _ := data["id"].(string)
-			property, _ := data["property"].(string)
-			value := data["value"] // Keep as any for flexibility
-
-			if lightID == "" || property == "" || value == nil {
-				s.sendError(conn, id, "missing id, property, or value for set_light_state")
+			if lightID == "" {
+				s.sendError(conn, id, "missing id for set_light_state")
 				continue
 			}
 
-			var errSet error
-			switch property {
-			case "on":
-				onVal, ok := value.(bool)
-				if !ok {
-					errSet = fmt.Errorf("invalid value type for 'on', expected boolean")
-				} else {
-					errSet = s.lights.SetLightState(ctx, lightID, keylight.OnValue(onVal))
+			// Support both single-property (property+value) and multi-property (on, brightness, temperature) modes.
+			property, _ := data["property"].(string)
+			value := data["value"]
+
+			var errs []string
+			if property != "" && value != nil {
+				// Legacy single-property mode
+				if err := s.setLightProperty(ctx, lightID, property, value); err != nil {
+					s.sendError(conn, id, fmt.Sprintf("failed to set light %s state %s: %s", lightID, property, err))
+					continue
 				}
-			case "brightness":
-				brightnessVal, ok := value.(float64) // JSON numbers are float64
-				if !ok {
-					errSet = fmt.Errorf("invalid value type for 'brightness', expected number")
-				} else {
-					errSet = s.lights.SetLightBrightness(ctx, lightID, int(brightnessVal))
+			} else {
+				// Multi-property mode: check for on, brightness, temperature in data
+				set := false
+				if onVal, ok := data["on"]; ok {
+					set = true
+					if err := s.setLightProperty(ctx, lightID, "on", onVal); err != nil {
+						errs = append(errs, err.Error())
+					}
 				}
-			case "temperature":
-				tempVal, ok := value.(float64) // JSON numbers are float64
-				if !ok {
-					errSet = fmt.Errorf("invalid value type for 'temperature', expected number")
-				} else {
-					errSet = s.lights.SetLightTemperature(ctx, lightID, int(tempVal))
+				if bVal, ok := data["brightness"]; ok {
+					set = true
+					if err := s.setLightProperty(ctx, lightID, "brightness", bVal); err != nil {
+						errs = append(errs, err.Error())
+					}
 				}
-			default:
-				errSet = fmt.Errorf("unknown property: %s", property)
+				if tVal, ok := data["temperature"]; ok {
+					set = true
+					if err := s.setLightProperty(ctx, lightID, "temperature", tVal); err != nil {
+						errs = append(errs, err.Error())
+					}
+				}
+				if !set {
+					s.sendError(conn, id, "missing property/value or on/brightness/temperature for set_light_state")
+					continue
+				}
 			}
 
-			if errSet != nil {
-				s.sendError(conn, id, fmt.Sprintf("failed to set light %s state %s: %s", lightID, property, errSet))
+			if len(errs) > 0 {
+				s.sendError(conn, id, fmt.Sprintf("failed to set light %s state: %s", lightID, strings.Join(errs, "; ")))
 				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
@@ -451,18 +462,19 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		case "list_groups":
 			groups := s.groups.GetGroups()
-			groupMap := make(map[string]any, len(groups))
+			groupList := make([]map[string]any, 0, len(groups))
 			for _, g := range groups {
 				lights := g.Lights
 				if lights == nil {
 					lights = []string{}
 				}
-				groupMap[g.ID] = map[string]any{
+				groupList = append(groupList, map[string]any{
+					"id":     g.ID,
 					"name":   g.Name,
 					"lights": lights,
-				}
+				})
 			}
-			s.sendResponse(conn, id, map[string]any{"groups": groupMap})
+			s.sendResponse(conn, id, map[string]any{"groups": groupList})
 
 		case "set_group_lights":
 			groupID, _ := data["id"].(string)
@@ -483,10 +495,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		case "set_group_state":
 			groupKeys, _ := data["id"].(string)
-			property, _ := data["property"].(string)
-			value := data["value"]
-			if groupKeys == "" || property == "" || value == nil {
-				s.sendError(conn, id, "missing id, property, or value for set_group_state")
+			if groupKeys == "" {
+				s.sendError(conn, id, "missing id for set_group_state")
 				continue
 			}
 			matchedGroups, notFound := s.groups.GetGroupsByKeys(groupKeys)
@@ -494,41 +504,46 @@ func (s *Server) handleConnection(conn net.Conn) {
 				s.sendError(conn, id, "no groups found for: "+strings.Join(notFound, ", "))
 				continue
 			}
+
+			// Build list of properties to set.
+			// Support both single-property (property+value) and multi-property (on, brightness, temperature).
+			type propVal struct {
+				name  string
+				value any
+			}
+			var props []propVal
+
+			property, _ := data["property"].(string)
+			value := data["value"]
+			if property != "" && value != nil {
+				props = append(props, propVal{property, value})
+			} else {
+				if v, ok := data["on"]; ok {
+					props = append(props, propVal{"on", v})
+				}
+				if v, ok := data["brightness"]; ok {
+					props = append(props, propVal{"brightness", v})
+				}
+				if v, ok := data["temperature"]; ok {
+					props = append(props, propVal{"temperature", v})
+				}
+			}
+			if len(props) == 0 {
+				s.sendError(conn, id, "missing property/value or on/brightness/temperature for set_group_state")
+				continue
+			}
+
 			var errs []string
 			for _, grp := range matchedGroups {
-				var errSetGroup error
-				switch property {
-				case "on":
-					onVal, ok := value.(bool)
-					if !ok {
-						errSetGroup = fmt.Errorf("invalid value type for 'on', expected boolean")
-					} else {
-						errSetGroup = s.groups.SetGroupState(ctx, grp.ID, onVal)
+				for _, p := range props {
+					if err := s.setGroupProperty(ctx, grp.ID, p.name, p.value); err != nil {
+						errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
 					}
-				case "brightness":
-					bVal, ok := value.(float64)
-					if !ok {
-						errSetGroup = fmt.Errorf("invalid value type for 'brightness', expected number")
-					} else {
-						errSetGroup = s.groups.SetGroupBrightness(ctx, grp.ID, int(bVal))
-					}
-				case "temperature":
-					tVal, ok := value.(float64)
-					if !ok {
-						errSetGroup = fmt.Errorf("invalid value type for 'temperature', expected number")
-					} else {
-						errSetGroup = s.groups.SetGroupTemperature(ctx, grp.ID, int(tVal))
-					}
-				default:
-					errSetGroup = fmt.Errorf("unknown property for group: %s", property)
-				}
-				if errSetGroup != nil {
-					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, errSetGroup))
 				}
 			}
 			if len(errs) > 0 {
 				s.sendResponse(conn, id, map[string]any{"status": "partial", "errors": errs})
-				return
+				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
@@ -537,12 +552,18 @@ func (s *Server) handleConnection(conn net.Conn) {
 			expiresInStr, _ := data["expires_in"].(string)
 			var expiresIn time.Duration
 			if expiresInStr != "" {
-				expiresInSecs, err := strconv.ParseFloat(expiresInStr, 64)
+				// Try Go duration string first (e.g., "720h", "30m"), then seconds-as-float for backward compat
+				d, err := time.ParseDuration(expiresInStr)
 				if err != nil {
-					s.sendError(conn, id, fmt.Sprintf("invalid expires_in format: %s", err))
-					continue
+					expiresInSecs, err2 := strconv.ParseFloat(expiresInStr, 64)
+					if err2 != nil {
+						s.sendError(conn, id, fmt.Sprintf("invalid expires_in format (use Go duration like '720h' or seconds): %s", err))
+						continue
+					}
+					expiresIn = time.Duration(expiresInSecs * float64(time.Second))
+				} else {
+					expiresIn = d
 				}
-				expiresIn = time.Duration(expiresInSecs * float64(time.Second))
 			}
 			if name == "" {
 				s.sendError(conn, id, "missing name for apikey_add")
@@ -595,21 +616,27 @@ func (s *Server) handleConnection(conn net.Conn) {
 			s.sendResponse(conn, id, map[string]any{"status": "ok"})
 
 		case "apikey_set_disabled_status":
-			keyOrName, _ := data["key_or_name"].(string) // Corrected: use data, not req
-			disabledStr, _ := data["disabled"].(string)  // Corrected: use data, not req
+			keyOrName, _ := data["key_or_name"].(string)
 
 			if keyOrName == "" {
 				s.sendError(conn, id, "missing key_or_name for apikey_set_disabled_status")
 				continue
 			}
-			if disabledStr == "" {
-				s.sendError(conn, id, "missing disabled state for apikey_set_disabled_status")
-				continue
-			}
 
-			disabled, err := strconv.ParseBool(disabledStr)
-			if err != nil {
-				s.sendError(conn, id, fmt.Sprintf("invalid boolean value for disabled state: %s", err))
+			// Accept disabled as bool or string for compatibility with both HTTP and legacy socket clients
+			var disabled bool
+			switch v := data["disabled"].(type) {
+			case bool:
+				disabled = v
+			case string:
+				var err error
+				disabled, err = strconv.ParseBool(v)
+				if err != nil {
+					s.sendError(conn, id, fmt.Sprintf("invalid boolean value for disabled state: %s", err))
+					continue
+				}
+			default:
+				s.sendError(conn, id, "missing or invalid disabled state for apikey_set_disabled_status")
 				continue
 			}
 
@@ -619,6 +646,105 @@ func (s *Server) handleConnection(conn net.Conn) {
 				continue
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok", "key": updatedKey})
+
+		case "health":
+			s.sendResponse(conn, id, map[string]any{"health": "ok"})
+
+		case "list_filters":
+			filters := logfilter.GetFilters()
+			level := logfilter.GetLevel()
+
+			filterList := make([]map[string]any, len(filters))
+			for i, f := range filters {
+				fm := map[string]any{
+					"type":    f.Type,
+					"pattern": f.Pattern,
+					"level":   f.Level,
+					"enabled": f.Enabled,
+				}
+				if f.OutputLevel != "" {
+					fm["output_level"] = f.OutputLevel
+				}
+				if f.ExpiresAt != nil {
+					fm["expires_at"] = f.ExpiresAt.Format(time.RFC3339Nano)
+				}
+				filterList[i] = fm
+			}
+
+			s.sendResponse(conn, id, map[string]any{
+				"level":   handlers.LevelToString(level),
+				"filters": filterList,
+			})
+
+		case "set_filters":
+			filtersRaw, _ := data["filters"].([]any)
+			var newFilters []logfilter.LogFilter
+			for _, raw := range filtersRaw {
+				fm, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				f := logfilter.LogFilter{
+					Type:        stringFromMap(fm, "type"),
+					Pattern:     stringFromMap(fm, "pattern"),
+					Level:       stringFromMap(fm, "level"),
+					OutputLevel: stringFromMap(fm, "output_level"),
+					Enabled:     boolFromMap(fm, "enabled"),
+				}
+				if expiresStr := stringFromMap(fm, "expires_at"); expiresStr != "" {
+					if t, err := time.Parse(time.RFC3339Nano, expiresStr); err == nil {
+						f.ExpiresAt = &t
+					}
+				}
+				newFilters = append(newFilters, f)
+			}
+
+			if errs := logging.ValidateFilters(newFilters); len(errs) > 0 {
+				s.sendError(conn, id, fmt.Sprintf("invalid filters: %s", logging.FormatErrors(errs)))
+				continue
+			}
+
+			logfilter.SetFilters(newFilters)
+			s.logger.Info("Log filters updated via socket", "count", len(newFilters))
+
+			// Return updated state
+			updatedFilters := logfilter.GetFilters()
+			resultFilters := make([]map[string]any, len(updatedFilters))
+			for i, f := range updatedFilters {
+				fm := map[string]any{
+					"type":    f.Type,
+					"pattern": f.Pattern,
+					"level":   f.Level,
+					"enabled": f.Enabled,
+				}
+				if f.OutputLevel != "" {
+					fm["output_level"] = f.OutputLevel
+				}
+				if f.ExpiresAt != nil {
+					fm["expires_at"] = f.ExpiresAt.Format(time.RFC3339Nano)
+				}
+				resultFilters[i] = fm
+			}
+			s.sendResponse(conn, id, map[string]any{
+				"level":   handlers.LevelToString(logfilter.GetLevel()),
+				"filters": resultFilters,
+			})
+
+		case "set_level":
+			level, _ := data["level"].(string)
+			if level == "" {
+				s.sendError(conn, id, "missing level for set_level")
+				continue
+			}
+			validated := utils.ValidateLogLevel(level)
+			if validated != level {
+				s.sendError(conn, id, fmt.Sprintf("invalid log level %q; must be debug, info, warn, or error", level))
+				continue
+			}
+			newLevel := utils.GetLogLevel(validated)
+			logfilter.SetLevel(newLevel)
+			s.logger.Info("Log level changed via socket", "level", validated)
+			s.sendResponse(conn, id, map[string]any{"level": validated})
 
 		default:
 			s.logger.Warn("received unknown action", "action", action)
@@ -647,4 +773,68 @@ func (s *Server) sendError(conn net.Conn, id string, message string) {
 	if err := json.NewEncoder(conn).Encode(response); err != nil {
 		s.logger.Error("Failed to send error response", "error", err)
 	}
+}
+
+// setLightProperty sets a single property on a light by name.
+func (s *Server) setLightProperty(ctx context.Context, lightID, property string, value any) error {
+	switch property {
+	case "on":
+		onVal, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'on', expected boolean")
+		}
+		return s.lights.SetLightState(ctx, lightID, keylight.OnValue(onVal))
+	case "brightness":
+		bVal, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'brightness', expected number")
+		}
+		return s.lights.SetLightBrightness(ctx, lightID, int(bVal))
+	case "temperature":
+		tVal, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'temperature', expected number")
+		}
+		return s.lights.SetLightTemperature(ctx, lightID, int(tVal))
+	default:
+		return fmt.Errorf("unknown property: %s", property)
+	}
+}
+
+// setGroupProperty sets a single property on a group by name.
+func (s *Server) setGroupProperty(ctx context.Context, groupID, property string, value any) error {
+	switch property {
+	case "on":
+		onVal, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'on', expected boolean")
+		}
+		return s.groups.SetGroupState(ctx, groupID, onVal)
+	case "brightness":
+		bVal, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'brightness', expected number")
+		}
+		return s.groups.SetGroupBrightness(ctx, groupID, int(bVal))
+	case "temperature":
+		tVal, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("invalid value type for 'temperature', expected number")
+		}
+		return s.groups.SetGroupTemperature(ctx, groupID, int(tVal))
+	default:
+		return fmt.Errorf("unknown property: %s", property)
+	}
+}
+
+// stringFromMap extracts a string from a map[string]any, returning "" if missing or wrong type.
+func stringFromMap(m map[string]any, key string) string {
+	v, _ := m[key].(string)
+	return v
+}
+
+// boolFromMap extracts a bool from a map[string]any, returning false if missing or wrong type.
+func boolFromMap(m map[string]any, key string) bool {
+	v, _ := m[key].(bool)
+	return v
 }

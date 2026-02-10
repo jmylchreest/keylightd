@@ -82,7 +82,7 @@ func (h *LoggingHandler) ListFilters(_ context.Context, _ *ListFiltersInput) (*L
 	level := logfilter.GetLevel()
 
 	out := &ListFiltersOutput{}
-	out.Body.Level = levelToString(level)
+	out.Body.Level = LevelToString(level)
 	out.Body.Filters = filtersToResponse(filters)
 	return out, nil
 }
@@ -101,7 +101,7 @@ func (h *LoggingHandler) SetFilters(_ context.Context, input *SetFiltersInput) (
 	h.Logger.Info("Log filters updated via API", "count", len(newFilters))
 
 	out := &SetFiltersOutput{}
-	out.Body.Level = levelToString(logfilter.GetLevel())
+	out.Body.Level = LevelToString(logfilter.GetLevel())
 	out.Body.Filters = filtersToResponse(logfilter.GetFilters())
 	return out, nil
 }
@@ -165,7 +165,8 @@ func responseToFilters(resp []LogFilterResponse) []logfilter.LogFilter {
 	return result
 }
 
-func levelToString(level slog.Level) string {
+// LevelToString converts a slog.Level to its string representation.
+func LevelToString(level slog.Level) string {
 	switch {
 	case level <= slog.LevelDebug:
 		return "debug"
