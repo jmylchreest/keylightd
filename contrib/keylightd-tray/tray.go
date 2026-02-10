@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"strconv"
 
 	"fyne.io/systray"
 )
@@ -228,6 +229,11 @@ func (t *TrayManager) updateMenuTitles(status *Status) {
 			item.SetTitle(formatMenuTitle(light.Name, light.On))
 		}
 	}
+}
+
+// formatCount formats a count as a string for display in menus and tooltips.
+func formatCount(count int) string {
+	return strconv.Itoa(count)
 }
 
 // formatMenuTitle formats a menu item title with optional checkmark
