@@ -647,6 +647,12 @@ func (s *Server) handleConnection(conn net.Conn) {
 			}
 			s.sendResponse(conn, id, map[string]any{"status": "ok", "key": updatedKey})
 
+		case "subscribe_events":
+			// Acknowledge the subscription, then switch to streaming mode.
+			s.sendResponse(conn, id, map[string]any{"subscribed": true})
+			s.handleEventSubscription(ctx, conn)
+			return // Connection is done after event streaming ends
+
 		case "health":
 			s.sendResponse(conn, id, map[string]any{"health": "ok"})
 
@@ -772,6 +778,62 @@ func (s *Server) sendError(conn net.Conn, id string, message string) {
 	}
 	if err := json.NewEncoder(conn).Encode(response); err != nil {
 		s.logger.Error("Failed to send error response", "error", err)
+	}
+}
+
+// handleEventSubscription streams events to a socket client until the connection
+// closes or the server shuts down. Events are sent as newline-delimited JSON,
+// using the same events.Event format as the WebSocket endpoint.
+func (s *Server) handleEventSubscription(ctx context.Context, conn net.Conn) {
+	eventCh := make(chan []byte, 64)
+
+	// Subscribe to the event bus
+	unsub := s.eventBus.Subscribe(func(e events.Event) {
+		data, err := json.Marshal(e)
+		if err != nil {
+			s.logger.Error("socket events: failed to marshal event", "error", err)
+			return
+		}
+		select {
+		case eventCh <- data:
+		default:
+			s.logger.Warn("socket events: client buffer full, dropping event")
+		}
+	})
+	defer unsub()
+
+	// Watch for client disconnect in a goroutine.
+	// When the client closes, the read will return an error and we cancel.
+	connCtx, connCancel := context.WithCancel(ctx)
+	defer connCancel()
+
+	go func() {
+		buf := make([]byte, 1)
+		for {
+			_, err := conn.Read(buf)
+			if err != nil {
+				connCancel()
+				return
+			}
+		}
+	}()
+
+	s.logger.Info("socket events: client subscribed")
+
+	for {
+		select {
+		case <-connCtx.Done():
+			s.logger.Info("socket events: client disconnected")
+			return
+		case data := <-eventCh:
+			// Append newline for NDJSON framing
+			data = append(data, '\n')
+			conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if _, err := conn.Write(data); err != nil {
+				s.logger.Debug("socket events: write failed", "error", err)
+				return
+			}
+		}
 	}
 }
 
