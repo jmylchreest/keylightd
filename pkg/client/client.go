@@ -56,6 +56,19 @@ func New(logger *slog.Logger, socket string) *Client {
 	}
 }
 
+// extractMap returns the underlying map[string]any from resp, handling both
+// direct map[string]any values and *map[string]any pointers. Returns nil if
+// resp is neither type.
+func extractMap(resp any) map[string]any {
+	if m, ok := resp.(map[string]any); ok {
+		return m
+	}
+	if mp, ok := resp.(*map[string]any); ok && mp != nil {
+		return *mp
+	}
+	return nil
+}
+
 // request sends a request to keylightd and returns the response
 func (c *Client) request(req any, resp any) error {
 	c.logger.Debug("Connecting to socket", "socket", c.socket)
@@ -84,11 +97,21 @@ func (c *Client) request(req any, resp any) error {
 		}
 		c.logger.Debug("Received response", "response", resp)
 
-		// Check for error in response
-		if respMap, ok := resp.(map[string]any); ok {
-			if err, ok := respMap["error"].(string); ok {
-				c.logger.Error("Server returned error", "error", err)
-				return fmt.Errorf("server error: %s", err)
+		// Check for error in response.
+		// resp may be *map[string]any (pointer) or map[string]any (value);
+		// handle both so server errors are never silently ignored.
+		respMap := extractMap(resp)
+		if respMap != nil {
+			if errMsg, ok := respMap["error"].(string); ok {
+				c.logger.Error("Server returned error", "error", errMsg)
+				return fmt.Errorf("server error: %s", errMsg)
+			}
+			// Check for partial-success responses (e.g. multi-group set operations)
+			if status, _ := respMap["status"].(string); status == "partial" {
+				if errs, ok := respMap["errors"].([]any); ok && len(errs) > 0 {
+					c.logger.Error("Server returned partial errors", "errors", errs)
+					return fmt.Errorf("server error (partial): %v", errs)
+				}
 			}
 			c.logger.Debug("Response processed successfully")
 		}
@@ -102,9 +125,9 @@ func (c *Client) request(req any, resp any) error {
 		c.logger.Debug("Received response (nil target)", "response", tempResp)
 
 		// Check for error in response
-		if err, ok := tempResp["error"].(string); ok {
-			c.logger.Error("Server returned error", "error", err)
-			return fmt.Errorf("server error: %s", err)
+		if errMsg, ok := tempResp["error"].(string); ok {
+			c.logger.Error("Server returned error", "error", errMsg)
+			return fmt.Errorf("server error: %s", errMsg)
 		}
 		c.logger.Debug("Response processed successfully (nil target)")
 	}

@@ -229,7 +229,7 @@ body {
 .slider-icon {
     width: 16px;
     height: 16px;
-    fill: var(--text-muted);
+    fill: var(--text-secondary);
     flex-shrink: 0;
 }
 
