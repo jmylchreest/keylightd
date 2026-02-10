@@ -34,6 +34,7 @@ func NewHumaConfig(version, baseURL string) huma.Config {
 
 	// Define OpenAPI tags
 	cfg.Tags = []*huma.Tag{
+		{Name: "Health", Description: "Service health checks"},
 		{Name: "Lights", Description: "Light discovery and control"},
 		{Name: "Groups", Description: "Light group management"},
 		{Name: "API Keys", Description: "API key management"},

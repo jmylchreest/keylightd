@@ -18,7 +18,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/httprate v0.15.0
 	github.com/google/uuid v1.6.0
-	github.com/jmylchreest/slog-logfilter v0.0.0-00010101000000-000000000000
+	github.com/jmylchreest/slog-logfilter v0.1.0
 	github.com/wailsapp/wails/v2 v2.11.0
 )
 
@@ -87,5 +87,3 @@ require (
 	golang.org/x/tools v0.39.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
-
-replace github.com/jmylchreest/slog-logfilter => ../slog-logfilter

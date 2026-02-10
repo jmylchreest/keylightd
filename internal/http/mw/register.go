@@ -56,6 +56,28 @@ func WithDefaultStatus(status int) OperationOption {
 	}
 }
 
+// PublicGet registers a public GET endpoint (no auth required).
+func PublicGet[I, O any](api huma.API, path string, handler func(ctx context.Context, input *I) (*O, error), opts ...OperationOption) {
+	op := huma.Operation{
+		Method: http.MethodGet,
+		Path:   path,
+	}
+	for _, opt := range opts {
+		opt(&op)
+	}
+	huma.Register(api, op, handler)
+}
+
+// HiddenGet registers a GET endpoint that won't appear in OpenAPI docs.
+// Used for internal endpoints like health probes.
+func HiddenGet[I, O any](api huma.API, path string, handler func(ctx context.Context, input *I) (*O, error)) {
+	huma.Register(api, huma.Operation{
+		Method: http.MethodGet,
+		Path:   path,
+		Hidden: true,
+	}, handler)
+}
+
 // ProtectedGet registers a GET endpoint that requires API key auth.
 func ProtectedGet[I, O any](api huma.API, path string, handler func(ctx context.Context, input *I) (*O, error), opts ...OperationOption) {
 	op := huma.Operation{

@@ -10,6 +10,15 @@ import (
 // Pass real handler implementations for the main server, or stub implementations
 // for OpenAPI generation.
 func Register(api huma.API, h *Handlers) {
+	// --- Health ---
+	mw.PublicGet(api, "/api/v1/health", h.HealthCheck,
+		mw.WithTags("Health"),
+		mw.WithSummary("Health check"),
+		mw.WithDescription("Returns service health status. This endpoint does not require authentication."),
+		mw.WithOperationID("healthCheck"))
+
+	mw.HiddenGet(api, "/healthz", h.HealthCheck)
+
 	// --- Lights ---
 	mw.ProtectedGet(api, "/api/v1/lights", h.Light.ListLights,
 		mw.WithTags("Lights"),
