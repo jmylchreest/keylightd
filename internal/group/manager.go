@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
@@ -26,11 +27,12 @@ import (
 // - Return defensive copies (DTOs) to avoid accidental external mutation.
 // - Add batch operations with structured result reporting for partial failures.
 type Manager struct {
-	logger *slog.Logger
-	lights keylight.LightManager
-	groups map[string]*Group
-	mu     sync.RWMutex
-	cfg    *config.Config
+	logger   *slog.Logger
+	lights   keylight.LightManager
+	groups   map[string]*Group
+	mu       sync.RWMutex
+	cfg      *config.Config
+	eventBus *events.Bus
 }
 
 // Group represents a group of lights that can be controlled together
@@ -52,6 +54,18 @@ func (g *Group) MarshalJSON() ([]byte, error) {
 		tmp.Lights = []string{}
 	}
 	return json.Marshal(tmp)
+}
+
+// SetEventBus sets the event bus for publishing group change events.
+func (m *Manager) SetEventBus(bus *events.Bus) {
+	m.eventBus = bus
+}
+
+// emit publishes an event if an event bus is configured.
+func (m *Manager) emit(t events.EventType, data any) {
+	if m.eventBus != nil {
+		m.eventBus.Publish(events.NewEvent(t, data))
+	}
 }
 
 // NewManager creates a new group manager
@@ -180,17 +194,21 @@ func (m *Manager) CreateGroup(ctx context.Context, name string, lightIDs []strin
 	}
 
 	m.logger.Debug("Created group successfully", "id", group.ID, "name", group.Name, "lights", group.Lights)
+	m.emit(events.GroupCreated, group)
 	return group, nil
 }
 
 // DeleteGroup removes a light group
 func (m *Manager) DeleteGroup(id string) error {
 	m.mu.Lock()
-	if _, exists := m.groups[id]; !exists {
+	group, exists := m.groups[id]
+	if !exists {
 		m.mu.Unlock()
 		return fmt.Errorf("group not found: %s", id)
 	}
 
+	// Copy for event emission after unlock
+	groupCopy := *group
 	delete(m.groups, id)
 	m.logger.Info("deleted light group", "id", id)
 	m.mu.Unlock()
@@ -200,6 +218,7 @@ func (m *Manager) DeleteGroup(id string) error {
 		m.logger.Error("failed to save groups", "error", err)
 	}
 
+	m.emit(events.GroupDeleted, &groupCopy)
 	return nil
 }
 
@@ -250,6 +269,8 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 	}
 
 	group.Lights = lightIDs
+	// Copy for event emission after unlock
+	groupCopy := *group
 	m.logger.Info("updated group lights", "id", id, "lights", lightIDs)
 	m.mu.Unlock()
 
@@ -258,6 +279,7 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 		m.logger.Error("failed to save groups", "error", err)
 	}
 
+	m.emit(events.GroupUpdated, &groupCopy)
 	return nil
 }
 
