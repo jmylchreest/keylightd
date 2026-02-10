@@ -18,29 +18,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
+
 	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/internal/config"
-	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 	"github.com/jmylchreest/keylightd/internal/group"
+	"github.com/jmylchreest/keylightd/internal/http/handlers"
+	"github.com/jmylchreest/keylightd/internal/http/mw"
+	"github.com/jmylchreest/keylightd/internal/http/routes"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
-
-// --- Added loggingResponseWriter ---
-type loggingResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
-	return &loggingResponseWriter{w, http.StatusOK} // Default to 200 OK
-}
-
-func (lrw *loggingResponseWriter) WriteHeader(code int) {
-	lrw.statusCode = code
-	lrw.ResponseWriter.WriteHeader(code)
-}
-
-// --- End added loggingResponseWriter ---
 
 // Server manages the keylightd daemon, including discovery, groups, and socket/HTTP APIs.
 type Server struct {
@@ -127,30 +115,40 @@ func (s *Server) Start() error {
 	// Start HTTP server if API is configured
 	if s.cfg.Config.API.ListenAddress != "" {
 		s.logger.Info("Starting HTTP API server", "address", s.cfg.Config.API.ListenAddress)
-		mux := http.NewServeMux()
 
-		// API Key Management Endpoints
-		mux.Handle("POST /api/v1/apikeys", s.authMiddleware(s.handleAPIKeyCreate()))
-		mux.Handle("GET /api/v1/apikeys", s.authMiddleware(s.handleAPIKeyList()))
-		mux.Handle("DELETE /api/v1/apikeys/{key}", s.authMiddleware(s.handleAPIKeyDelete()))
-		mux.Handle("PUT /api/v1/apikeys/{key}/disabled", s.authMiddleware(s.handleAPIKeySetDisabled()))
+		// Create handler implementations
+		lightHandler := &handlers.LightHandler{Lights: s.lights}
+		groupHandler := &handlers.GroupHandler{Groups: s.groups, Lights: s.lights}
+		apiKeyHandler := &handlers.APIKeyHandler{Manager: s.apikeyManager}
 
-		// Light Endpoints
-		mux.Handle("GET /api/v1/lights", s.authMiddleware(s.handleLightsList()))
-		mux.Handle("GET /api/v1/lights/{id}", s.authMiddleware(s.handleLightGet()))
-		mux.Handle("POST /api/v1/lights/{id}/state", s.authMiddleware(s.handleLightSetState()))
+		// Create Chi router with middleware
+		router := chi.NewRouter()
+		router.Use(mw.RequestLogging(s.logger))
+		router.Use(mw.RateLimitByIP(mw.DefaultRateLimitConfig()))
 
-		// Group Endpoints
-		mux.Handle("GET /api/v1/groups", s.authMiddleware(s.handleGroupsList()))
-		mux.Handle("POST /api/v1/groups", s.authMiddleware(s.handleGroupCreate()))
-		mux.Handle("GET /api/v1/groups/{id}", s.authMiddleware(s.handleGroupGet()))
-		mux.Handle("DELETE /api/v1/groups/{id}", s.authMiddleware(s.handleGroupDelete()))
-		mux.Handle("PUT /api/v1/groups/{id}/lights", s.authMiddleware(s.handleGroupSetLights()))
-		mux.Handle("PUT /api/v1/groups/{id}/state", s.authMiddleware(s.handleGroupSetState()))
+		// Create Huma API
+		humaConfig := routes.NewHumaConfig("dev", "")
+		api := humachi.New(router, humaConfig)
+
+		// Register Huma auth middleware
+		api.UseMiddleware(mw.HumaAuth(api, s.apikeyManager))
+
+		// Register all routes via shared registration
+		routes.Register(api, &routes.Handlers{
+			Light:  lightHandler,
+			Group:  groupHandler,
+			APIKey: apiKeyHandler,
+		})
+
+		// Override the group state route with a raw handler for 207 Multi-Status support.
+		// Huma doesn't natively support 207, so we use a raw Chi route that wraps
+		// the auth middleware manually. The Huma registration above still provides
+		// OpenAPI documentation for this endpoint.
+		router.Put("/api/v1/groups/{id}/state", s.rawAuthMiddleware(groupHandler.SetGroupStateRaw(api)))
 
 		s.httpServer = &http.Server{
 			Addr:         s.cfg.Config.API.ListenAddress,
-			Handler:      s.loggingMiddleware(mux),
+			Handler:      router,
 			ReadTimeout:  15 * time.Second,
 			WriteTimeout: 15 * time.Second,
 			IdleTimeout:  60 * time.Second,
@@ -620,11 +618,10 @@ func (s *Server) sendError(conn net.Conn, id string, message string) {
 	}
 }
 
-// HTTP Handlers
-
-// authMiddleware performs API key authentication.
-func (s *Server) authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// rawAuthMiddleware wraps a raw http.HandlerFunc with API key authentication.
+// Used for endpoints that need raw HTTP handling (e.g., 207 Multi-Status).
+func (s *Server) rawAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		apiKey := r.Header.Get("Authorization")
 		const bearerPrefix = "Bearer "
 		if strings.HasPrefix(apiKey, bearerPrefix) {
@@ -640,7 +637,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		validKey, err := s.apikeyManager.ValidateAPIKey(apiKey)
-		if err != nil { // Corrected: check err != nil
+		if err != nil {
 			s.logger.Warn("Invalid API key used", "key_prefix", keyPrefix(apiKey), "error", err)
 			http.Error(w, fmt.Sprintf("Unauthorized: %s", err.Error()), http.StatusUnauthorized)
 			return
@@ -648,7 +645,7 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 
 		s.logger.Debug("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
 		next.ServeHTTP(w, r)
-	})
+	}
 }
 
 func keyPrefix(key string) string {
@@ -657,400 +654,3 @@ func keyPrefix(key string) string {
 	}
 	return key
 }
-
-// APIKeyRequest represents the request body for creating an API key.
-type APIKeyRequest struct {
-	Name      string `json:"name"`
-	ExpiresIn string `json:"expires_in,omitempty"` // Duration string like "720h", "30d"
-}
-
-// APIKeyResponse represents a created API key (omits the full key string for security).
-type APIKeyResponse struct {
-	ID        string    `json:"id"` // This is actually the key itself, or just the name?
-	Name      string    `json:"name"`
-	Key       string    `json:"key,omitempty"` // Only present on creation, otherwise omitted
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// LightStateRequest represents the request body for setting a light's state.
-type LightStateRequest struct {
-	On          *bool `json:"on,omitempty"`          // Pointer to distinguish between not set and false
-	Brightness  *int  `json:"brightness,omitempty"`  // Pointer for optional field
-	Temperature *int  `json:"temperature,omitempty"` // Pointer for optional field
-}
-
-// GroupSetLightsRequest represents the request to set lights in a group
-type GroupSetLightsRequest struct {
-	LightIDs []string `json:"light_ids"`
-}
-
-func (s *Server) handleAPIKeyCreate() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		var req APIKeyRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-		if req.Name == "" {
-			http.Error(w, "API key name is required", http.StatusBadRequest)
-			return
-		}
-
-		var expiresInDuration time.Duration
-		if req.ExpiresIn != "" {
-			var err error
-			expiresInDuration, err = time.ParseDuration(req.ExpiresIn)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("Invalid expires_in duration: %s", err), http.StatusBadRequest)
-				return
-			}
-		}
-
-		// Permissions not handled via HTTP API yet, pass nil
-		newKey, err := s.apikeyManager.CreateAPIKey(req.Name, expiresInDuration)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to create API key: %s", err), http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		writeJSONResponse(w, APIKeyResponse{
-			ID:        newKey.Key, // Using Key as ID
-			Name:      newKey.Name,
-			Key:       newKey.Key, // Show full key on creation only
-			CreatedAt: newKey.CreatedAt,
-			ExpiresAt: newKey.ExpiresAt,
-		})
-	}
-}
-
-func (s *Server) handleAPIKeyList() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		keys := s.apikeyManager.ListAPIKeys() // Returns []config.APIKey
-		responseKeys := make([]APIKeyResponse, len(keys))
-		for i, k := range keys {
-			responseKeys[i] = APIKeyResponse{
-				ID:   k.Key, // Using Key as ID
-				Name: k.Name,
-				// Key field is omitted here for security (not on creation)
-				CreatedAt: k.CreatedAt,
-				ExpiresAt: k.ExpiresAt,
-			}
-		}
-		writeJSONResponse(w, responseKeys)
-	}
-}
-
-func (s *Server) handleAPIKeyDelete() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		key := r.PathValue("key")
-		if key == "" {
-			http.Error(w, "API key is required in path", http.StatusBadRequest)
-			return
-		}
-
-		if err := s.apikeyManager.DeleteAPIKey(key); err != nil {
-			if kerrors.IsNotFound(err) {
-				http.Error(w, "API key not found", http.StatusNotFound)
-			} else {
-				http.Error(w, fmt.Sprintf("Failed to delete API key: %s", err), http.StatusInternalServerError)
-			}
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-// handleAPIKeySetDisabled handles PUT /api/v1/apikeys/{key}/disabled
-func (s *Server) handleAPIKeySetDisabled() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		keyOrName := r.PathValue("key")                // key could be the key string or its name
-		if keyOrName == "" {
-			http.Error(w, "API key/name is required in path", http.StatusBadRequest)
-			return
-		}
-
-		var payload struct {
-			Disabled bool `json:"disabled"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Invalid request body, expected {\"disabled\": true/false}", http.StatusBadRequest)
-			return
-		}
-
-		updatedKey, err := s.apikeyManager.SetAPIKeyDisabledStatus(keyOrName, payload.Disabled)
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				http.Error(w, "API key not found", http.StatusNotFound)
-			} else {
-				http.Error(w, fmt.Sprintf("Failed to update API key: %s", err), http.StatusInternalServerError)
-			}
-			return
-		}
-
-		// Return the updated key details (omitting the full key string for security)
-		writeJSONResponse(w, APIKeyResponse{
-			ID:        updatedKey.Key,
-			Name:      updatedKey.Name,
-			CreatedAt: updatedKey.CreatedAt,
-			ExpiresAt: updatedKey.ExpiresAt,
-			// Disabled status is implicitly updated, not typically part of response here unless desired.
-		})
-	}
-}
-
-func (s *Server) handleLightsList() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		lights := s.lights.GetLights()
-		writeJSONResponse(w, lights)
-	}
-}
-
-func (s *Server) handleLightGet() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		lightID := r.PathValue("id")
-		light, err := s.lights.GetLight(r.Context(), lightID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Light not found: %s", err), http.StatusNotFound)
-			return
-		}
-		writeJSONResponse(w, light)
-	}
-}
-
-func (s *Server) handleLightSetState() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		lightID := r.PathValue("id")
-		var reqBody LightStateRequest
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		var errs []string
-
-		if reqBody.On != nil {
-			if err := s.lights.SetLightState(r.Context(), lightID, keylight.OnValue(*reqBody.On)); err != nil {
-				errs = append(errs, err.Error())
-			}
-		}
-		if reqBody.Brightness != nil {
-			if err := s.lights.SetLightState(r.Context(), lightID, keylight.BrightnessValue(*reqBody.Brightness)); err != nil {
-				errs = append(errs, err.Error())
-			}
-		}
-		if reqBody.Temperature != nil {
-			if err := s.lights.SetLightState(r.Context(), lightID, keylight.TemperatureValue(*reqBody.Temperature)); err != nil {
-				errs = append(errs, err.Error())
-			}
-		}
-
-		if len(errs) > 0 {
-			http.Error(w, fmt.Sprintf("Error(s) setting light state: %s", strings.Join(errs, "; ")), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		writeJSONResponse(w, map[string]string{"status": "ok"})
-	}
-}
-
-func (s *Server) handleGroupsList() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		groups := s.groups.GetGroups()
-		writeJSONResponse(w, groups)
-	}
-}
-
-func (s *Server) handleGroupCreate() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		var reqBody struct {
-			Name     string   `json:"name"`
-			LightIDs []string `json:"light_ids"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-		if reqBody.Name == "" {
-			http.Error(w, "Group name is required", http.StatusBadRequest)
-			return
-		}
-
-		group, err := s.groups.CreateGroup(r.Context(), reqBody.Name, reqBody.LightIDs)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to create group: %s", err), http.StatusInternalServerError)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-		writeJSONResponse(w, group)
-	}
-}
-
-func (s *Server) handleGroupGet() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		groupID := r.PathValue("id")
-		group, err := s.groups.GetGroup(groupID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Group not found: %s", err), http.StatusNotFound)
-			return
-		}
-		writeJSONResponse(w, group)
-	}
-}
-
-func (s *Server) handleGroupDelete() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		groupID := r.PathValue("id")
-		if err := s.groups.DeleteGroup(groupID); err != nil {
-			if kerrors.IsNotFound(err) {
-				http.Error(w, "Group not found", http.StatusNotFound)
-			} else {
-				http.Error(w, fmt.Sprintf("Failed to delete group: %s", err), http.StatusInternalServerError)
-			}
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-func (s *Server) handleGroupSetLights() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		groupID := r.PathValue("id")
-		var reqBody GroupSetLightsRequest
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		if err := s.groups.SetGroupLights(r.Context(), groupID, reqBody.LightIDs); err != nil {
-			if kerrors.IsNotFound(err) {
-				http.Error(w, "Group or light not found", http.StatusNotFound)
-			} else {
-				http.Error(w, fmt.Sprintf("Failed to set group lights: %s", err), http.StatusInternalServerError)
-			}
-			return
-		}
-		writeJSONResponse(w, map[string]string{"status": "ok"})
-	}
-}
-
-func (s *Server) handleGroupSetState() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-		groupParam := r.PathValue("id")                // e.g., "office" or "group-1,office"
-		groupKeys := strings.Split(groupParam, ",")
-		var matchedGroups []*group.Group
-		var notFound []string
-		groupSeen := make(map[string]bool) // To avoid duplicate group actions
-
-		for _, key := range groupKeys {
-			key = strings.TrimSpace(key)
-			// Try by ID
-			grp, err := s.groups.GetGroup(key)
-			if err == nil {
-				if !groupSeen[grp.ID] {
-					matchedGroups = append(matchedGroups, grp)
-					groupSeen[grp.ID] = true
-				}
-				continue
-			}
-			// Try by name (could be multiple)
-			byName := s.groups.GetGroupsByName(key)
-			if len(byName) > 0 {
-				for _, g := range byName {
-					if !groupSeen[g.ID] {
-						matchedGroups = append(matchedGroups, g)
-						groupSeen[g.ID] = true
-					}
-				}
-			} else {
-				notFound = append(notFound, key)
-			}
-		}
-
-		if len(matchedGroups) == 0 {
-			http.Error(w, fmt.Sprintf("No groups found for: %v", notFound), http.StatusNotFound)
-			return
-		}
-
-		var reqBody LightStateRequest
-		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		var errs []string
-		for _, grp := range matchedGroups {
-			if reqBody.On != nil {
-				if err := s.groups.SetGroupState(r.Context(), grp.ID, *reqBody.On); err != nil {
-					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
-				}
-			}
-			if reqBody.Brightness != nil {
-				if err := s.groups.SetGroupBrightness(r.Context(), grp.ID, *reqBody.Brightness); err != nil {
-					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
-				}
-			}
-			if reqBody.Temperature != nil {
-				if err := s.groups.SetGroupTemperature(r.Context(), grp.ID, *reqBody.Temperature); err != nil {
-					errs = append(errs, fmt.Sprintf("group %s: %s", grp.ID, err))
-				}
-			}
-		}
-
-		if len(errs) > 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusMultiStatus) // 207
-			json.NewEncoder(w).Encode(map[string]any{"status": "partial", "errors": errs})
-			return
-		}
-		writeJSONResponse(w, map[string]string{"status": "ok"})
-	}
-}
-
-// writeJSONResponse is a helper to write JSON responses
-func writeJSONResponse(w http.ResponseWriter, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// If encoding fails, it's too late to send a different status code normally.
-		// Log the error. The client will likely receive a truncated or malformed response.
-		slog.Default().Error("Failed to encode JSON response", "error", err)
-	}
-}
-
-// --- Added loggingMiddleware ---
-func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Log request details before handling
-		s.logger.Debug("HTTP Request Received",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
-		)
-
-		// Wrap the response writer to capture status code
-		lrw := newLoggingResponseWriter(w)
-
-		// Call the next handler
-		next.ServeHTTP(lrw, r)
-
-		// Log response details after handling
-		s.logger.Debug("HTTP Response Sent",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", lrw.statusCode,
-			"duration", time.Since(start),
-		)
-	})
-}
-
-// --- End added loggingMiddleware ---
