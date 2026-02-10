@@ -109,8 +109,17 @@ func (s *Server) Start() error {
 		return fmt.Errorf("failed to create socket directory %s: %w", sockDir, err)
 	}
 
-	// Remove existing socket file if it exists
+	// Check for an existing socket file
 	if _, err := os.Stat(s.socketPath); err == nil {
+		// Socket file exists — check if another instance is listening
+		conn, dialErr := net.DialTimeout("unix", s.socketPath, 500*time.Millisecond)
+		if dialErr == nil {
+			// Connection succeeded: another instance is running
+			conn.Close()
+			return fmt.Errorf("another keylightd instance is already running (socket %s is active)", s.socketPath)
+		}
+		// Connection failed: stale socket file from a crashed instance, safe to remove
+		s.logger.Debug("Removing stale socket file", "path", s.socketPath)
 		if err := os.Remove(s.socketPath); err != nil {
 			return fmt.Errorf("failed to remove existing socket file %s: %w", s.socketPath, err)
 		}
