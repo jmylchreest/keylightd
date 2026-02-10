@@ -57,7 +57,7 @@ func setupSocketTest(t *testing.T) (*Server, string) {
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	server := New(logger, cfg, lightManager)
+	server := New(logger, cfg, lightManager, VersionInfo{Version: "test", Commit: "abc1234", BuildDate: "2026-01-01T00:00:00Z"})
 
 	err = server.Start()
 	require.NoError(t, err)

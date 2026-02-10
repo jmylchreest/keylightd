@@ -36,6 +36,13 @@ import (
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
+// VersionInfo holds build version metadata for the running daemon.
+type VersionInfo struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	BuildDate string `json:"build_date"`
+}
+
 // Server manages the keylightd daemon, including discovery, groups, and socket/HTTP APIs.
 type Server struct {
 	logger        *slog.Logger
@@ -51,10 +58,11 @@ type Server struct {
 	rootCancel    context.CancelFunc
 	httpServer    *http.Server
 	eventBus      *events.Bus
+	versionInfo   VersionInfo
 }
 
 // New creates a new server instance.
-func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightManager) *Server {
+func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightManager, vi VersionInfo) *Server {
 	groupManager := group.NewManager(logger, lightManager, cfg)
 	apikeyMgr := apikey.NewManager(cfg, logger)
 	eventBus := events.NewBus()
@@ -78,6 +86,7 @@ func New(logger *slog.Logger, cfg *config.Config, lightManager keylight.LightMan
 		rootCtx:       rootCtx,
 		rootCancel:    rootCancel,
 		eventBus:      eventBus,
+		versionInfo:   vi,
 	}
 }
 
@@ -163,11 +172,12 @@ func (s *Server) Start() error {
 
 		// Register all routes via shared registration
 		routes.Register(api, &routes.Handlers{
-			HealthCheck: handlers.HealthCheck,
-			Light:       lightHandler,
-			Group:       groupHandler,
-			APIKey:      apiKeyHandler,
-			Logging:     loggingHandler,
+			HealthCheck:  handlers.HealthCheck,
+			VersionCheck: handlers.NewVersionCheck(s.versionInfo.Version, s.versionInfo.Commit, s.versionInfo.BuildDate),
+			Light:        lightHandler,
+			Group:        groupHandler,
+			APIKey:       apiKeyHandler,
+			Logging:      loggingHandler,
 		})
 
 		// Override the group state route with a raw handler for 207 Multi-Status support.
@@ -760,6 +770,13 @@ func (s *Server) handleConnection(conn net.Conn) {
 			logfilter.SetLevel(newLevel)
 			s.logger.Info("Log level changed via socket", "level", validated)
 			s.sendResponse(conn, id, map[string]any{"level": validated})
+
+		case "version":
+			s.sendResponse(conn, id, map[string]any{
+				"version":    s.versionInfo.Version,
+				"commit":     s.versionInfo.Commit,
+				"build_date": s.versionInfo.BuildDate,
+			})
 
 		default:
 			s.logger.Warn("received unknown action", "action", action)

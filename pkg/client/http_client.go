@@ -90,6 +90,15 @@ func (c *HTTPClient) request(method, path string, body any, resp any) error {
 	return nil
 }
 
+// GetVersion returns the running daemon's version information.
+func (c *HTTPClient) GetVersion() (map[string]any, error) {
+	var resp map[string]any
+	if err := c.request("GET", "/api/v1/version", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 // GetLights returns all lights
 func (c *HTTPClient) GetLights() (map[string]any, error) {
 	var resp map[string]any

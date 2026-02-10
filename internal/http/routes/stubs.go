@@ -17,6 +17,9 @@ func StubHandlers() *Handlers {
 		HealthCheck: func(_ context.Context, _ *handlers.HealthInput) (*handlers.HealthOutput, error) {
 			return nil, nil
 		},
+		VersionCheck: func(_ context.Context, _ *handlers.VersionInput) (*handlers.VersionOutput, error) {
+			return nil, nil
+		},
 		Light:   &stubLightHandlers{},
 		Group:   &stubGroupHandlers{},
 		APIKey:  &stubAPIKeyHandlers{},

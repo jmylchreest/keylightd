@@ -21,6 +21,7 @@ type mockGroupClient struct {
 
 var _ client.ClientInterface = (*mockGroupClient)(nil)
 
+func (m *mockGroupClient) GetVersion() (map[string]any, error)        { return nil, nil }
 func (m *mockGroupClient) GetLights() (map[string]any, error)         { return nil, nil }
 func (m *mockGroupClient) GetLight(id string) (map[string]any, error) { return nil, nil }
 func (m *mockGroupClient) SetLightState(id string, property string, value any) error {

@@ -82,7 +82,11 @@ func main() {
 			}
 
 			manager := keylight.NewManager(logger)
-			srv := server.New(logger, cfg, manager)
+			srv := server.New(logger, cfg, manager, server.VersionInfo{
+				Version:   version,
+				Commit:    commit,
+				BuildDate: buildDate,
+			})
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
