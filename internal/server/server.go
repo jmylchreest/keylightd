@@ -121,17 +121,17 @@ func (s *Server) Start() error {
 		groupHandler := &handlers.GroupHandler{Groups: s.groups, Lights: s.lights}
 		apiKeyHandler := &handlers.APIKeyHandler{Manager: s.apikeyManager}
 
-		// Create Chi router with middleware
+		// Create Chi router with middleware stack.
+		// Auth is enforced at the Chi level so it covers ALL routes uniformly
+		// (both Huma-managed routes and raw handlers like the 207 group state route).
 		router := chi.NewRouter()
 		router.Use(mw.RequestLogging(s.logger))
+		router.Use(mw.APIKeyAuth(s.logger, s.apikeyManager))
 		router.Use(mw.RateLimitByIP(mw.DefaultRateLimitConfig()))
 
-		// Create Huma API
+		// Create Huma API (security annotations remain for OpenAPI docs only)
 		humaConfig := routes.NewHumaConfig("dev", "")
 		api := humachi.New(router, humaConfig)
-
-		// Register Huma auth middleware
-		api.UseMiddleware(mw.HumaAuth(api, s.apikeyManager))
 
 		// Register all routes via shared registration
 		routes.Register(api, &routes.Handlers{
@@ -141,10 +141,10 @@ func (s *Server) Start() error {
 		})
 
 		// Override the group state route with a raw handler for 207 Multi-Status support.
-		// Huma doesn't natively support 207, so we use a raw Chi route that wraps
-		// the auth middleware manually. The Huma registration above still provides
-		// OpenAPI documentation for this endpoint.
-		router.Put("/api/v1/groups/{id}/state", s.rawAuthMiddleware(groupHandler.SetGroupStateRaw(api)))
+		// Huma doesn't natively support 207, so we use a raw Chi route.
+		// Auth is already handled by the Chi middleware above.
+		// The Huma registration above still provides OpenAPI documentation.
+		router.Put("/api/v1/groups/{id}/state", groupHandler.SetGroupStateRaw(api))
 
 		s.httpServer = &http.Server{
 			Addr:         s.cfg.Config.API.ListenAddress,
@@ -616,41 +616,4 @@ func (s *Server) sendError(conn net.Conn, id string, message string) {
 	if err := json.NewEncoder(conn).Encode(response); err != nil {
 		s.logger.Error("Failed to send error response", "error", err)
 	}
-}
-
-// rawAuthMiddleware wraps a raw http.HandlerFunc with API key authentication.
-// Used for endpoints that need raw HTTP handling (e.g., 207 Multi-Status).
-func (s *Server) rawAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		apiKey := r.Header.Get("Authorization")
-		const bearerPrefix = "Bearer "
-		if strings.HasPrefix(apiKey, bearerPrefix) {
-			apiKey = apiKey[len(bearerPrefix):]
-		} else {
-			apiKey = r.Header.Get("X-API-Key")
-		}
-
-		if apiKey == "" {
-			s.logger.Warn("API key missing")
-			http.Error(w, "Unauthorized: API key required", http.StatusUnauthorized)
-			return
-		}
-
-		validKey, err := s.apikeyManager.ValidateAPIKey(apiKey)
-		if err != nil {
-			s.logger.Warn("Invalid API key used", "key_prefix", keyPrefix(apiKey), "error", err)
-			http.Error(w, fmt.Sprintf("Unauthorized: %s", err.Error()), http.StatusUnauthorized)
-			return
-		}
-
-		s.logger.Debug("Authenticated API key", "name", validKey.Name, "key_prefix", keyPrefix(validKey.Key))
-		next.ServeHTTP(w, r)
-	}
-}
-
-func keyPrefix(key string) string {
-	if len(key) >= 4 {
-		return key[:4]
-	}
-	return key
 }
