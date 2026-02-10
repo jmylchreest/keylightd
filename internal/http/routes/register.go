@@ -89,4 +89,23 @@ func Register(api huma.API, h *Handlers) {
 		mw.WithTags("API Keys"),
 		mw.WithSummary("Enable or disable an API key"),
 		mw.WithOperationID("setApiKeyDisabled"))
+
+	// --- Logging ---
+	mw.ProtectedGet(api, "/api/v1/logging/filters", h.Logging.ListFilters,
+		mw.WithTags("Logging"),
+		mw.WithSummary("List log filters and current level"),
+		mw.WithDescription("Returns the current global log level and all active log filters."),
+		mw.WithOperationID("listLogFilters"))
+
+	mw.ProtectedPut(api, "/api/v1/logging/filters", h.Logging.SetFilters,
+		mw.WithTags("Logging"),
+		mw.WithSummary("Replace all log filters"),
+		mw.WithDescription("Validates and replaces all active log filters. Invalid filters are rejected entirely."),
+		mw.WithOperationID("setLogFilters"))
+
+	mw.ProtectedPut(api, "/api/v1/logging/level", h.Logging.SetLevel,
+		mw.WithTags("Logging"),
+		mw.WithSummary("Set global log level"),
+		mw.WithDescription("Changes the global log level at runtime. Valid values: debug, info, warn, error."),
+		mw.WithOperationID("setLogLevel"))
 }

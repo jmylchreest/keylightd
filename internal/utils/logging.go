@@ -1,9 +1,11 @@
 package utils
 
 import (
-	"github.com/jmylchreest/keylightd/internal/config"
 	"log/slog"
 	"os"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	logfilter "github.com/jmylchreest/slog-logfilter"
 )
 
 // LogLevel defines log level types
@@ -62,29 +64,50 @@ func ValidateLogFormat(format string) string {
 	}
 }
 
-// SetupLogger creates and returns a new logger with the specified configuration
+// SetupLogger creates and returns a new logger backed by slog-logfilter.
+// The logger supports runtime level changes and log filter hot-reload via
+// the logfilter package-level functions (SetLevel, SetFilters, etc.).
 func SetupLogger(level string, format string) *slog.Logger {
-	// Validate inputs internally
 	validLevel := ValidateLogLevel(level)
 	validFormat := ValidateLogFormat(format)
-	
 	logLevel := GetLogLevel(validLevel)
-	var handler slog.Handler
 
-	switch validFormat {
-	case string(LogFormatJSON):
-		handler = slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
-	default:
-		handler = slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
-	}
-
-	return slog.New(handler)
+	return logfilter.New(
+		logfilter.WithLevel(logLevel),
+		logfilter.WithFormat(validFormat),
+		logfilter.WithSource(true),
+		logfilter.WithOutput(os.Stderr),
+	)
 }
 
-// SetupErrorLogger creates a simple text logger for reporting errors during startup
+// SetupLoggerWithFilters creates a logger with initial filters applied.
+func SetupLoggerWithFilters(level string, format string, filters []logfilter.LogFilter) *slog.Logger {
+	validLevel := ValidateLogLevel(level)
+	validFormat := ValidateLogFormat(format)
+	logLevel := GetLogLevel(validLevel)
+
+	opts := []logfilter.Option{
+		logfilter.WithLevel(logLevel),
+		logfilter.WithFormat(validFormat),
+		logfilter.WithSource(true),
+		logfilter.WithOutput(os.Stderr),
+	}
+
+	if len(filters) > 0 {
+		opts = append(opts, logfilter.WithFilters(filters))
+	}
+
+	return logfilter.New(opts...)
+}
+
+// SetupErrorLogger creates a simple text logger for reporting errors during startup.
+// Uses slog-logfilter for consistency, but with error-only level.
 func SetupErrorLogger() *slog.Logger {
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})
-	return slog.New(handler)
+	return logfilter.New(
+		logfilter.WithLevel(slog.LevelError),
+		logfilter.WithFormat("text"),
+		logfilter.WithOutput(os.Stderr),
+	)
 }
 
 // SetAsDefaultLogger sets a logger as the default logger

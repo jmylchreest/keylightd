@@ -37,6 +37,7 @@ func NewHumaConfig(version, baseURL string) huma.Config {
 		{Name: "Lights", Description: "Light discovery and control"},
 		{Name: "Groups", Description: "Light group management"},
 		{Name: "API Keys", Description: "API key management"},
+		{Name: "Logging", Description: "Runtime log level and filter management"},
 	}
 
 	return cfg
