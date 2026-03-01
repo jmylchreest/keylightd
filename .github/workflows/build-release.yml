@@ -310,7 +310,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: false
@@ -477,7 +477,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download checksums
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
@@ -578,7 +578,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download checksums
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
