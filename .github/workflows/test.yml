@@ -38,7 +38,7 @@ jobs:
         run: go mod verify
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v9
 
       - name: Run tests with coverage
         run: |
