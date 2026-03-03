@@ -94,7 +94,7 @@ func (h *LoggingHandler) SetFilters(_ context.Context, input *SetFiltersInput) (
 	// Validate before applying
 	if errs := logging.ValidateFilters(newFilters); len(errs) > 0 {
 		return nil, huma.Error400BadRequest(
-			fmt.Sprintf("Invalid filters: %s", logging.FormatErrors(errs)))
+			"Invalid filters: " + logging.FormatErrors(errs))
 	}
 
 	logfilter.SetFilters(newFilters)

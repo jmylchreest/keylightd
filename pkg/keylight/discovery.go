@@ -10,6 +10,7 @@ import (
 	"log/slog"
 
 	"github.com/grandcat/zeroconf"
+
 	"github.com/jmylchreest/keylightd/internal/errors"
 )
 
@@ -37,6 +38,7 @@ var (
 		browseAttempts:       3,
 		initialBrowseTimeout: 6 * time.Second,
 		browseDelay:          500 * time.Millisecond,
+		validateTimeout:      5 * time.Second,
 	}
 )
 
@@ -47,6 +49,7 @@ type DiscoveryParams struct {
 	browseAttempts       int
 	initialBrowseTimeout time.Duration
 	browseDelay          time.Duration
+	validateTimeout      time.Duration
 }
 
 // calculateMaxDiscoveryTime returns the maximum time a complete discovery cycle could take
@@ -60,6 +63,8 @@ func (d DiscoveryParams) calculateMaxDiscoveryTime() time.Duration {
 			total += d.browseDelay
 		}
 	}
+	// Add validate timeout — validations may still be in-flight when browse ends
+	total += d.validateTimeout
 	return total
 }
 
@@ -124,7 +129,15 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 	discover := func() error {
 		for i := range params.browseAttempts {
 			attempt := i + 1 // convert to 1-based for logging
+
+			// If we already have lights from a previous attempt, skip retries
 			if attempt > 1 {
+				if len(m.GetLights()) > 0 {
+					m.logger.Debug("Skipping retry, lights already discovered",
+						"attempt", attempt,
+						"lightCount", len(m.GetLights()))
+					return nil
+				}
 				m.logger.Debug("Starting retry attempt", "attempt", attempt)
 				time.Sleep(params.browseDelay)
 			}
@@ -133,10 +146,9 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			discoverCtx, cancel := context.WithTimeout(ctx, timeout)
 
 			entries := make(chan *zeroconf.ServiceEntry, 10)
-			discoveredLights := make(chan struct{})
 			resolver, err := zeroconf.NewResolver(nil)
 			if err != nil {
-				cancel() // Ensure we cancel the context if we fail here
+				cancel()
 				return errors.LogErrorAndReturn(
 					m.logger,
 					errors.Internalf("failed to create zeroconf resolver: %w", err),
@@ -161,7 +173,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					if !slices.Contains(serviceNames, entry.Service) {
 						continue
 					}
-					// Convert zeroconf.ServiceEntry to mdns.ServiceEntry-like for validateLight
+
 					var ipv4 net.IP
 					if len(entry.AddrIPv4) > 0 {
 						ipv4 = entry.AddrIPv4[0]
@@ -172,7 +184,15 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 						Port:   entry.Port,
 						Info:   fmt.Sprint(entry.Text),
 					}
-					light, valid := validateLight(discoverCtx, localEntry, m.logger)
+
+					// Use the parent ctx for validation, NOT discoverCtx.
+					//nolint:misspell // British spelling intentional
+					// This ensures that cancelling the browse timeout does not
+					// kill in-flight HTTP validation requests for other lights.
+					validateCtx, validateCancel := context.WithTimeout(ctx, params.validateTimeout)
+					light, valid := validateLight(validateCtx, localEntry, m.logger)
+					validateCancel()
+
 					if !valid {
 						m.logger.Debug("zeroconf: entry did not validate as key light",
 							"instance", entry.Instance,
@@ -188,80 +208,37 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 						"port", light.Port,
 						"attempt", attempt)
 					m.AddLight(ctx, light)
-					select {
-					case <-discoveredLights:
-						// Channel already closed
-					default:
-						close(discoveredLights)
-					}
 				}
 			}()
 
-			// Try each service name
+			// Browse for each service name
 			for _, serviceName := range serviceNames {
-				// Use a context with timeout to ensure Browse doesn't hang indefinitely
-				browseCtx, browseCancel := context.WithTimeout(discoverCtx, 2*time.Second)
-
-				err = resolver.Browse(browseCtx, serviceName, domain, entries)
+				err = resolver.Browse(discoverCtx, serviceName, domain, entries)
 				if err != nil {
-					// Log but continue with other services
-					errors.LogErrorAndReturn(
+					_ = errors.LogErrorAndReturn(
 						m.logger,
 						err,
 						"Browse attempt failed",
 						"attempt", attempt,
 						"service", serviceName,
 					)
-					// Don't cancel the context here as we want to continue with other services
-					browseCancel()
-					continue
 				}
-
-				select {
-				case <-discoverCtx.Done():
-					m.logger.Debug("Browse attempt completed",
-						"attempt", attempt,
-						"timeout", timeout)
-					browseCancel()
-				case <-discoveredLights:
-					m.logger.Debug("Lights discovered, stopping attempts",
-						"attempt", attempt)
-					browseCancel()
-					cancel()
-					// Wait for the entries goroutine to finish processing remaining entries
-					select {
-					case <-entriesDone:
-					case <-time.After(100 * time.Millisecond):
-						m.logger.Debug("Timed out waiting for entries processing to complete")
-					}
-					return nil
-				}
-
-				// If we found any lights, we can exit early
-				if len(m.GetLights()) > 0 {
-					m.logger.Debug("Found lights, stopping discovery attempts",
-						"attempt", attempt,
-						"lightCount", len(m.GetLights()))
-					browseCancel()
-					cancel()
-					// Wait for the entries goroutine to finish processing remaining entries
-					select {
-					case <-entriesDone:
-					case <-time.After(100 * time.Millisecond):
-						m.logger.Debug("Timed out waiting for entries processing to complete")
-					}
-					return nil
-				}
-				// Make sure to cancel the browse context at the end of each iteration
-				browseCancel()
 			}
-			cancel() // Cancel discovery context at end of each attempt
-			// Wait for the entries goroutine to finish processing remaining entries
-			select {
-			case <-entriesDone:
-			case <-time.After(100 * time.Millisecond):
-				m.logger.Debug("Timed out waiting for entries processing to complete")
-			}
+
+			// Wait for the browse timeout to expire. The zeroconf library
+			//nolint:misspell // British spelling intentional
+			// closes the entries channel when discoverCtx is cancelled,
+			// which causes the entries goroutine to drain and exit.
+			<-discoverCtx.Done()
+			cancel()
+
+			// Wait for all entry processing (including HTTP validations) to complete
+			<-entriesDone
+
+			m.logger.Debug("Browse attempt completed",
+				"attempt", attempt,
+				"timeout", timeout,
+				"lightsFound", len(m.GetLights()))
 		}
 
 		return nil
@@ -281,7 +258,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			return ctx.Err()
 		case <-ticker.C:
 			if err := discover(); err != nil {
-				errors.LogErrorAndReturn(
+				_ = errors.LogErrorAndReturn(
 					m.logger,
 					err,
 					"light: stopping discovery",
@@ -313,7 +290,7 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 	info, err := client.GetAccessoryInfo(ctx)
 	if err != nil {
 		if logger != nil {
-			errors.LogErrorAndReturn(
+			_ = errors.LogErrorAndReturn(
 				logger,
 				errors.DeviceUnavailablef("failed to get accessory info: %w", err),
 				"validateLight: failed to get accessory info",

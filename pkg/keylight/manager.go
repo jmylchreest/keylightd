@@ -81,7 +81,7 @@ func (m *Manager) GetLight(ctx context.Context, id string) (*Light, error) {
 	var info *AccessoryInfo
 
 	if needsInfo {
-		info, err = m.fetchAccessoryInfo(ctx, client, id)
+		info, _ = m.fetchAccessoryInfo(ctx, client, id)
 		// Errors are already logged in fetchAccessoryInfo, continue without info
 	}
 
@@ -281,7 +281,7 @@ func (m *Manager) AddLight(ctx context.Context, light Light) {
 	m.lights[light.ID] = light // Add or update the light with fetched state
 
 	// Log the light addition/update
-	m.logLightInfo(slog.LevelInfo, "light: added/updated", &light)
+	m.logLightInfo(ctx, slog.LevelInfo, "light: added/updated", &light)
 
 	// Emit discovered event (covers both new discoveries and re-discoveries with updated state)
 	m.emit(events.LightDiscovered, &light)

@@ -2,6 +2,7 @@ package keylight
 
 import (
 	"fmt"
+
 	"github.com/jmylchreest/keylightd/internal/config"
 )
 
@@ -11,10 +12,10 @@ type PropertyName string
 const (
 	// PropertyOn represents the light on/off state
 	PropertyOn PropertyName = "on"
-	
+
 	// PropertyBrightness represents the light brightness level
 	PropertyBrightness PropertyName = "brightness"
-	
+
 	// PropertyTemperature represents the light color temperature
 	PropertyTemperature PropertyName = "temperature"
 )
@@ -23,10 +24,10 @@ const (
 type LightPropertyValue interface {
 	// PropertyName returns the name of the property this value is for
 	PropertyName() PropertyName
-	
+
 	// Value returns the raw value
 	Value() any
-	
+
 	// Validate checks if the value is valid for the property
 	Validate() error
 }

@@ -2,16 +2,18 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // ClientContextKey is the context key used to store the client in command contexts.
@@ -44,7 +46,10 @@ func newLightListCommand() *cobra.Command {
 		Use:   "list",
 		Short: "List discovered lights",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			c, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			if !ok {
+				return errors.New("client not found in context")
+			}
 			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
@@ -73,7 +78,7 @@ func newLightListCommand() *cobra.Command {
 			if jsonOutput {
 				var lightsList []LightJSON
 				for id, light := range lights {
-					lightMap := light.(map[string]any)
+					lightMap, _ := light.(map[string]any)
 					lightsList = append(lightsList, LightToJSON(id, lightMap))
 				}
 				jsonBytes, err := json.MarshalIndent(lightsList, "", "  ")
@@ -86,7 +91,7 @@ func newLightListCommand() *cobra.Command {
 
 			if parseable {
 				for id, light := range lights {
-					lightMap := light.(map[string]any)
+					lightMap, _ := light.(map[string]any)
 					fmt.Println(LightParseable(id, lightMap))
 				}
 				return nil
@@ -94,9 +99,11 @@ func newLightListCommand() *cobra.Command {
 
 			// Create a table for each light
 			for id, light := range lights {
-				lightMap := light.(map[string]any)
+				lightMap, _ := light.(map[string]any)
 				table := LightTableData(id, lightMap)
-				pterm.DefaultTable.WithData(table).Render()
+				if err := pterm.DefaultTable.WithData(table).Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
 				pterm.Println() // Add a blank line between lights
 			}
 			return nil
@@ -115,7 +122,10 @@ func newLightGetCommand() *cobra.Command {
 		Use:   "get [id] [property]",
 		Short: "Get information about a light",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			c, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			if !ok {
+				return errors.New("client not found in context")
+			}
 			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
@@ -135,7 +145,7 @@ func newLightGetCommand() *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(ids))
 				for i, id := range ids {
-					lightMap := lights[id].(map[string]any)
+					lightMap, _ := lights[id].(map[string]any)
 					options[i] = fmt.Sprintf("%s (%v)", id, lightMap["productname"])
 				}
 
@@ -178,7 +188,9 @@ func newLightGetCommand() *cobra.Command {
 				fmt.Println(LightParseable(lightID, light))
 			} else {
 				table := LightTableData(lightID, light)
-				pterm.DefaultTable.WithData(table).Render()
+				if err := pterm.DefaultTable.WithData(table).Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
 			}
 			return nil
 		},
@@ -193,7 +205,10 @@ func newLightSetCommand(_ *slog.Logger) *cobra.Command {
 		Use:   "set [id] [property] [value]",
 		Short: "Set a light property",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			c, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
+			if !ok {
+				return errors.New("client not found in context")
+			}
 			lights, err := c.GetLights()
 			if err != nil {
 				return fmt.Errorf("failed to get lights: %w", err)
@@ -214,7 +229,7 @@ func newLightSetCommand(_ *slog.Logger) *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(ids))
 				for i, id := range ids {
-					lightMap := lights[id].(map[string]any)
+					lightMap, _ := lights[id].(map[string]any)
 					options[i] = fmt.Sprintf("%s (%v)", id, lightMap["productname"])
 				}
 

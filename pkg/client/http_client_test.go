@@ -13,7 +13,7 @@ import (
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(slog.DiscardHandler)
 }
 
 // newTestServer creates a test HTTP server with the given handler map.
@@ -142,7 +142,7 @@ func TestHTTPClient_CreateGroup(t *testing.T) {
 			body, _ := io.ReadAll(r.Body)
 			json.Unmarshal(body, &receivedBody)
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(201)
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]any{"id": "g1", "name": "Office"})
 		},
 	})
@@ -171,7 +171,7 @@ func TestHTTPClient_GetGroup(t *testing.T) {
 func TestHTTPClient_DeleteGroup(t *testing.T) {
 	_, client := newTestServer(t, map[string]http.HandlerFunc{
 		"DELETE /api/v1/groups/g1": func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 		},
 	})
 
@@ -249,7 +249,7 @@ func TestHTTPClient_AddAPIKey_NoExpiration(t *testing.T) {
 			body, _ := io.ReadAll(r.Body)
 			json.Unmarshal(body, &receivedBody)
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(201)
+			w.WriteHeader(http.StatusCreated)
 			json.NewEncoder(w).Encode(map[string]any{"name": "test-key", "key": "abc"})
 		},
 	})
@@ -276,7 +276,7 @@ func TestHTTPClient_ListAPIKeys(t *testing.T) {
 func TestHTTPClient_DeleteAPIKey(t *testing.T) {
 	_, client := newTestServer(t, map[string]http.HandlerFunc{
 		"DELETE /api/v1/apikeys/abc123": func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(204)
+			w.WriteHeader(http.StatusNoContent)
 		},
 	})
 

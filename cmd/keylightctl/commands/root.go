@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/spf13/cobra"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
 // Define a custom type for context keys to avoid collisions

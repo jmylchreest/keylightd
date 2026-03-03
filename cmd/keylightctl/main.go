@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
+
+	"github.com/spf13/viper"
 
 	"github.com/jmylchreest/keylightd/cmd/keylightctl/commands"
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/pkg/client"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -25,7 +27,8 @@ func main() {
 	// Load configuration first
 	cfg, err := config.Load(config.ClientConfigFilename, "")
 	if err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var configNotFound viper.ConfigFileNotFoundError
+		if !errors.As(err, &configNotFound) {
 			logger := utils.SetupErrorLogger()
 			logger.Error("failed to load configuration", "error", err)
 			os.Exit(1)

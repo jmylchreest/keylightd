@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jmylchreest/keylightd/internal/config"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 type mockLightManager struct {

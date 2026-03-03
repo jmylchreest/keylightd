@@ -7,13 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/internal/config"
-	"github.com/jmylchreest/keylightd/internal/utils"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/internal/utils"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 func TestCreateRootCmd(t *testing.T) {
@@ -71,7 +72,7 @@ func TestSetupFlagBindings(t *testing.T) {
 
 func TestCreateManager(t *testing.T) {
 	// Create test logger
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 
 	// Create manager
 	manager := keylight.NewManager(logger)

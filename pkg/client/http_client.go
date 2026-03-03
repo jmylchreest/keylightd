@@ -59,7 +59,7 @@ func (c *HTTPClient) request(method, path string, body any, resp any) error {
 	}
 
 	// Execute request
-	httpResp, err := c.client.Do(req)
+	httpResp, err := c.client.Do(req) //nolint:gosec // G704: URL is from trusted configuration
 	if err != nil {
 		c.logger.Error("HTTP request failed", "error", err)
 		return fmt.Errorf("HTTP request failed: %w", err)

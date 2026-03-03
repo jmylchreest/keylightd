@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -242,7 +243,7 @@ func (h *GroupHandler) SetGroupStateRaw(api huma.API) http.HandlerFunc {
 		groupParam := r.PathValue("id")
 		if groupParam == "" {
 			// Try Chi's URL param
-			groupParam = chi_URLParam(r, "id")
+			groupParam = chiURLParam(r, "id")
 		}
 
 		groupKeys := strings.Split(groupParam, ",")
@@ -310,16 +311,20 @@ func (h *GroupHandler) SetGroupStateRaw(api huma.API) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		if len(errs) > 0 {
 			w.WriteHeader(http.StatusMultiStatus) // 207
-			json.NewEncoder(w).Encode(PartialStatusResponse{Status: "partial", Errors: errs})
+			if err := json.NewEncoder(w).Encode(PartialStatusResponse{Status: "partial", Errors: errs}); err != nil {
+				slog.Error("Failed to encode partial status response", "error", err)
+			}
 			return
 		}
-		json.NewEncoder(w).Encode(StatusResponse{Status: "ok"})
+		if err := json.NewEncoder(w).Encode(StatusResponse{Status: "ok"}); err != nil {
+			slog.Error("Failed to encode status response", "error", err)
+		}
 	}
 }
 
-// chi_URLParam extracts a URL parameter from a Chi request.
+// chiURLParam extracts a URL parameter from a Chi request.
 // This is a helper to avoid importing chi directly in handlers.
-func chi_URLParam(r *http.Request, key string) string {
+func chiURLParam(r *http.Request, key string) string {
 	// Chi stores URL params in the request context via chi.URLParam
 	// but we can use PathValue which Chi also supports in Go 1.22+
 	return r.PathValue(key)

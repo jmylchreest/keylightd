@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -66,14 +65,14 @@ func mockHTTPServer(t *testing.T) *httptest.Server {
 }
 
 func TestNewKeyLightClient(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+	logger := slog.New(slog.DiscardHandler)
+
 	// Test with default HTTP client
 	client := NewKeyLightClient("192.168.1.100", 9123, logger)
 	assert.NotNil(t, client)
 	assert.Equal(t, "http://192.168.1.100:9123/elgato", client.baseURL)
 	assert.NotNil(t, client.httpClient)
-	
+
 	// Test with custom HTTP client
 	customHTTP := &http.Client{}
 	client = NewKeyLightClient("192.168.1.100", 9123, logger, customHTTP)
@@ -84,14 +83,14 @@ func TestNewKeyLightClient(t *testing.T) {
 func TestGetAccessoryInfo(t *testing.T) {
 	server := mockHTTPServer(t)
 	defer server.Close()
-	
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
+	logger := slog.New(slog.DiscardHandler)
+
 	// Extract host and port from test server
 	client := NewKeyLightClient(server.URL[7:], 0, logger, server.Client())
 	// Override baseURL to use test server
 	client.baseURL = server.URL + "/elgato"
-	
+
 	// Test successful request
 	info, err := client.GetAccessoryInfo(context.Background())
 	require.NoError(t, err)
@@ -101,13 +100,13 @@ func TestGetAccessoryInfo(t *testing.T) {
 	assert.Equal(t, "1.0.3", info.FirmwareVersion)
 	assert.Equal(t, "KL12345678", info.SerialNumber)
 	assert.Equal(t, "Office Key Light", info.DisplayName)
-	
+
 	// Test context cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
 	_, err = client.GetAccessoryInfo(ctx)
 	assert.Error(t, err)
-	
+
 	// Test invalid URL
 	badClient := NewKeyLightClient("invalid:url", 9123, logger)
 	_, err = badClient.GetAccessoryInfo(context.Background())
@@ -117,12 +116,12 @@ func TestGetAccessoryInfo(t *testing.T) {
 func TestGetLightState(t *testing.T) {
 	server := mockHTTPServer(t)
 	defer server.Close()
-	
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
+	logger := slog.New(slog.DiscardHandler)
+
 	client := NewKeyLightClient(server.URL[7:], 0, logger, server.Client())
 	client.baseURL = server.URL + "/elgato"
-	
+
 	// Test successful request
 	state, err := client.GetLightState(context.Background())
 	require.NoError(t, err)
@@ -131,7 +130,7 @@ func TestGetLightState(t *testing.T) {
 	assert.Equal(t, 1, state.Lights[0].On)
 	assert.Equal(t, 50, state.Lights[0].Brightness)
 	assert.Equal(t, 200, state.Lights[0].Temperature)
-	
+
 	// Test server error
 	badPathClient := NewKeyLightClient(server.URL[7:], 0, logger, server.Client())
 	badPathClient.baseURL = server.URL + "/nonexistent"
@@ -142,18 +141,18 @@ func TestGetLightState(t *testing.T) {
 func TestSetLightState(t *testing.T) {
 	server := mockHTTPServer(t)
 	defer server.Close()
-	
+
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-	
+
 	client := NewKeyLightClient(server.URL[7:], 0, logger, server.Client())
 	client.baseURL = server.URL + "/elgato"
-	
+
 	// Test successful request
 	err := client.SetLightState(context.Background(), true, 75, 250)
 	require.NoError(t, err)
-	
+
 	// Test with invalid URL
 	badClient := NewKeyLightClient("invalid:url", 9123, logger)
 	err = badClient.SetLightState(context.Background(), true, 75, 250)
@@ -166,20 +165,20 @@ func TestClientWithServerErrors(t *testing.T) {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}))
 	defer errorServer.Close()
-	
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
+	logger := slog.New(slog.DiscardHandler)
+
 	client := NewKeyLightClient(errorServer.URL[7:], 0, logger, errorServer.Client())
 	client.baseURL = errorServer.URL + "/elgato"
-	
+
 	// Test accessory info with server error
 	_, err := client.GetAccessoryInfo(context.Background())
 	assert.Error(t, err)
-	
+
 	// Test get state with server error
 	_, err = client.GetLightState(context.Background())
 	assert.Error(t, err)
-	
+
 	// Test set state with server error
 	err = client.SetLightState(context.Background(), true, 75, 250)
 	assert.Error(t, err)
@@ -192,16 +191,16 @@ func TestClientWithMalformedResponses(t *testing.T) {
 		w.Write([]byte("{not valid json"))
 	}))
 	defer badJSONServer.Close()
-	
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	
+
+	logger := slog.New(slog.DiscardHandler)
+
 	client := NewKeyLightClient(badJSONServer.URL[7:], 0, logger, badJSONServer.Client())
 	client.baseURL = badJSONServer.URL + "/elgato"
-	
+
 	// Test accessory info with malformed response
 	_, err := client.GetAccessoryInfo(context.Background())
 	assert.Error(t, err)
-	
+
 	// Test get state with malformed response
 	_, err = client.GetLightState(context.Background())
 	assert.Error(t, err)

@@ -1,7 +1,6 @@
 package mw
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -48,7 +47,7 @@ func HumaAuth(api huma.API, logger *slog.Logger, apikeyManager *apikey.Manager) 
 				"path", ctx.URL().Path,
 				"remote_addr", ctx.RemoteAddr(),
 			)
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized: API key required")
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized: API key required")
 			return
 		}
 
@@ -61,7 +60,7 @@ func HumaAuth(api huma.API, logger *slog.Logger, apikeyManager *apikey.Manager) 
 				"path", ctx.URL().Path,
 				"remote_addr", ctx.RemoteAddr(),
 			)
-			huma.WriteErr(api, ctx, http.StatusUnauthorized, fmt.Sprintf("Unauthorized: %s", err.Error()))
+			_ = huma.WriteErr(api, ctx, http.StatusUnauthorized, "Unauthorized: "+err.Error())
 			return
 		}
 
@@ -117,7 +116,7 @@ func RawAPIKeyAuth(logger *slog.Logger, apikeyManager *apikey.Manager) func(http
 					"path", r.URL.Path,
 					"remote_addr", r.RemoteAddr,
 				)
-				http.Error(w, fmt.Sprintf("Unauthorized: %s", err.Error()), http.StatusUnauthorized)
+				http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
 				return
 			}
 

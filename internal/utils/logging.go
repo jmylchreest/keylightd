@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/jmylchreest/keylightd/internal/config"
 	logfilter "github.com/jmylchreest/slog-logfilter"
+
+	"github.com/jmylchreest/keylightd/internal/config"
 )
 
 // LogLevel defines log level types

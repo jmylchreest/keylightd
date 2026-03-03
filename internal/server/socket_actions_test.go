@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -8,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"log/slog"
 )
@@ -67,10 +69,10 @@ func setupSocketTest(t *testing.T) (*Server, string) {
 	return server, socketPath
 }
 
-// socketRequest sends a JSON request and reads the JSON response.
-func socketRequest(t *testing.T, socketPath string, req map[string]any) map[string]any {
+// sendSocketRequest sends a JSON request and reads the JSON response.
+func sendSocketRequest(t *testing.T, socketPath string, req map[string]any) map[string]any {
 	t.Helper()
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -106,7 +108,7 @@ func socketRequestKeepConn(t *testing.T, conn net.Conn, req map[string]any) map[
 func TestSocketAction_Ping(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{"action": "ping"})
+	resp := sendSocketRequest(t, socketPath, map[string]any{"action": "ping"})
 	assert.Equal(t, "ok", resp["status"])
 	assert.Equal(t, "pong", resp["message"])
 }
@@ -114,7 +116,7 @@ func TestSocketAction_Ping(t *testing.T) {
 func TestSocketAction_PingWithID(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{"action": "ping", "id": "req-123"})
+	resp := sendSocketRequest(t, socketPath, map[string]any{"action": "ping", "id": "req-123"})
 	assert.Equal(t, "ok", resp["status"])
 	assert.Equal(t, "pong", resp["message"])
 	assert.Equal(t, "req-123", resp["id"])
@@ -125,7 +127,7 @@ func TestSocketAction_PingWithID(t *testing.T) {
 func TestSocketAction_GetLight(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "get_light",
 		"data":   map[string]any{"id": "light-1"},
 	})
@@ -139,7 +141,7 @@ func TestSocketAction_GetLight(t *testing.T) {
 func TestSocketAction_GetLight_NotFound(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "get_light",
 		"data":   map[string]any{"id": "no-such-light"},
 	})
@@ -149,7 +151,7 @@ func TestSocketAction_GetLight_NotFound(t *testing.T) {
 func TestSocketAction_GetLight_MissingID(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "get_light",
 		"data":   map[string]any{},
 	})
@@ -162,7 +164,7 @@ func TestSocketAction_GetLight_MissingID(t *testing.T) {
 func TestSocketAction_SetLightState_SingleProperty(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "set_light_state",
 		"data": map[string]any{
 			"id":       "light-1",
@@ -176,7 +178,7 @@ func TestSocketAction_SetLightState_SingleProperty(t *testing.T) {
 func TestSocketAction_SetLightState_MultiProperty(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "set_light_state",
 		"data": map[string]any{
 			"id":         "light-1",
@@ -190,7 +192,7 @@ func TestSocketAction_SetLightState_MultiProperty(t *testing.T) {
 func TestSocketAction_SetLightState_MissingID(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "set_light_state",
 		"data":   map[string]any{"brightness": float64(50)},
 	})
@@ -201,7 +203,7 @@ func TestSocketAction_SetLightState_MissingID(t *testing.T) {
 func TestSocketAction_SetLightState_MissingProperties(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "set_light_state",
 		"data":   map[string]any{"id": "light-1"},
 	})
@@ -215,7 +217,7 @@ func TestSocketAction_CreateAndListGroups(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
 	// Create a group
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -278,7 +280,7 @@ func TestSocketAction_CreateAndListGroups(t *testing.T) {
 func TestSocketAction_CreateGroup_MissingName(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "create_group",
 		"data":   map[string]any{"lights": []any{"light-1"}},
 	})
@@ -291,7 +293,7 @@ func TestSocketAction_CreateGroup_MissingName(t *testing.T) {
 func TestSocketAction_SetGroupState(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -322,7 +324,7 @@ func TestSocketAction_SetGroupState(t *testing.T) {
 func TestSocketAction_APIKeyLifecycle(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -369,7 +371,7 @@ func TestSocketAction_APIKeyLifecycle(t *testing.T) {
 func TestSocketAction_APIKeyAdd_DuplicateName(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -388,7 +390,7 @@ func TestSocketAction_APIKeyAdd_DuplicateName(t *testing.T) {
 func TestSocketAction_APIKeyAdd_WithExpiration(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{
+	resp := sendSocketRequest(t, socketPath, map[string]any{
 		"action": "apikey_add",
 		"data":   map[string]any{"name": "expiring-key", "expires_in": "720h"},
 	})
@@ -400,7 +402,7 @@ func TestSocketAction_APIKeyAdd_WithExpiration(t *testing.T) {
 func TestSocketAction_Health(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{"action": "health"})
+	resp := sendSocketRequest(t, socketPath, map[string]any{"action": "health"})
 	assert.Equal(t, "ok", resp["status"])
 	assert.Equal(t, "ok", resp["health"])
 }
@@ -410,7 +412,7 @@ func TestSocketAction_Health(t *testing.T) {
 func TestSocketAction_UnknownAction(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	resp := socketRequest(t, socketPath, map[string]any{"action": "foobar"})
+	resp := sendSocketRequest(t, socketPath, map[string]any{"action": "foobar"})
 	assert.Contains(t, resp, "error")
 	assert.Contains(t, resp["error"], "unknown action")
 }
@@ -420,12 +422,12 @@ func TestSocketAction_UnknownAction(t *testing.T) {
 func TestSocketAction_MultipleRequestsSameConnection(t *testing.T) {
 	_, socketPath := setupSocketTest(t)
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 
 	// Send multiple requests on the same connection
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		resp := socketRequestKeepConn(t, conn, map[string]any{"action": "ping"})
 		assert.Equal(t, "ok", resp["status"])
 		assert.Equal(t, "pong", resp["message"])
@@ -437,7 +439,7 @@ func TestSocketAction_MultipleRequestsSameConnection(t *testing.T) {
 func TestSocketAction_SubscribeEvents(t *testing.T) {
 	server, socketPath := setupSocketTest(t)
 
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(5 * time.Second))

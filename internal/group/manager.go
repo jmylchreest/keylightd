@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
@@ -172,7 +173,7 @@ func (m *Manager) CreateGroup(ctx context.Context, name string, lightIDs []strin
 	for _, id := range lightIDs {
 		if _, err := m.lights.GetLight(ctx, id); err != nil {
 			m.logger.Error("Light not found", "id", id, "error", err)
-			return nil, fmt.Errorf("light not found: %s", err)
+			return nil, fmt.Errorf("light not found: %w", err)
 		}
 	}
 
@@ -257,7 +258,7 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 	// Verify all lights exist OUTSIDE the lock (network I/O)
 	for _, lightID := range lightIDs {
 		if _, err := m.lights.GetLight(ctx, lightID); err != nil {
-			return fmt.Errorf("light not found: %s", err)
+			return fmt.Errorf("light not found: %w", err)
 		}
 	}
 
@@ -283,8 +284,9 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 	return nil
 }
 
-// SetGroupState sets the power state for all lights in a group
-func (m *Manager) SetGroupState(ctx context.Context, groupID string, on bool) error {
+// applyToGroupLights runs fn concurrently on every light in the group,
+// collecting and returning any errors.
+func (m *Manager) applyToGroupLights(ctx context.Context, groupID string, fn func(ctx context.Context, lightID string) error) error {
 	group, err := m.GetGroup(groupID)
 	if err != nil {
 		return err
@@ -296,7 +298,7 @@ func (m *Manager) SetGroupState(ctx context.Context, groupID string, on bool) er
 		wg.Add(1)
 		go func(lightID string) {
 			defer wg.Done()
-			if err := m.lights.SetLightState(ctx, lightID, keylight.OnValue(on)); err != nil {
+			if err := fn(ctx, lightID); err != nil {
 				errCh <- fmt.Errorf("light %s: %w", lightID, err)
 			}
 		}(id)
@@ -312,68 +314,27 @@ func (m *Manager) SetGroupState(ctx context.Context, groupID string, on bool) er
 		return fmt.Errorf("errors occurred: %v", errs)
 	}
 	return nil
+}
+
+// SetGroupState sets the power state for all lights in a group
+func (m *Manager) SetGroupState(ctx context.Context, groupID string, on bool) error {
+	return m.applyToGroupLights(ctx, groupID, func(ctx context.Context, lightID string) error {
+		return m.lights.SetLightState(ctx, lightID, keylight.OnValue(on))
+	})
 }
 
 // SetGroupBrightness sets the brightness for all lights in a group
 func (m *Manager) SetGroupBrightness(ctx context.Context, groupID string, brightness int) error {
-	group, err := m.GetGroup(groupID)
-	if err != nil {
-		return err
-	}
-
-	errCh := make(chan error, len(group.Lights))
-	var wg sync.WaitGroup
-	for _, id := range group.Lights {
-		wg.Add(1)
-		go func(lightID string) {
-			defer wg.Done()
-			if err := m.lights.SetLightBrightness(ctx, lightID, brightness); err != nil {
-				errCh <- fmt.Errorf("light %s: %w", lightID, err)
-			}
-		}(id)
-	}
-	wg.Wait()
-	close(errCh)
-
-	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred: %v", errs)
-	}
-	return nil
+	return m.applyToGroupLights(ctx, groupID, func(ctx context.Context, lightID string) error {
+		return m.lights.SetLightBrightness(ctx, lightID, brightness)
+	})
 }
 
 // SetGroupTemperature sets the color temperature for all lights in a group
 func (m *Manager) SetGroupTemperature(ctx context.Context, groupID string, temperature int) error {
-	group, err := m.GetGroup(groupID)
-	if err != nil {
-		return err
-	}
-
-	errCh := make(chan error, len(group.Lights))
-	var wg sync.WaitGroup
-	for _, id := range group.Lights {
-		wg.Add(1)
-		go func(lightID string) {
-			defer wg.Done()
-			if err := m.lights.SetLightTemperature(ctx, lightID, temperature); err != nil {
-				errCh <- fmt.Errorf("light %s: %w", lightID, err)
-			}
-		}(id)
-	}
-	wg.Wait()
-	close(errCh)
-
-	var errs []error
-	for err := range errCh {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred: %v", errs)
-	}
-	return nil
+	return m.applyToGroupLights(ctx, groupID, func(ctx context.Context, lightID string) error {
+		return m.lights.SetLightTemperature(ctx, lightID, temperature)
+	})
 }
 
 // GetGroupsByName returns all groups with the given name

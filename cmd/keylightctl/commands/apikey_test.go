@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
 type mockAPIKeyClient struct {

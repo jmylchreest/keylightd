@@ -39,10 +39,18 @@ func main() {
 			v.AutomaticEnv()
 
 			// Bind flags to viper
-			v.BindPFlag("logging.level", cmd.PersistentFlags().Lookup("log-level"))
-			v.BindPFlag("logging.format", cmd.PersistentFlags().Lookup("log-format"))
-			v.BindPFlag("discovery.interval", cmd.PersistentFlags().Lookup("discovery-interval"))
-			v.BindPFlag("config", cmd.PersistentFlags().Lookup("config"))
+			if err := v.BindPFlag("logging.level", cmd.PersistentFlags().Lookup("log-level")); err != nil {
+				return fmt.Errorf("failed to bind flag: %w", err)
+			}
+			if err := v.BindPFlag("logging.format", cmd.PersistentFlags().Lookup("log-format")); err != nil {
+				return fmt.Errorf("failed to bind flag: %w", err)
+			}
+			if err := v.BindPFlag("discovery.interval", cmd.PersistentFlags().Lookup("discovery-interval")); err != nil {
+				return fmt.Errorf("failed to bind flag: %w", err)
+			}
+			if err := v.BindPFlag("config", cmd.PersistentFlags().Lookup("config")); err != nil {
+				return fmt.Errorf("failed to bind flag: %w", err)
+			}
 
 			// Load configuration
 			cfg, err := config.Load(config.DaemonConfigFilename, v.GetString("config"))

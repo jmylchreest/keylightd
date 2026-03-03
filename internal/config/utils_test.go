@@ -40,9 +40,9 @@ func TestGetConfigBaseDir(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("XDG_CONFIG_HOME", tt.xdgConfigHome)
-			
+
 			result := GetConfigBaseDir()
-			
+
 			if tt.name == "user_default" {
 				// For default case, check it ends with the expected suffix
 				if !filepath.IsAbs(result) || !endsWithSuffix(result, tt.expectedSuffix) {
@@ -86,9 +86,9 @@ func TestGetConfigPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("XDG_CONFIG_HOME", tt.xdgConfigHome)
-			
+
 			result := GetConfigPath(tt.filename)
-			
+
 			if tt.expected != "" {
 				if result != tt.expected {
 					t.Errorf("GetConfigPath(%v) = %v, expected %v", tt.filename, result, tt.expected)

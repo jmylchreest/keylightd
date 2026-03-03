@@ -1,6 +1,7 @@
 package apikey
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -109,15 +110,15 @@ func (m *Manager) DeleteAPIKey(key string) error {
 func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 	apiKey, found := m.cfg.FindAPIKey(key) // FindAPIKey returns (*APIKey, bool)
 	if !found {
-		return nil, fmt.Errorf("API key not found")
+		return nil, errors.New("API key not found")
 	}
 
 	if apiKey.IsDisabled() {
-		return nil, fmt.Errorf("API key is disabled")
+		return nil, errors.New("API key is disabled")
 	}
 
 	if apiKey.IsExpired() {
-		return nil, fmt.Errorf("API key has expired")
+		return nil, errors.New("API key has expired")
 	}
 
 	// Update LastUsedAt timestamp in memory only (best-effort).

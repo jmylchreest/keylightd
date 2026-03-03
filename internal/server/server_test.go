@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/internal/config"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 type mockLightManager struct {
@@ -160,7 +161,7 @@ func TestServerStartStop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test connection
-	conn, err := net.Dial("unix", cfg.Config.Server.UnixSocket)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", cfg.Config.Server.UnixSocket)
 	require.NoError(t, err)
 	conn.Close()
 

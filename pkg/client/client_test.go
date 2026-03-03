@@ -3,7 +3,6 @@ package client
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net"
 	"testing"
@@ -38,7 +37,7 @@ func mockDialer(conn *mockConn) func(network, address string) (net.Conn, error) 
 }
 
 func TestClient_AllMethods(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := slog.New(slog.DiscardHandler)
 	c := New(logger, "/tmp/fake.sock")
 
 	t.Run("AddAPIKey", func(t *testing.T) {

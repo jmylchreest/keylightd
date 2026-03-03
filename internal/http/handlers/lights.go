@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -95,7 +96,7 @@ func (h *LightHandler) SetLightState(ctx context.Context, input *SetLightStateIn
 
 	if len(errs) > 0 {
 		return nil, huma.Error500InternalServerError(
-			fmt.Sprintf("Error(s) setting light state: %s", joinStrings(errs, "; ")),
+			"Error(s) setting light state: " + joinStrings(errs),
 		)
 	}
 
@@ -104,16 +105,17 @@ func (h *LightHandler) SetLightState(ctx context.Context, input *SetLightStateIn
 	}, nil
 }
 
-// joinStrings joins strings with a separator (avoids importing strings just for this).
-func joinStrings(ss []string, sep string) string {
+// joinStrings joins strings with "; " separator.
+func joinStrings(ss []string) string {
 	if len(ss) == 0 {
 		return ""
 	}
-	result := ss[0]
+	var result strings.Builder
+	result.WriteString(ss[0])
 	for _, s := range ss[1:] {
-		result += sep + s
+		result.WriteString("; " + s)
 	}
-	return result
+	return result.String()
 }
 
 // Ensure LightHandler implements the interface at compile time.

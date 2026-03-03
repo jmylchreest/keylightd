@@ -8,10 +8,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/jmylchreest/keylightd/internal/events"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/events"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // collectEvents subscribes to a bus and returns a function to get collected events.

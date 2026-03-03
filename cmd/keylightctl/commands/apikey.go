@@ -1,15 +1,17 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
 // NewAPIKeyCommand creates the apikey command group.
@@ -45,7 +47,7 @@ func newAPIKeyListCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiClient, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			keys, err := apiClient.ListAPIKeys()
@@ -112,7 +114,9 @@ func newAPIKeyListCommand(_ *slog.Logger) *cobra.Command {
 					strconv.FormatBool(enabledBool),
 				})
 			}
-			pterm.DefaultTable.WithHasHeader().WithData(table).Render()
+			if err := pterm.DefaultTable.WithHasHeader().WithData(table).Render(); err != nil {
+				return fmt.Errorf("failed to render table: %w", err)
+			}
 			return nil
 		},
 	}
@@ -131,7 +135,7 @@ func newAPIKeyAddCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiClient, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			// Get name: from arg 1, then flag, then prompt
@@ -147,7 +151,7 @@ func newAPIKeyAddCommand(_ *slog.Logger) *cobra.Command {
 					return fmt.Errorf("failed to get API key name: %w", err)
 				}
 				if name == "" {
-					return fmt.Errorf("API key name cannot be empty")
+					return errors.New("API key name cannot be empty")
 				}
 			}
 
@@ -229,10 +233,10 @@ func newAPIKeyDeleteCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiClient, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
-			keyToDelete := ""
+			var keyToDelete string
 			if len(args) > 0 {
 				keyToDelete = args[0]
 			} else {
@@ -268,7 +272,7 @@ func newAPIKeyDeleteCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			if keyToDelete == "" {
-				return fmt.Errorf("no API key specified or selected for deletion")
+				return errors.New("no API key specified or selected for deletion")
 			}
 
 			// Confirm before deleting
@@ -279,7 +283,7 @@ func newAPIKeyDeleteCommand(_ *slog.Logger) *cobra.Command {
 					Show()
 
 				if !confirm {
-					pterm.Info.Println("API key deletion cancelled.")
+					pterm.Info.Println("API key deletion cancelled.") //nolint:misspell
 					return nil
 				}
 			}
@@ -306,7 +310,7 @@ func newAPIKeySetEnabledCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiClient, ok := cmd.Context().Value(clientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			var keyToUpdate string
@@ -318,14 +322,14 @@ func newAPIKeySetEnabledCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			if len(args) > 1 {
-				statusStr := strings.ToLower(args[1])
-				if statusStr == "true" || statusStr == "enabled" {
+				switch strings.ToLower(args[1]) {
+				case "true", "enabled":
 					desiredEnabledState = true
 					statusArgProvided = true
-				} else if statusStr == "false" || statusStr == "disabled" {
+				case "false", "disabled":
 					desiredEnabledState = false
 					statusArgProvided = true
-				} else {
+				default:
 					return fmt.Errorf("invalid status argument: %s. Must be true, false, enabled, or disabled", args[1])
 				}
 			}

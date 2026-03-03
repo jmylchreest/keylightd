@@ -23,10 +23,10 @@ func TestBusConcurrentPublish(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < eventsPerGoroutine; j++ {
+			for range eventsPerGoroutine {
 				bus.Publish(NewEvent(LightStateChanged, nil))
 			}
 		}()
@@ -44,7 +44,7 @@ func TestBusConcurrentSubscribeUnsubscribe(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 
-	for i := 0; i < goroutines; i++ {
+	for range goroutines {
 		go func() {
 			defer wg.Done()
 			unsub := bus.Subscribe(func(e Event) {
@@ -79,7 +79,7 @@ func TestBusConcurrentPublishAndSubscribe(t *testing.T) {
 	var subWg sync.WaitGroup
 	subWg.Add(subscribers)
 	unsubs := make([]func(), subscribers)
-	for i := 0; i < subscribers; i++ {
+	for i := range subscribers {
 		idx := i
 		unsubs[idx] = bus.Subscribe(func(e Event) {
 			received.Add(1)
@@ -91,10 +91,10 @@ func TestBusConcurrentPublishAndSubscribe(t *testing.T) {
 	// Start publishers concurrently
 	var pubWg sync.WaitGroup
 	pubWg.Add(publishers)
-	for i := 0; i < publishers; i++ {
+	for range publishers {
 		go func() {
 			defer pubWg.Done()
-			for j := 0; j < eventsPerPublisher; j++ {
+			for j := range eventsPerPublisher {
 				bus.Publish(NewEvent(LightStateChanged, map[string]int{"v": j}))
 			}
 		}()

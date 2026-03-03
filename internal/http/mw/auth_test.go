@@ -1,7 +1,6 @@
 package mw
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,10 +9,11 @@ import (
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
-	"github.com/jmylchreest/keylightd/internal/apikey"
-	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/apikey"
+	"github.com/jmylchreest/keylightd/internal/config"
 )
 
 // testSetup creates an apikey.Manager with a valid API key for testing.
@@ -24,7 +24,7 @@ func testSetup(t *testing.T) (*apikey.Manager, *config.APIKey) {
 	cfg, err := config.Load("config.yaml", cfgPath)
 	require.NoError(t, err)
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	logger := slog.New(slog.DiscardHandler)
 	mgr := apikey.NewManager(cfg, logger)
 
 	key, err := mgr.CreateAPIKey("test-key", 0)
@@ -34,7 +34,7 @@ func testSetup(t *testing.T) (*apikey.Manager, *config.APIKey) {
 }
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(slog.DiscardHandler)
 }
 
 // --- RawAPIKeyAuth tests ---

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -34,19 +35,19 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		}
 		b, _ := json.Marshal(resp)
 		return &http.Response{
-			StatusCode: 200,
+			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewReader(b)),
 			Header:     make(http.Header),
 		}, nil
 	}
 	if req.Method == http.MethodPut && req.URL.Path == "/elgato/lights" {
 		return &http.Response{
-			StatusCode: 200,
+			StatusCode: http.StatusOK,
 			Body:       io.NopCloser(bytes.NewReader([]byte(`{"success":true}`))),
 			Header:     make(http.Header),
 		}, nil
 	}
-	return &http.Response{StatusCode: 404, Body: io.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
+	return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(bytes.NewReader([]byte{})), Header: make(http.Header)}, nil
 }
 
 func newTestManager(logger *slog.Logger) (*Manager, *http.Client) {
@@ -144,7 +145,7 @@ func TestDiscovery(t *testing.T) {
 	defer cancel()
 	err := manager.DiscoverLights(ctx, 5*time.Second)
 	// Discovery may timeout, which is expected in tests
-	if err != nil && err != context.DeadlineExceeded {
+	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		require.NoError(t, err)
 	}
 }

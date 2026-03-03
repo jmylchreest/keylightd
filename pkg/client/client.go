@@ -2,12 +2,14 @@ package client
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/jmylchreest/keylightd/internal/config"
 	"log/slog"
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/jmylchreest/keylightd/internal/config"
 )
 
 var dial = func(network, address string) (net.Conn, error) {
@@ -79,7 +81,9 @@ func (c *Client) request(req any, resp any) error {
 		return fmt.Errorf("failed to connect to socket: %w", err)
 	}
 	defer conn.Close()
-	conn.SetDeadline(time.Now().Add(30 * time.Second))
+	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
+		return fmt.Errorf("failed to set connection deadline: %w", err)
+	}
 
 	c.logger.Debug("Encoding request", "request", req)
 	// Encode request
@@ -154,11 +158,11 @@ func (c *Client) GetLights() (map[string]any, error) {
 	// The server returns {"lights": {id: lightMap, ...}}, so extract the 'lights' field
 	lightsField, ok := resp["lights"]
 	if !ok {
-		return nil, fmt.Errorf("no lights field in response")
+		return nil, errors.New("no lights field in response")
 	}
 	lightsMap, ok := lightsField.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid lights format in response")
+		return nil, errors.New("invalid lights format in response")
 	}
 
 	// Iterate through lights and convert lastseen string to time.Time
@@ -278,7 +282,7 @@ func (c *Client) GetGroups() ([]map[string]any, error) {
 	}
 	groupsSlice, ok := groupsField.([]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid groups format in response")
+		return nil, errors.New("invalid groups format in response")
 	}
 
 	groups := make([]map[string]any, 0, len(groupsSlice))
@@ -445,10 +449,8 @@ func (c *Client) ListAPIKeys() ([]map[string]any, error) {
 					// If parsing fails for a non-empty string, keep the original string
 					keyData[field] = valStr
 				}
-			} else if _, isTime := keyData[field].(time.Time); isTime {
-				// It's already a time.Time object, possibly from AddAPIKey response processing.
-				// No action needed.
 			}
+			// If it's already a time.Time (e.g. from AddAPIKey response processing), no action needed.
 		}
 	}
 	return apiKeys, nil

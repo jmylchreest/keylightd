@@ -7,8 +7,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
 // Use the same clientContextKey as in light.go
@@ -155,7 +156,7 @@ func TestGroupDeleteCommand_GroupNotFound(t *testing.T) {
 	cmd.SetArgs([]string{"notfound", "--yes"})
 	out := captureStdout(func() {
 		err := cmd.Execute()
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 	kv := parseKeyValueOutput(out)
 	require.Equal(t, "notfound", kv["Input"])

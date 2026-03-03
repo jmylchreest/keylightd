@@ -3,11 +3,13 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/pterm/pterm"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // WaybarOutput represents the JSON format expected by waybar custom modules
@@ -103,14 +105,14 @@ func LightToJSON(id string, light map[string]any) LightJSON {
 
 // GroupToJSON converts a group map to GroupJSON struct
 func GroupToJSON(group map[string]any) GroupJSON {
-	id := group["id"].(string)
-	name := group["name"].(string)
+	id, _ := group["id"].(string)
+	name, _ := group["name"].(string)
 
 	var lightIDs []string
 	if lights, ok := group["lights"].([]any); ok {
 		lightIDs = make([]string, len(lights))
 		for i, light := range lights {
-			lightIDs[i] = light.(string)
+			lightIDs[i], _ = light.(string)
 		}
 	}
 
@@ -130,7 +132,7 @@ func FormatWaybarOutput(lights map[string]any) string {
 	var tooltipLines []string
 
 	for id, light := range lights {
-		lightMap := light.(map[string]any)
+		lightMap, _ := light.(map[string]any)
 		name := keylight.UnescapeRFC6763Label(id)
 
 		on := false
@@ -155,7 +157,7 @@ func FormatWaybarOutput(lights map[string]any) string {
 			tooltipLines = append(tooltipLines, fmt.Sprintf("%s: %d%% @ %dK", name, brightness, tempKelvin))
 		} else {
 			offCount++
-			tooltipLines = append(tooltipLines, fmt.Sprintf("%s: off", name))
+			tooltipLines = append(tooltipLines, name+": off")
 		}
 	}
 
@@ -226,7 +228,7 @@ func LightParseable(id string, light map[string]any) string {
 	id = keylight.UnescapeRFC6763Label(id)
 	lastSeenUnix := "0"
 	if t, ok := light["lastseen"].(time.Time); ok && !t.IsZero() {
-		lastSeenUnix = fmt.Sprintf("%d", t.Unix())
+		lastSeenUnix = strconv.FormatInt(t.Unix(), 10)
 	}
 	tempDevice := 0
 	if v, ok := light["temperature"].(int); ok {
@@ -252,12 +254,12 @@ func LightParseable(id string, light map[string]any) string {
 
 // GroupParseable returns the parseable string for a group (id, name, lights as comma-separated)
 func GroupParseable(group map[string]any) string {
-	id := group["id"].(string)
-	name := group["name"].(string)
-	lights := group["lights"].([]any)
+	id, _ := group["id"].(string)
+	name, _ := group["name"].(string)
+	lights, _ := group["lights"].([]any)
 	lightIDs := make([]string, len(lights))
 	for i, light := range lights {
-		lightIDs[i] = light.(string)
+		lightIDs[i], _ = light.(string)
 	}
 	return fmt.Sprintf("id=\"%s\" name=\"%s\" lights=\"%s\"", id, name, strings.Join(lightIDs, ","))
 }

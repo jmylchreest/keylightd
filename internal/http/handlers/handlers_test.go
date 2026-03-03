@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/internal/group"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/group"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // --- Mock light manager ---
@@ -299,7 +300,7 @@ func TestLevelToString(t *testing.T) {
 // === joinStrings Tests ===
 
 func TestJoinStrings(t *testing.T) {
-	assert.Equal(t, "", joinStrings(nil, "; "))
-	assert.Equal(t, "a", joinStrings([]string{"a"}, "; "))
-	assert.Equal(t, "a; b; c", joinStrings([]string{"a", "b", "c"}, "; "))
+	assert.Equal(t, "", joinStrings(nil))
+	assert.Equal(t, "a", joinStrings([]string{"a"}))
+	assert.Equal(t, "a; b; c", joinStrings([]string{"a", "b", "c"}))
 }

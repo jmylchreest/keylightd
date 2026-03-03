@@ -22,7 +22,7 @@ func acquireLock() func() {
 	lockPath := filepath.Join(dir, "keylightd-tray.pid")
 
 	// Check for an existing lockfile
-	if data, err := os.ReadFile(lockPath); err == nil {
+	if data, err := os.ReadFile(lockPath); err == nil { //nolint:gosec // G703: lockPath is from os.UserCacheDir, not user input
 		pidStr := strings.TrimSpace(string(data))
 		if pid, err := strconv.Atoi(pidStr); err == nil {
 			// Signal 0 checks if the process exists without actually signaling it
@@ -32,14 +32,14 @@ func acquireLock() func() {
 			}
 		}
 		// Stale lockfile — remove it
-		os.Remove(lockPath)
+		_ = os.Remove(lockPath) //nolint:gosec // G703: lockPath is from trusted sources, not user input
 	}
 
 	// Write our PID
-	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+	if err := os.WriteFile(lockPath, []byte(strconv.Itoa(os.Getpid())), 0600); err != nil { //nolint:gosec // G703: lockPath is from trusted sources, not user input
 		fmt.Fprintf(os.Stderr, "failed to create lockfile %s: %v\n", lockPath, err)
 		os.Exit(1)
 	}
 
-	return func() { os.Remove(lockPath) }
+	return func() { _ = os.Remove(lockPath) }
 }

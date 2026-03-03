@@ -69,7 +69,7 @@ func main() {
 
 	// Output to file or stdout
 	if *outputFile != "" {
-		if err := os.WriteFile(*outputFile, data, 0644); err != nil {
+		if err := os.WriteFile(*outputFile, data, 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "error writing to file: %v\n", err)
 			os.Exit(1)
 		}

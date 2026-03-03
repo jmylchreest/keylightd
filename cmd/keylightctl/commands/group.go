@@ -2,15 +2,17 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // NewGroupCommand creates the group command
@@ -43,7 +45,7 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			groups, err := client.GetGroups()
@@ -66,15 +68,15 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 
 			if parseable {
 				for _, group := range groups {
-					id := group["id"].(string)
-					groupName := group["name"].(string)
+					id, _ := group["id"].(string)
+					groupName, _ := group["name"].(string)
 					var lights []any
 					if lightsVal, ok := group["lights"].([]any); ok && lightsVal != nil {
 						lights = lightsVal
 					}
 					lightIDs := make([]string, len(lights))
 					for i, light := range lights {
-						lightIDs[i] = light.(string)
+						lightIDs[i], _ = light.(string)
 					}
 					fmt.Printf("id=\"%s\" name=\"%s\" lights=\"%s\"\n", id, groupName, strings.Join(lightIDs, ","))
 				}
@@ -92,17 +94,21 @@ func newGroupListCommand(_ *slog.Logger) *cobra.Command {
 				}
 				lightIDs := make([]string, len(lights))
 				for i, light := range lights {
-					lightIDs[i] = light.(string)
+					lightIDs[i], _ = light.(string)
 				}
 
+				id, _ := group["id"].(string)
+				groupName, _ := group["name"].(string)
 				table = append(table, []string{
-					group["id"].(string),
-					group["name"].(string),
+					id,
+					groupName,
 					strings.Join(lightIDs, ", "),
 				})
 			}
 
-			pterm.DefaultTable.WithHasHeader().WithData(table).Render()
+			if err := pterm.DefaultTable.WithHasHeader().WithData(table).Render(); err != nil {
+				return fmt.Errorf("failed to render table: %w", err)
+			}
 			return nil
 		},
 	}
@@ -123,7 +129,7 @@ func newGroupAddCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			// Get name from args if provided
@@ -139,7 +145,7 @@ func newGroupAddCommand(_ *slog.Logger) *cobra.Command {
 					return fmt.Errorf("failed to get group name: %w", err)
 				}
 				if name == "" {
-					return fmt.Errorf("group name cannot be empty")
+					return errors.New("group name cannot be empty")
 				}
 			}
 
@@ -171,14 +177,14 @@ func newGroupDeleteCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			if len(args) > 0 {
 				resolved, err := resolveGroupIdentifier(client, args[0])
 				if err != nil {
 					PrintPromptResult("error", "Group Not Found", "", [][2]string{{"Input", args[0]}})
-					return nil
+					return err
 				}
 				name = resolved
 			} else if name == "" {
@@ -193,7 +199,9 @@ func newGroupDeleteCommand(_ *slog.Logger) *cobra.Command {
 				}
 				options := make([]string, len(groups))
 				for i, group := range groups {
-					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
+					id, _ := group["id"].(string)
+					groupName, _ := group["name"].(string)
+					options[i] = fmt.Sprintf("%s (%s)", id, groupName)
 				}
 				selected, err := pterm.DefaultInteractiveSelect.WithOptions(options).Show("Select a group to delete")
 				if err != nil {
@@ -203,10 +211,7 @@ func newGroupDeleteCommand(_ *slog.Logger) *cobra.Command {
 				name = strings.Split(selected, " (")[0]
 			}
 
-			// Future: add confirmation prompt here if needed
-			if !yes {
-				// If you add a confirmation prompt in the future, put it here
-			}
+			// Future: add confirmation prompt here if needed using the `yes` flag
 
 			if err := client.DeleteGroup(name); err != nil {
 				return fmt.Errorf("failed to delete group: %w", err)
@@ -233,7 +238,7 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			// Get groups for selection
@@ -243,7 +248,7 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			if len(groups) == 0 {
-				return fmt.Errorf("no groups found")
+				return errors.New("no groups found")
 			}
 
 			// Use identifier from args if provided
@@ -260,7 +265,9 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(groups))
 				for i, group := range groups {
-					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
+					id, _ := group["id"].(string)
+					groupName, _ := group["name"].(string)
+					options[i] = fmt.Sprintf("%s (%s)", id, groupName)
 				}
 
 				selected, err := pterm.DefaultInteractiveSelect.
@@ -283,28 +290,28 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			if parseable {
-				id := group["id"].(string)
-				groupName := group["name"].(string)
+				id, _ := group["id"].(string)
+				groupName, _ := group["name"].(string)
 				var lights []any
 				if lightsVal, ok := group["lights"].([]any); ok && lightsVal != nil {
 					lights = lightsVal
 				}
 				lightIDs := make([]string, len(lights))
 				for i, light := range lights {
-					lightIDs[i] = light.(string)
+					lightIDs[i], _ = light.(string)
 				}
 				fmt.Printf("id=\"%s\" name=\"%s\" lights=\"%s\"\n", id, groupName, strings.Join(lightIDs, ","))
 				return nil
 			}
 
-			lights := group["lights"].([]any)
+			lights, _ := group["lights"].([]any)
 			if len(lights) == 0 {
 				pterm.Info.Println("No lights in group.")
 				return nil
 			}
 
 			for _, lightID := range lights {
-				id := lightID.(string)
+				id, _ := lightID.(string)
 				light, err := client.GetLight(id)
 				if err != nil {
 					pterm.Warning.Printf("Could not fetch light %s: %v\n", id, err)
@@ -321,7 +328,9 @@ func newGroupGetCommand(_ *slog.Logger) *cobra.Command {
 					[]string{"IP", fmt.Sprintf("%v", light["ip"])},
 					[]string{"Port", fmt.Sprintf("%v", light["port"])},
 				}
-				pterm.DefaultTable.WithData(table).Render()
+				if err := pterm.DefaultTable.WithData(table).Render(); err != nil {
+					return fmt.Errorf("failed to render table: %w", err)
+				}
 				pterm.Println() // Blank line between lights
 			}
 			return nil
@@ -345,7 +354,7 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			// Get groups for selection
@@ -355,7 +364,7 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 			}
 
 			if len(groups) == 0 {
-				return fmt.Errorf("no groups found")
+				return errors.New("no groups found")
 			}
 
 			// Use identifier from args if provided
@@ -368,7 +377,9 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 				// Create options for dropdown
 				options := make([]string, len(groups))
 				for i, group := range groups {
-					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
+					id, _ := group["id"].(string)
+					groupName, _ := group["name"].(string)
+					options[i] = fmt.Sprintf("%s (%s)", id, groupName)
 				}
 
 				selected, err := pterm.DefaultInteractiveSelect.
@@ -416,13 +427,13 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 					if err != nil {
 						return fmt.Errorf("invalid brightness value: %w", err)
 					}
-					value = brightness
 					// Clamp brightness to valid range (0-100)
-					if value.(int) < 0 {
-						value = 0
-					} else if value.(int) > 100 {
-						value = 100
+					if brightness < 0 {
+						brightness = 0
+					} else if brightness > 100 {
+						brightness = 100
 					}
+					value = brightness
 				case "temperature":
 					temp, err := strconv.Atoi(args[2])
 					if err != nil {
@@ -459,44 +470,46 @@ func newGroupSetCommand(_ *slog.Logger) *cobra.Command {
 					value = selected == "On"
 
 				case "brightness":
-					brightness, err := pterm.DefaultInteractiveTextInput.WithMultiLine(false).Show("Enter brightness (0-100)")
+					brightnessStr, err := pterm.DefaultInteractiveTextInput.WithMultiLine(false).Show("Enter brightness (0-100)")
 					if err != nil {
 						return fmt.Errorf("failed to get brightness value: %w", err)
 					}
-					value, err = strconv.Atoi(brightness)
+					brightnessVal, err := strconv.Atoi(brightnessStr)
 					if err != nil {
 						return fmt.Errorf("invalid brightness value: %w", err)
 					}
 					// Clamp brightness to valid range (0-100)
-					if value.(int) < 0 {
-						value = 0
-					} else if value.(int) > 100 {
-						value = 100
+					if brightnessVal < 0 {
+						brightnessVal = 0
+					} else if brightnessVal > 100 {
+						brightnessVal = 100
 					}
+					value = brightnessVal
 
 				case "temperature":
-					temp, err := pterm.DefaultInteractiveTextInput.WithMultiLine(false).Show("Enter temperature (2900-7000K)")
+					tempStr, err := pterm.DefaultInteractiveTextInput.WithMultiLine(false).Show("Enter temperature (2900-7000K)")
 					if err != nil {
 						return fmt.Errorf("failed to get temperature value: %w", err)
 					}
-					value, err = strconv.Atoi(temp)
+					tempVal, err := strconv.Atoi(tempStr)
 					if err != nil {
 						return fmt.Errorf("invalid temperature value: %w", err)
 					}
 					// Clamp temperature to valid range
-					if value.(int) < 2900 {
-						value = 2900
-					} else if value.(int) > 7000 {
-						value = 7000
+					if tempVal < 2900 {
+						tempVal = 2900
+					} else if tempVal > 7000 {
+						tempVal = 7000
 					}
 					// Convert to mireds for display
-					mireds := 1000000 / value.(int)
+					mireds := 1000000 / tempVal
 					if mireds > 344 {
 						mireds = 344
 					} else if mireds < 143 {
 						mireds = 143
 					}
-					pterm.Info.Printf("Setting temperature to %dK (%d mireds)\n", value.(int), mireds)
+					pterm.Info.Printf("Setting temperature to %dK (%d mireds)\n", tempVal, mireds)
+					value = tempVal
 				}
 			}
 
@@ -563,7 +576,7 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, ok := cmd.Context().Value(ClientContextKey).(client.ClientInterface)
 			if !ok {
-				return fmt.Errorf("client not found in context")
+				return errors.New("client not found in context")
 			}
 
 			// Get all groups
@@ -590,7 +603,9 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 				// Create options for group selection
 				options := make([]string, len(groups))
 				for i, group := range groups {
-					options[i] = fmt.Sprintf("%s (%s)", group["id"].(string), group["name"].(string))
+					id, _ := group["id"].(string)
+					groupName, _ := group["name"].(string)
+					options[i] = fmt.Sprintf("%s (%s)", id, groupName)
 				}
 
 				selected, err := pterm.DefaultInteractiveSelect.
@@ -617,7 +632,8 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 			currentLights := make(map[string]bool)
 			if lights, ok := group["lights"].([]any); ok {
 				for _, light := range lights {
-					currentLights[light.(string)] = true
+					lightStr, _ := light.(string)
+					currentLights[lightStr] = true
 				}
 			}
 
@@ -634,7 +650,7 @@ func newGroupEditCommand(_ *slog.Logger) *cobra.Command {
 			// Create options for light selection
 			options := make([]string, 0, len(lights))
 			for id, light := range lights {
-				lightMap := light.(map[string]any)
+				lightMap, _ := light.(map[string]any)
 				selected := ""
 				if currentLights[id] {
 					selected = " ✓"
@@ -678,14 +694,17 @@ func resolveGroupIdentifier(client client.ClientInterface, identifier string) (s
 
 	// First try to find by name
 	for _, group := range groups {
-		if group["name"].(string) == identifier {
-			return group["id"].(string), nil
+		name, _ := group["name"].(string)
+		if name == identifier {
+			id, _ := group["id"].(string)
+			return id, nil
 		}
 	}
 
 	// If not found by name, check if it's a valid ID
 	for _, group := range groups {
-		if group["id"].(string) == identifier {
+		id, _ := group["id"].(string)
+		if id == identifier {
 			return identifier, nil
 		}
 	}

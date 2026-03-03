@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -14,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/internal/config"
-	"github.com/jmylchreest/keylightd/pkg/keylight"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // setupIntegrationTest prepares a test environment with server and config
@@ -93,7 +93,7 @@ func TestSocketCommunication(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Connect to socket
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err, "Should connect to socket")
 	defer conn.Close()
 
@@ -135,7 +135,7 @@ func setupHTTPIntegrationTest(t *testing.T) (*Server, string, string) {
 	cfg.Config.Server.UnixSocket = socketPath
 
 	// Find a free port for the HTTP listener
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	addr := ln.Addr().String()
 	ln.Close() // Release it so the server can bind
@@ -169,7 +169,7 @@ func setupHTTPIntegrationTest(t *testing.T) (*Server, string, string) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	server := New(logger, cfg, lightManager, VersionInfo{Version: "test", Commit: "abc1234", BuildDate: "2026-01-01T00:00:00Z"})
 
-	return server, apiKeyStr, fmt.Sprintf("http://%s", addr)
+	return server, apiKeyStr, "http://" + addr
 }
 
 // TestHTTPCommunication tests communication with the server over HTTP
@@ -186,7 +186,7 @@ func TestHTTPCommunication(t *testing.T) {
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	t.Run("list lights with valid API key", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/lights", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/lights", nil)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 
@@ -205,7 +205,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("list lights with X-API-Key header", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/lights", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/lights", nil)
 		require.NoError(t, err)
 		req.Header.Set("X-API-Key", apiKey)
 
@@ -217,7 +217,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("list lights without API key returns 401", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/lights", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/lights", nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
@@ -228,7 +228,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("list lights with invalid API key returns 401", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/lights", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/lights", nil)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer invalid-key-1234")
 
@@ -240,7 +240,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("health endpoint is public", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/api/v1/health", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/api/v1/health", nil)
 		require.NoError(t, err)
 		// No API key
 
@@ -252,7 +252,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("healthz probe endpoint is public", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/healthz", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/healthz", nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
@@ -263,7 +263,7 @@ func TestHTTPCommunication(t *testing.T) {
 	})
 
 	t.Run("OpenAPI spec is public", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, baseURL+"/openapi.json", nil)
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, baseURL+"/openapi.json", nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
@@ -288,7 +288,7 @@ func TestHTTPSetLightState(t *testing.T) {
 
 	t.Run("set brightness on existing light", func(t *testing.T) {
 		body := `{"brightness": 75}`
-		req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Content-Type", "application/json")
@@ -307,7 +307,7 @@ func TestHTTPSetLightState(t *testing.T) {
 
 	t.Run("set state on non-existent light returns error", func(t *testing.T) {
 		body := `{"brightness": 50}`
-		req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/lights/no-such-light/state", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/lights/no-such-light/state", strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Content-Type", "application/json")
@@ -322,7 +322,7 @@ func TestHTTPSetLightState(t *testing.T) {
 
 	t.Run("set multiple properties at once", func(t *testing.T) {
 		body := `{"on": true, "brightness": 80}`
-		req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 		req.Header.Set("Content-Type", "application/json")
@@ -336,7 +336,7 @@ func TestHTTPSetLightState(t *testing.T) {
 
 	t.Run("set state without API key returns 401", func(t *testing.T) {
 		body := `{"on": true}`
-		req, err := http.NewRequest(http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, baseURL+"/api/v1/lights/test-light-1/state", strings.NewReader(body))
 		require.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 
@@ -371,7 +371,7 @@ func TestConcurrentRequests(t *testing.T) {
 	for range make([]struct{}, numRequests) {
 		go func() {
 			// Connect to socket
-			conn, err := net.Dial("unix", socketPath)
+			conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 			if err != nil {
 				errChan <- err
 				return
@@ -423,7 +423,7 @@ func TestServerShutdownGraceful(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Open a connection to ensure accept loop is active
-	conn, err := net.Dial("unix", socketPath)
+	conn, err := (&net.Dialer{}).DialContext(context.Background(), "unix", socketPath)
 	require.NoError(t, err)
 	_ = conn.Close()
 
@@ -436,7 +436,7 @@ func TestServerShutdownGraceful(t *testing.T) {
 	require.True(t, os.IsNotExist(statErr), "socket should be removed after shutdown")
 
 	// Attempt to connect again should fail quickly
-	_, dialErr := net.DialTimeout("unix", socketPath, 100*time.Millisecond)
+	_, dialErr := (&net.Dialer{Timeout: 100 * time.Millisecond}).DialContext(context.Background(), "unix", socketPath)
 	require.Error(t, dialErr, "dial should fail after shutdown")
 
 	// Shutdown should complete within a bounded time (sanity check)

@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
 // Use the same clientContextKey as in light.go

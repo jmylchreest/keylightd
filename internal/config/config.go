@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -165,7 +166,8 @@ func Load(configName, configFile string) (*Config, error) {
 	v.AutomaticEnv()
 
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok || os.IsNotExist(err) {
+		var configNotFound viper.ConfigFileNotFoundError
+		if errors.As(err, &configNotFound) || os.IsNotExist(err) {
 			slog.Debug("No config file found, using defaults")
 		} else {
 			return nil, err // Do not wrap, return as-is
@@ -186,7 +188,9 @@ func Load(configName, configFile string) (*Config, error) {
 			if err := yaml.Unmarshal(data, &raw); err == nil {
 				if stateRaw, ok := raw["state"]; ok {
 					stateBytes, _ := yaml.Marshal(stateRaw)
-					yaml.Unmarshal(stateBytes, &cfg.State)
+					if err := yaml.Unmarshal(stateBytes, &cfg.State); err != nil {
+						slog.Warn("Failed to unmarshal state from config file", "error", err)
+					}
 				}
 			}
 		}
@@ -268,7 +272,7 @@ func (c *Config) Save() error {
 	}
 	configPath := c.v.ConfigFileUsed()
 	if configPath == "" {
-		return fmt.Errorf("no config file path set for saving")
+		return errors.New("no config file path set for saving")
 	}
 
 	// Create the directory if it doesn't exist

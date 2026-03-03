@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"strconv"
+	"strings"
 	"sync"
 
 	"fyne.io/systray"
@@ -70,6 +71,8 @@ func (t *TrayManager) OnReady() {
 // A mutex serialises access so that concurrent GetStatus polls (which overlap when
 // light HTTP requests are slow/timing out) cannot race through rebuildMenuStructure
 // and leave the menu half-built (e.g. missing the Quit item).
+//
+//nolint:misspell // British spelling intentional
 func (t *TrayManager) UpdateMenu(status *Status) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -307,23 +310,24 @@ func (t *TrayManager) UpdateIconAndTooltip(status *Status) {
 	}
 
 	// Build detailed tooltip with groups and lights using same format as menu
-	tooltip := "Keylight Control\n"
+	var tooltip strings.Builder
+	tooltip.WriteString("Keylight Control\n")
 
 	// Add groups section
 	if len(status.Groups) > 0 {
-		tooltip += "\nGroups\n"
+		tooltip.WriteString("\nGroups\n")
 		for _, group := range status.Groups {
-			tooltip += formatMenuTitle(group.Name, group.On) + "\n"
+			tooltip.WriteString(formatMenuTitle(group.Name, group.On) + "\n")
 		}
 	}
 
 	// Add lights section
 	if len(status.Lights) > 0 {
-		tooltip += "\nLights\n"
+		tooltip.WriteString("\nLights\n")
 		for _, light := range status.Lights {
-			tooltip += formatMenuTitle(light.Name, light.On) + "\n"
+			tooltip.WriteString(formatMenuTitle(light.Name, light.On) + "\n")
 		}
 	}
 
-	systray.SetTooltip(tooltip)
+	systray.SetTooltip(tooltip.String())
 }

@@ -181,12 +181,12 @@ func (m *Manager) validateAndPrepareStateUpdate(property string, value any, curr
 }
 
 // logLightInfo logs detailed information about a light.
-func (m *Manager) logLightInfo(level slog.Level, message string, light *Light) {
+func (m *Manager) logLightInfo(ctx context.Context, level slog.Level, message string, light *Light) {
 	if light == nil {
 		return
 	}
 
-	m.logger.Log(context.Background(), level, message,
+	m.logger.Log(ctx, level, message,
 		slog.String("id", light.ID),
 		slog.String("ip", light.IP.String()),
 		slog.Int("port", light.Port),

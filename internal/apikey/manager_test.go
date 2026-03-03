@@ -1,16 +1,16 @@
 package apikey
 
 import (
-	"io"
 	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
 )
 
 // newTestManager creates a Manager with a temp config file.
@@ -22,9 +22,7 @@ func newTestManager(t *testing.T) (*Manager, *config.Config) {
 	cfg, err := config.Load("config.yaml", cfgPath)
 	require.NoError(t, err, "failed to load initial config")
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	logger := slog.New(slog.DiscardHandler)
 
 	mgr := NewManager(cfg, logger)
 	return mgr, cfg

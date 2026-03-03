@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,11 +13,12 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/utils"
 	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -81,7 +83,7 @@ type Settings struct {
 	ConnectionType string `json:"connectionType"`
 	SocketPath     string `json:"socketPath"`
 	APIUrl         string `json:"apiUrl"`
-	APIKey         string `json:"apiKey"`
+	APIKey         string `json:"apiKey"` //nolint:gosec // G117: config field, not a hardcoded secret
 }
 
 // Light represents a light for the frontend
@@ -145,10 +147,10 @@ func (a *App) SaveSettings(settings Settings) error {
 	if settings.ConnectionType == "http" {
 		// Validate HTTP settings
 		if settings.APIUrl == "" {
-			return fmt.Errorf("API URL is required for HTTP connection")
+			return errors.New("API URL is required for HTTP connection")
 		}
 		if settings.APIKey == "" {
-			return fmt.Errorf("API key is required for HTTP connection")
+			return errors.New("API key is required for HTTP connection")
 		}
 
 		// Create HTTP client
@@ -329,7 +331,7 @@ func (a *App) watchCustomCSS() {
 	}
 
 	// Create config directory if it doesn't exist
-	if err := os.MkdirAll(cssDir, 0755); err != nil {
+	if err := os.MkdirAll(cssDir, 0755); err != nil { //nolint:gosec // G301: CSS dir needs to be readable
 		return
 	}
 
@@ -392,7 +394,7 @@ func (a *App) GetDaemonVersion() string {
 // GetStatus returns the current status of all lights and groups
 func (a *App) GetStatus() (*Status, error) {
 	if a.client == nil {
-		return nil, fmt.Errorf("client not initialized")
+		return nil, errors.New("client not initialized")
 	}
 
 	lights, err := a.client.GetLights()
@@ -413,7 +415,10 @@ func (a *App) GetStatus() (*Status, error) {
 	// Process lights
 	lightMap := make(map[string]Light)
 	for id, lightData := range lights {
-		lightInfo := lightData.(map[string]any)
+		lightInfo, ok := lightData.(map[string]any)
+		if !ok {
+			continue
+		}
 		light := a.convertLight(id, lightInfo)
 		lightMap[id] = light
 		status.Lights = append(status.Lights, light)
@@ -460,7 +465,10 @@ func (a *App) GetLights() ([]Light, error) {
 
 	result := make([]Light, 0, len(lights))
 	for id, lightData := range lights {
-		lightInfo := lightData.(map[string]any)
+		lightInfo, ok := lightData.(map[string]any)
+		if !ok {
+			continue
+		}
 		result = append(result, a.convertLight(id, lightInfo))
 	}
 
@@ -487,7 +495,10 @@ func (a *App) GetGroups() ([]Group, error) {
 	// Build light map
 	lightMap := make(map[string]Light)
 	for id, lightData := range lights {
-		lightInfo := lightData.(map[string]any)
+		lightInfo, ok := lightData.(map[string]any)
+		if !ok {
+			continue
+		}
 		lightMap[id] = a.convertLight(id, lightInfo)
 	}
 
@@ -532,7 +543,7 @@ func (a *App) SetGroupLights(groupID string, lightIDs []string) error {
 // convertLight converts the API light data to our Light struct
 func (a *App) convertLight(id string, data map[string]any) Light {
 	// Use the display name from the light data, fall back to unescaped ID
-	name := ""
+	var name string
 	if v, ok := data["name"].(string); ok && v != "" {
 		name = v
 	} else {
@@ -582,14 +593,16 @@ func (a *App) convertLight(id string, data map[string]any) Light {
 
 // convertGroup converts the API group data to our Group struct
 func (a *App) convertGroup(data map[string]any, lightMap map[string]Light) Group {
-	id := data["id"].(string)
-	name := data["name"].(string)
+	id, _ := data["id"].(string)
+	name, _ := data["name"].(string)
 
 	var lightIDs []string
 	if lights, ok := data["lights"].([]any); ok {
-		lightIDs = make([]string, len(lights))
-		for i, l := range lights {
-			lightIDs[i] = l.(string)
+		lightIDs = make([]string, 0, len(lights))
+		for _, l := range lights {
+			if s, ok := l.(string); ok {
+				lightIDs = append(lightIDs, s)
+			}
 		}
 	}
 
@@ -642,14 +655,7 @@ func (a *App) SetInitialWindowHeight(contentHeight int) {
 	const maxHeight = 800
 	const padding = 100
 
-	totalHeight := contentHeight + padding
-
-	if totalHeight < minHeight {
-		totalHeight = minHeight
-	}
-	if totalHeight > maxHeight {
-		totalHeight = maxHeight
-	}
+	totalHeight := min(max(contentHeight+padding, minHeight), maxHeight)
 
 	runtime.WindowSetSize(a.ctx, 380, totalHeight)
 }

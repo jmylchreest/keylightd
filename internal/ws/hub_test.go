@@ -3,7 +3,6 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,13 +12,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/events"
 )
 
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return slog.New(slog.DiscardHandler)
 }
 
 func startTestHub(t *testing.T) (*Hub, *events.Bus, context.CancelFunc) {
@@ -52,8 +52,11 @@ func wsURL(server *httptest.Server) string {
 func dialWS(t *testing.T, server *httptest.Server) *websocket.Conn {
 	t.Helper()
 	dialer := websocket.Dialer{}
-	conn, _, err := dialer.Dial(wsURL(server), nil)
+	conn, resp, err := dialer.Dial(wsURL(server), nil)
 	require.NoError(t, err)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	t.Cleanup(func() { conn.Close() })
 	return conn
 }
@@ -190,7 +193,7 @@ func TestHub_MultipleEventsInSequence(t *testing.T) {
 
 	// Read all events
 	var received []events.EventType
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		_, msg, err := conn.ReadMessage()
 		require.NoError(t, err)
@@ -214,6 +217,9 @@ func TestHandler_UpgradesConnection(t *testing.T) {
 	dialer := websocket.Dialer{}
 	conn, resp, err := dialer.Dial(wsURL(server), nil)
 	require.NoError(t, err)
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+	}
 	defer conn.Close()
 
 	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
@@ -228,7 +234,9 @@ func TestHandler_NonWebSocketRequest(t *testing.T) {
 	defer server.Close()
 
 	// A regular HTTP GET (not a WebSocket upgrade) should fail
-	resp, err := http.Get(server.URL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

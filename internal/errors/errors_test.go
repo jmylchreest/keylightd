@@ -43,7 +43,7 @@ func TestLogErrorAndReturn(t *testing.T) {
 	t.Run("returns the same error", func(t *testing.T) {
 		err := errors.New("test error")
 		result := LogErrorAndReturn(logger, err, "test message", "key", "value")
-		if result != err {
+		if !errors.Is(result, err) {
 			t.Errorf("LogErrorAndReturn returned different error")
 		}
 	})

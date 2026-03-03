@@ -57,63 +57,50 @@ func NewKeyLightClient(ip string, port int, logger *slog.Logger, httpClient ...*
 	}
 }
 
-// GetAccessoryInfo retrieves basic device information
-func (c *KeyLightClient) GetAccessoryInfo(ctx context.Context) (*AccessoryInfo, error) {
-	url := c.baseURL + "/accessory-info"
+// doGet performs a GET request to the given path and JSON-decodes the response into result.
+func (c *KeyLightClient) doGet(ctx context.Context, path string, result any) error {
+	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create request: %w", err)
 	}
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // G704: URL is from discovered light address
 	if err != nil {
-		c.logger.Error("light: /accessory-info request failed", "url", url, "error", err)
-		return nil, fmt.Errorf("failed to get accessory info: %w", err)
+		c.logger.Error("light: request failed", "url", url, "error", err)
+		return fmt.Errorf("failed to get %s: %w", path, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		err := fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		c.logger.Error("light: /accessory-info request failed", "url", url, "error", err)
+		c.logger.Error("light: request failed", "url", url, "error", err)
+		return err
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		c.logger.Error("light: decode failed", "url", url, "error", err)
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	c.logger.Debug("light: response", "url", url, "result", result)
+	return nil
+}
+
+// GetAccessoryInfo retrieves basic device information
+func (c *KeyLightClient) GetAccessoryInfo(ctx context.Context) (*AccessoryInfo, error) {
+	var info AccessoryInfo
+	if err := c.doGet(ctx, "/accessory-info", &info); err != nil {
 		return nil, err
 	}
-
-	var info AccessoryInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		c.logger.Error("light: /accessory-info decode failed", "url", url, "error", err)
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	c.logger.Debug("light: /accessory-info response", "url", url, "info", info)
 	return &info, nil
 }
 
 // GetLightState retrieves the current state of the light
 func (c *KeyLightClient) GetLightState(ctx context.Context) (*LightState, error) {
-	url := c.baseURL + "/lights"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		c.logger.Error("light: /lights request failed", "url", url, "error", err)
-		return nil, fmt.Errorf("failed to get light state: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		c.logger.Error("light: /lights request failed", "url", url, "error", err)
+	var state LightState
+	if err := c.doGet(ctx, "/lights", &state); err != nil {
 		return nil, err
 	}
-
-	var state LightState
-	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
-		c.logger.Error("light: /lights decode failed", "url", url, "error", err)
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	c.logger.Debug("light: /lights response", "url", url, "state", state)
 	return &state, nil
 }
 
@@ -160,7 +147,7 @@ func (c *KeyLightClient) SetLightState(ctx context.Context, on bool, brightness,
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.httpClient.Do(req) //nolint:gosec // G704: URL is from discovered light address
 	if err != nil {
 		return fmt.Errorf("failed to set light state: %w", err)
 	}
