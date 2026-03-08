@@ -102,7 +102,7 @@ func (s *Server) Start() error {
 			}
 		}()
 		// Create a cancellable context for the worker tied to rootCtx
-		workerCtx, cancelWorker := context.WithCancel(s.rootCtx)
+		workerCtx, cancelWorker := context.WithCancel(s.rootCtx) //nolint:gosec // G118: cancelWorker is called in the goroutine below
 		go func() {
 			<-s.shutdown   // Wait for server shutdown signal
 			cancelWorker() // Cancel the worker's context

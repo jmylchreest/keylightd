@@ -48,7 +48,7 @@ func TestRawAPIKeyAuth_ValidBearerToken(t *testing.T) {
 		w.Write([]byte("ok"))
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+key.Key)
 	rec := httptest.NewRecorder()
 
@@ -67,7 +67,7 @@ func TestRawAPIKeyAuth_ValidXAPIKeyHeader(t *testing.T) {
 		w.Write([]byte("ok"))
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("X-API-Key", key.Key)
 	rec := httptest.NewRecorder()
 
@@ -84,7 +84,7 @@ func TestRawAPIKeyAuth_MissingKey(t *testing.T) {
 		t.Fatal("handler should not be called when key is missing")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 
 	handler.ServeHTTP(rec, req)
@@ -101,7 +101,7 @@ func TestRawAPIKeyAuth_InvalidKey(t *testing.T) {
 		t.Fatal("handler should not be called with invalid key")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer invalid-key-12345")
 	rec := httptest.NewRecorder()
 
@@ -123,7 +123,7 @@ func TestRawAPIKeyAuth_DisabledKey(t *testing.T) {
 		t.Fatal("handler should not be called with disabled key")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+key.Key)
 	rec := httptest.NewRecorder()
 
@@ -153,7 +153,7 @@ func TestRawAPIKeyAuth_ExpiredKey(t *testing.T) {
 		t.Fatal("handler should not be called with expired key")
 	}))
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+key.Key)
 	rec := httptest.NewRecorder()
 
@@ -172,7 +172,7 @@ func TestRawAPIKeyAuth_BearerPrefixPrecedence(t *testing.T) {
 	}))
 
 	// If Authorization header has "Bearer " prefix, it should be used even if X-API-Key is set
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+key.Key)
 	req.Header.Set("X-API-Key", "wrong-key")
 	rec := httptest.NewRecorder()
@@ -191,7 +191,7 @@ func TestRawAPIKeyAuth_AuthorizationWithoutBearerFallsToXAPIKey(t *testing.T) {
 	}))
 
 	// Authorization header without "Bearer " prefix should fall through to X-API-Key
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "not-a-bearer-token")
 	req.Header.Set("X-API-Key", key.Key)
 	rec := httptest.NewRecorder()
