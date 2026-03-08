@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"flag"
 	"log"
 
@@ -11,9 +10,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
 )
-
-//go:embed all:frontend/dist
-var assets embed.FS
 
 var (
 	version   = "dev"
