@@ -2,6 +2,8 @@ version: "2"
 
 run:
   timeout: 5m
+  exclude-dirs:
+    - contrib/keylightd-tray
 
 linters:
   default: standard
