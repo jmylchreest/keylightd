@@ -79,3 +79,17 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Clean up the github-pages artifact after deployment to minimize
+  # Actions storage billing.
+  cleanup-artifacts:
+    name: Clean up build artifacts
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+    steps:
+      - name: Delete all workflow run artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: github-pages
+          failOnError: false

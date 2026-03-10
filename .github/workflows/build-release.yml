@@ -718,3 +718,21 @@ jobs:
           username: ${{ secrets.EGO_USERNAME }}
           password: ${{ secrets.EGO_PASSWORD }}
           accept-tos: true
+
+  # Clean up intermediary build artifacts to minimize Actions storage billing.
+  # Artifacts are only used to pass files between jobs; once the release is
+  # created and publishing jobs complete, they are no longer needed.
+  cleanup-artifacts:
+    name: Clean up build artifacts
+    runs-on: ubuntu-latest
+    needs: [create-release, publish-aur, publish-homebrew, publish-ego]
+    if: always()
+    steps:
+      - name: Delete all workflow run artifacts
+        uses: geekyeggo/delete-artifact@v5
+        with:
+          name: |
+            keylightd_*
+            keylightd-tray_*
+            keylightd-gnome-extension_*
+          failOnError: false
