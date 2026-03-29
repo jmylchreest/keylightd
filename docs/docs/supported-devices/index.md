@@ -9,6 +9,7 @@ keylightd currently supports the following devices:
 ## Elgato Key Light Series
 
 - **Elgato Key Light** - The original professional lighting solution for content creators
+- **Elgato Key Light MK.2** - Updated Key Light with 5 GHz Wi-Fi and Bluetooth support
 - **Elgato Key Light Air** - Compact wireless version of the Key Light
 
 These devices are automatically discovered on your network using mDNS/Bonjour and can be controlled through keylightd's CLI, HTTP API, or Unix socket interface.

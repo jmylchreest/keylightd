@@ -29,6 +29,7 @@ var (
 	validProductNames = []string{
 		"Elgato Key Light",
 		"Elgato Key Light Air",
+		"Elgato Key Light MK.2",
 	}
 
 	// Discovery parameters - tuned for reliability across platforms.

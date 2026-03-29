@@ -18,6 +18,12 @@ import (
 // newValidAccessoryInfoHandler returns an http.Handler that responds with valid
 // Elgato Key Light accessory-info JSON. An optional delay can simulate slow responses.
 func newValidAccessoryInfoHandler(displayName string, delay time.Duration) http.Handler {
+	return newAccessoryInfoHandler("Elgato Key Light", 2, displayName, delay)
+}
+
+// newAccessoryInfoHandler returns an http.Handler that responds with
+// accessory-info JSON for the given product name and board type.
+func newAccessoryInfoHandler(productName string, boardType int, displayName string, delay time.Duration) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if delay > 0 {
 			select {
@@ -29,8 +35,8 @@ func newValidAccessoryInfoHandler(displayName string, delay time.Duration) http.
 		if r.URL.Path == "/elgato/accessory-info" {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(AccessoryInfo{
-				ProductName:         "Elgato Key Light",
-				HardwareBoardType:   2,
+				ProductName:         productName,
+				HardwareBoardType:   boardType,
 				FirmwareBuildNumber: 200,
 				FirmwareVersion:     "1.0.3",
 				SerialNumber:        "SN-" + displayName,
@@ -108,6 +114,21 @@ func TestValidateLight_ValidKeyLight(t *testing.T) {
 	assert.Equal(t, "Elgato Key Light", light.ProductName)
 	assert.Equal(t, "SN-Test Light", light.SerialNumber)
 	assert.Equal(t, "Test Light", light.Name)
+	assert.Equal(t, entry.Port, light.Port)
+}
+
+func TestValidateLight_ValidKeyLightMK2(t *testing.T) {
+	server := httptest.NewServer(newAccessoryInfoHandler("Elgato Key Light MK.2", 205, "Test MK2 Light", 0))
+	defer server.Close()
+
+	entry := makeServiceEntry(t, server, "testmk2._elg._tcp.local.")
+	light, valid := validateLight(context.Background(), entry, discardLogger())
+
+	assert.True(t, valid)
+	assert.Equal(t, "Elgato Key Light MK.2", light.ProductName)
+	assert.Equal(t, 205, light.HardwareBoardType)
+	assert.Equal(t, "SN-Test MK2 Light", light.SerialNumber)
+	assert.Equal(t, "Test MK2 Light", light.Name)
 	assert.Equal(t, entry.Port, light.Port)
 }
 
