@@ -11,6 +11,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
+	"github.com/jmylchreest/keylightd/internal/apikey"
 	"github.com/jmylchreest/keylightd/pkg/client"
 )
 
@@ -176,7 +177,7 @@ func newAPIKeyAddCommand(_ *slog.Logger) *cobra.Command {
 			var expiresInDuration time.Duration
 			if expiresIn != "" && expiresIn != "0" { // "0" or empty means never expires
 				var err error
-				expiresInDuration, err = time.ParseDuration(expiresIn)
+				expiresInDuration, err = apikey.ParseExpiryDuration(expiresIn)
 				if err != nil {
 					return fmt.Errorf("invalid duration format \"%s\". Use formats like 300s, 1.5h, 24h, 30d, or 0 for never: %w", expiresIn, err)
 				}

@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jmylchreest/keylightd/internal/apikey"
+	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/group"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
@@ -303,4 +306,27 @@ func TestJoinStrings(t *testing.T) {
 	assert.Equal(t, "", joinStrings(nil))
 	assert.Equal(t, "a", joinStrings([]string{"a"}))
 	assert.Equal(t, "a; b; c", joinStrings([]string{"a", "b", "c"}))
+}
+
+func TestAPIKeyHandler_CreateAPIKey_AcceptsDayDuration(t *testing.T) {
+	mgr, _ := newHandlerTestAPIKeyManager(t)
+	handler := &APIKeyHandler{Manager: mgr}
+
+	input := &CreateAPIKeyInput{}
+	input.Body.Name = "day-key"
+	input.Body.ExpiresIn = "30d"
+
+	out, err := handler.CreateAPIKey(context.Background(), input)
+	require.NoError(t, err)
+	assert.Equal(t, "day-key", out.Body.Name)
+}
+
+func newHandlerTestAPIKeyManager(t *testing.T) (*apikey.Manager, *config.Config) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.yaml")
+	cfg, err := config.Load("config.yaml", cfgPath)
+	require.NoError(t, err)
+
+	return apikey.NewManager(cfg, slog.New(slog.DiscardHandler)), cfg
 }

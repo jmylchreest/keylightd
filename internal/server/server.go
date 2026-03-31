@@ -651,20 +651,15 @@ func (s *Server) handleSetGroupState(r socketRequest) socketActionResult {
 func (s *Server) handleAPIKeyAdd(r socketRequest) socketActionResult {
 	name, _ := r.data["name"].(string)
 	expiresInStr, _ := r.data["expires_in"].(string)
-	var expiresIn time.Duration
-	if expiresInStr != "" {
-		// Try Go duration string first (e.g., "720h", "30m"), then seconds-as-float for backward compat
-		d, err := time.ParseDuration(expiresInStr)
-		if err != nil {
-			expiresInSecs, err2 := strconv.ParseFloat(expiresInStr, 64)
-			if err2 != nil {
-				s.sendError(r.conn, r.id, fmt.Sprintf("invalid expires_in format (use Go duration like '720h' or seconds): %s", err))
-				return socketContinue
-			}
-			expiresIn = time.Duration(expiresInSecs * float64(time.Second))
-		} else {
-			expiresIn = d
+	expiresIn, err := apikey.ParseExpiryDuration(expiresInStr)
+	if err != nil && expiresInStr != "" {
+		// Backward compatibility: accept plain seconds from legacy socket clients.
+		expiresInSecs, err2 := strconv.ParseFloat(expiresInStr, 64)
+		if err2 != nil {
+			s.sendError(r.conn, r.id, fmt.Sprintf("invalid expires_in format (use duration like '720h', '30d', or seconds): %s", err))
+			return socketContinue
 		}
+		expiresIn = time.Duration(expiresInSecs * float64(time.Second))
 	}
 	if name == "" {
 		s.sendError(r.conn, r.id, "missing name for apikey_add")

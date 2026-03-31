@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -72,13 +71,9 @@ func (h *APIKeyHandler) CreateAPIKey(_ context.Context, input *CreateAPIKeyInput
 		return nil, huma.Error400BadRequest("API key name is required")
 	}
 
-	var expiresInDuration time.Duration
-	if input.Body.ExpiresIn != "" {
-		var err error
-		expiresInDuration, err = time.ParseDuration(input.Body.ExpiresIn)
-		if err != nil {
-			return nil, huma.Error400BadRequest(fmt.Sprintf("Invalid expires_in duration: %s", err))
-		}
+	expiresInDuration, err := apikey.ParseExpiryDuration(input.Body.ExpiresIn)
+	if err != nil {
+		return nil, huma.Error400BadRequest(fmt.Sprintf("Invalid expires_in duration: %s", err))
 	}
 
 	newKey, err := h.Manager.CreateAPIKey(input.Body.Name, expiresInDuration)
@@ -97,7 +92,7 @@ func (h *APIKeyHandler) CreateAPIKey(_ context.Context, input *CreateAPIKeyInput
 	}, nil
 }
 
-// ListAPIKeys lists all API keys (without full key strings for security).
+// ListAPIKeys lists all API keys.
 func (h *APIKeyHandler) ListAPIKeys(_ context.Context, _ *ListAPIKeysInput) (*ListAPIKeysOutput, error) {
 	keys := h.Manager.ListAPIKeys()
 	responseKeys := make([]APIKeyResponse, len(keys))

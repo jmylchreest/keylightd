@@ -15,15 +15,17 @@ import (
 
 type mockAPIKeyClient struct {
 	client.ClientInterface
-	failAdd    bool
-	failDelete bool
-	apiKeys    map[string]map[string]any
+	failAdd              bool
+	failDelete           bool
+	apiKeys              map[string]map[string]any
+	lastExpiresInSeconds float64
 }
 
 func (m *mockAPIKeyClient) AddAPIKey(name string, expiresInSeconds float64) (map[string]any, error) {
 	if m.failAdd || m.apiKeys[name] != nil {
 		return nil, errors.New("duplicate or failed to add API key")
 	}
+	m.lastExpiresInSeconds = expiresInSeconds
 	key := map[string]any{"key": name + "-key", "name": name}
 	m.apiKeys[name] = key
 	return key, nil
@@ -90,4 +92,17 @@ func TestAPIKeyDeleteCommand_NotFound(t *testing.T) {
 	kv := parseKeyValueOutput(out)
 	require.Equal(t, "notfound", kv["Key"])
 	require.Equal(t, "not found", kv["Error"])
+}
+
+func TestAPIKeyAddCommand_AcceptsDayDuration(t *testing.T) {
+	mock := &mockAPIKeyClient{apiKeys: map[string]map[string]any{}}
+	ctx := context.WithValue(context.Background(), clientContextKey, mock)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cmd := newAPIKeyAddCommand(logger)
+	cmd.SetContext(ctx)
+	cmd.SetArgs([]string{"monthly", "30d"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+	require.InDelta(t, 30*24*60*60, mock.lastExpiresInSeconds, 0.001)
 }
