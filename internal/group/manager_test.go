@@ -228,6 +228,54 @@ func TestGroupLightsJSONAlwaysArray(t *testing.T) {
 	}
 }
 
+func TestGetGroupReturnsCopy(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	lights := &mockLightManager{
+		lights: map[string]*keylight.Light{
+			"light1": {ID: "light1", Name: "Light 1"},
+		},
+	}
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
+
+	created, err := manager.CreateGroup(context.Background(), "test-group", []string{"light1"})
+	require.NoError(t, err)
+
+	got, err := manager.GetGroup(created.ID)
+	require.NoError(t, err)
+	got.Lights[0] = "modified"
+
+	gotAgain, err := manager.GetGroup(created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"light1"}, gotAgain.Lights)
+}
+
+func TestGetGroupsReturnsCopies(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+	lights := &mockLightManager{
+		lights: map[string]*keylight.Light{
+			"light1": {ID: "light1", Name: "Light 1"},
+		},
+	}
+	cfg := setupTestConfig(t)
+	manager := NewManager(logger, lights, cfg)
+
+	created, err := manager.CreateGroup(context.Background(), "test-group", []string{"light1"})
+	require.NoError(t, err)
+
+	groups := manager.GetGroups()
+	require.Len(t, groups, 1)
+	groups[0].Lights[0] = "modified"
+
+	got, err := manager.GetGroup(created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"light1"}, got.Lights)
+}
+
 func TestGetGroupsByKeys_MultiGroupAndByName(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{
 		Level: slog.LevelInfo,
