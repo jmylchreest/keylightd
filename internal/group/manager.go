@@ -139,12 +139,6 @@ func (m *Manager) loadGroups() error {
 	return nil
 }
 
-func (m *Manager) saveGroups() error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.saveGroupsLocked()
-}
-
 // saveGroupsLocked persists groups to config. Caller must hold m.mu (read or write).
 func (m *Manager) saveGroupsLocked() error {
 	groupsMap := make(map[string]any)
