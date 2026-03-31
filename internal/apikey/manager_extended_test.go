@@ -5,6 +5,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 )
 
 func TestDeleteAPIKey_Success(t *testing.T) {
@@ -28,6 +30,7 @@ func TestDeleteAPIKey_NotFound(t *testing.T) {
 	err := mgr.DeleteAPIKey("nonexistent-key-12345678")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
+	assert.True(t, kerrors.IsNotFound(err))
 }
 
 func TestDeleteAPIKey_ThenRecreate(t *testing.T) {

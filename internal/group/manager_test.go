@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jmylchreest/keylightd/internal/config"
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
@@ -148,6 +149,7 @@ func TestGroupManagement(t *testing.T) {
 	// Test deleting non-existent group
 	err = manager.DeleteGroup("non-existent")
 	assert.Error(t, err)
+	assert.True(t, kerrors.IsNotFound(err))
 }
 
 func TestGroupOperations(t *testing.T) {

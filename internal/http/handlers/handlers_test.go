@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -329,4 +331,62 @@ func newHandlerTestAPIKeyManager(t *testing.T) (*apikey.Manager, *config.Config)
 	require.NoError(t, err)
 
 	return apikey.NewManager(cfg, slog.New(slog.DiscardHandler)), cfg
+}
+
+func TestAPIKeyHandler_DeleteAPIKey_NotFound(t *testing.T) {
+	mgr, _ := newHandlerTestAPIKeyManager(t)
+	handler := &APIKeyHandler{Manager: mgr}
+
+	_, err := handler.DeleteAPIKey(context.Background(), &DeleteAPIKeyInput{Key: "no-such-key"})
+	require.Error(t, err)
+	assertStatusCode(t, err, 404)
+}
+
+func TestAPIKeyHandler_SetAPIKeyDisabled_NotFound(t *testing.T) {
+	mgr, _ := newHandlerTestAPIKeyManager(t)
+	handler := &APIKeyHandler{Manager: mgr}
+
+	input := &SetAPIKeyDisabledInput{Key: "no-such-key"}
+	input.Body.Disabled = true
+
+	_, err := handler.SetAPIKeyDisabled(context.Background(), input)
+	require.Error(t, err)
+	assertStatusCode(t, err, 404)
+}
+
+func TestGroupHandler_DeleteGroup_NotFound(t *testing.T) {
+	handler := &GroupHandler{Groups: newHandlerTestGroupManager(t), Lights: newMockLights()}
+
+	_, err := handler.DeleteGroup(context.Background(), &DeleteGroupInput{ID: "no-such-group"})
+	require.Error(t, err)
+	assertStatusCode(t, err, 404)
+}
+
+func TestGroupHandler_SetGroupLights_NotFound(t *testing.T) {
+	handler := &GroupHandler{Groups: newHandlerTestGroupManager(t), Lights: newMockLights()}
+
+	input := &SetGroupLightsInput{ID: "no-such-group"}
+	input.Body.LightIDs = []string{"light-1"}
+
+	_, err := handler.SetGroupLights(context.Background(), input)
+	require.Error(t, err)
+	assertStatusCode(t, err, 404)
+}
+
+func newHandlerTestGroupManager(t *testing.T) *group.Manager {
+	t.Helper()
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "config.yaml")
+	cfg, err := config.Load("config.yaml", cfgPath)
+	require.NoError(t, err)
+
+	return group.NewManager(slog.New(slog.DiscardHandler), newMockLights(), cfg)
+}
+
+func assertStatusCode(t *testing.T, err error, want int) {
+	t.Helper()
+
+	var statusErr huma.StatusError
+	require.True(t, errors.As(err, &statusErr), "expected huma.StatusError, got %T", err)
+	assert.Equal(t, want, statusErr.GetStatus())
 }

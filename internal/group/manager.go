@@ -3,6 +3,7 @@ package group
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/jmylchreest/keylightd/internal/config"
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
@@ -205,7 +207,7 @@ func (m *Manager) DeleteGroup(id string) error {
 	group, exists := m.groups[id]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("group not found: %s", id)
+		return kerrors.NotFoundf("group %s not found", id)
 	}
 
 	// Copy for event emission after unlock
@@ -230,7 +232,7 @@ func (m *Manager) GetGroup(id string) (*Group, error) {
 
 	group, exists := m.groups[id]
 	if !exists {
-		return nil, fmt.Errorf("group not found: %s", id)
+		return nil, kerrors.NotFoundf("group %s not found", id)
 	}
 	if group.Lights == nil {
 		group.Lights = []string{}
@@ -258,7 +260,10 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 	// Verify all lights exist OUTSIDE the lock (network I/O)
 	for _, lightID := range lightIDs {
 		if _, err := m.lights.GetLight(ctx, lightID); err != nil {
-			return fmt.Errorf("light not found: %w", err)
+			if errors.Is(err, keylight.ErrLightNotFound) || kerrors.IsNotFound(err) {
+				return kerrors.NotFoundf("light %s not found", lightID)
+			}
+			return fmt.Errorf("failed to load light %s: %w", lightID, err)
 		}
 	}
 
@@ -266,7 +271,7 @@ func (m *Manager) SetGroupLights(ctx context.Context, id string, lightIDs []stri
 	group, exists := m.groups[id]
 	if !exists {
 		m.mu.Unlock()
-		return fmt.Errorf("group not found: %s", id)
+		return kerrors.NotFoundf("group %s not found", id)
 	}
 
 	group.Lights = lightIDs

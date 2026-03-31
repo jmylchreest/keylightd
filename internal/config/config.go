@@ -14,7 +14,12 @@ import (
 	logfilter "github.com/jmylchreest/slog-logfilter"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
+
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 )
+
+// ErrAPIKeyNotFound is returned when an API key lookup by key or name fails.
+var ErrAPIKeyNotFound = fmt.Errorf("api key not found: %w", kerrors.ErrNotFound)
 
 // Using constants defined in constants.go
 
@@ -441,7 +446,7 @@ func (c *Config) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (*APIK
 	}
 
 	if targetKey == nil {
-		return nil, fmt.Errorf("API key '%s' not found", keyOrName)
+		return nil, fmt.Errorf("API key %q not found: %w", keyOrName, ErrAPIKeyNotFound)
 	}
 
 	c.State.APIKeys[targetIndex].Disabled = disabled

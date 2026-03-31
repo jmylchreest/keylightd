@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jmylchreest/keylightd/internal/config"
+	kerrors "github.com/jmylchreest/keylightd/internal/errors"
 )
 
 // Manager handles API key business logic
@@ -84,7 +85,7 @@ func (m *Manager) ListAPIKeys() []config.APIKey { // No error returned by m.cfg.
 // DeleteAPIKey removes an API key and saves the config.
 func (m *Manager) DeleteAPIKey(key string) error {
 	if !m.cfg.DeleteAPIKey(key) { // DeleteAPIKey returns bool
-		return fmt.Errorf("API key '%s' not found for deletion", key)
+		return kerrors.NotFoundf("API key %q not found for deletion", key)
 	}
 
 	// Save the configuration to persist the deletion
@@ -110,7 +111,7 @@ func (m *Manager) DeleteAPIKey(key string) error {
 func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 	apiKey, found := m.cfg.FindAPIKey(key) // FindAPIKey returns (*APIKey, bool)
 	if !found {
-		return nil, errors.New("API key not found")
+		return nil, kerrors.NotFoundf("API key %q not found", key)
 	}
 
 	if apiKey.IsDisabled() {
