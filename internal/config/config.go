@@ -281,8 +281,35 @@ func (c *Config) Save() error {
 		return fmt.Errorf("error creating config directory %s: %w", configDir, err)
 	}
 
-	if err := os.WriteFile(configPath, data, 0600); err != nil {
-		return fmt.Errorf("error writing config file: %w", err)
+	// Atomic write: write to temp file, fsync, rename over target
+	tmpPath := configPath + ".tmp"
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("error creating temp config file: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("error writing temp config file: %w", err)
+	}
+
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("error syncing temp config file: %w", err)
+	}
+	f.Close()
+
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("error replacing config file: %w", err)
+	}
+
+	// Fsync the directory to ensure the rename is durable
+	if dir, err := os.Open(configDir); err == nil {
+		dir.Sync()
+		dir.Close()
 	}
 
 	logger.Debug("Configuration saved successfully", "path", configPath)
