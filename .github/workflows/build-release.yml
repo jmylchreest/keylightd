@@ -39,17 +39,40 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for duplicate builds
-        id: skip
-        run: |
-          # A tag push for a commit that also triggered a main push would cause
-          # duplicate builds. For now, always build — the concurrency group will
-          # cancel the older run if both arrive close together.
-          echo "should_skip=false" >> $GITHUB_OUTPUT
-
       - name: Extract version
         id: version
         uses: jmylchreest/gha-extract-git-version@v1
+
+      - name: Check for duplicate builds
+        id: skip
+        run: |
+          # Skip main branch builds when the commit already has a release tag
+          # (the tag-triggered workflow will handle it).
+          if [[ "${{ github.ref }}" == refs/heads/main && "${{ steps.version.outputs.is_tagged }}" == "true" ]]; then
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate version base
+        if: github.event.inputs.release == 'true'
+        run: |
+          LAST_TAG="${{ steps.version.outputs.last_tag }}"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          if [[ -n "$LAST_TAG" ]]; then
+            # Verify the base tag has a corresponding GitHub Release.
+            # A tag without a release is likely a stray local tag that was
+            # accidentally pushed — not a valid version base.
+            if ! gh release view "$LAST_TAG" &>/dev/null; then
+              echo "::error::Base tag ${LAST_TAG} has no GitHub Release — it may be a stray tag."
+              echo "::error::Calculated version would be: ${VERSION}"
+              echo "::error::To fix: delete the stray tag with 'git push origin :refs/tags/${LAST_TAG}' and re-run."
+              exit 1
+            fi
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push release tag
         if: github.event.inputs.release == 'true'
