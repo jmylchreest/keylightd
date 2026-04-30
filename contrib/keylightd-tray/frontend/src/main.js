@@ -124,10 +124,56 @@ if (window.go && window.go.main && window.go.main.App) {
 let refreshInterval = null;
 let debounceTimers = {};
 let activeSliders = {}; // Track sliders being dragged
-let refreshPaused = false; // Pause refresh during slider interaction
 let settingsDirty = false; // Track if settings have been modified
 let settingsUpdating = false; // Prevent concurrent settings panel updates
 let isWindows = false; // Track if running on Windows
+
+// Polling pause + diff infrastructure.
+// pauseReasons collects every reason polling should be suspended
+// (window hidden, slider being dragged, etc.) so multiple concurrent
+// causes don't race each other. lastStatusHash skips DOM updates when
+// state hasn't actually changed — most polls return identity, so the
+// JS heap stays flat in steady state.
+let pauseReasons = new Set();
+let currentIntervalMs = 2500;
+let lastStatusHash = null;
+
+function setPollingPaused(reason, paused) {
+  if (paused) pauseReasons.add(reason);
+  else pauseReasons.delete(reason);
+  applyPauseState();
+}
+
+function applyPauseState() {
+  if (pauseReasons.size > 0) {
+    if (refreshInterval) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+  } else if (!refreshInterval) {
+    refresh(); // immediate refresh on resume so the user sees current state
+    refreshInterval = setInterval(refresh, currentIntervalMs);
+  }
+}
+
+function changePollingInterval(intervalMs) {
+  currentIntervalMs = intervalMs;
+  if (refreshInterval) {
+    clearInterval(refreshInterval);
+    refreshInterval = setInterval(refresh, currentIntervalMs);
+  }
+}
+
+function setupVisibilityPause() {
+  // When the Wails window is hidden via the tray, Go emits
+  // "window:visible" so we can stop the polling loop. Without this,
+  // the JS heap accumulates over hours of being hidden — webkit2gtk
+  // doesn't aggressively reclaim under steady allocation pressure.
+  if (!window.runtime || !window.runtime.EventsOn) return;
+  window.runtime.EventsOn("window:visible", (visible) => {
+    setPollingPaused("hidden", !visible);
+  });
+}
 
 // Icons
 const POWER_ICON = `<svg viewBox="0 0 24 24"><path d="M13 3h-2v10h2V3zm4.83 2.17l-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"/></svg>`;
@@ -174,6 +220,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Setup custom CSS auto-reload
   setupCustomCssReload();
 
+  // Hook window-visibility events from Go before first refresh so a
+  // window that opens already-visible doesn't miss the initial event.
+  setupVisibilityPause();
+
   // Initial load
   await refresh();
 
@@ -187,8 +237,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Start refresh interval
-  refreshInterval = setInterval(refresh, 1000);
+  // Start the polling loop at the user's configured rate. Replaces the
+  // old hardcoded 1000ms initial poll — never poll faster than the user
+  // explicitly chose.
+  currentIntervalMs = parseInt(
+    localStorage.getItem("refreshInterval") || "2500",
+  );
+  if (currentIntervalMs < 1000) currentIntervalMs = 1000;
+  applyPauseState();
 });
 
 // Settings panel management
@@ -321,8 +377,7 @@ function loadSettings() {
   // Update refresh interval
   const interval = parseInt(refreshMs);
   if (interval >= 1000) {
-    clearInterval(refreshInterval);
-    refreshInterval = setInterval(refresh, interval);
+    changePollingInterval(interval);
   }
 
   // Setup change listeners - mark settings as dirty
@@ -340,8 +395,7 @@ function loadSettings() {
         e.target.value = interval;
       }
       localStorage.setItem("refreshInterval", interval);
-      clearInterval(refreshInterval);
-      refreshInterval = setInterval(refresh, interval);
+      changePollingInterval(interval);
     });
 
   document.getElementById("socket-path").addEventListener("input", markDirty);
@@ -675,13 +729,18 @@ function setupCollapsibleSections() {
 
 // Refresh data from backend
 async function refresh() {
-  // Skip refresh if paused (during slider interaction)
-  if (refreshPaused) {
-    return;
-  }
+  if (pauseReasons.size > 0) return;
 
   try {
     const status = await GetStatus();
+    // Skip the render path entirely when state hasn't changed since
+    // the last poll. JSON.stringify is cheap for the small status
+    // payload and avoids touching the DOM (and webkit's JS heap)
+    // during steady state.
+    const hash = JSON.stringify(status);
+    if (hash === lastStatusHash) return;
+    lastStatusHash = hash;
+
     updateUI(status);
     updateStatusBadge(status.onCount, status.total, true);
     updateMasterToggle(status.onCount);
@@ -690,6 +749,7 @@ async function refresh() {
     console.error("Failed to refresh:", e);
     updateStatusBadge(0, 0, false);
     updateMasterToggle(0);
+    lastStatusHash = null; // force re-render on next successful poll
   }
 }
 
@@ -966,25 +1026,16 @@ window.setTemperature = function (id, type, value) {
 // Start slider drag - pause refresh
 window.startSliderDrag = function (key) {
   activeSliders[key] = true;
-  refreshPaused = true;
+  setPollingPaused("slider", true);
 };
 
-// End slider drag - resume refresh after delay
+// End slider drag - resume refresh after a short delay to let the
+// change reach the daemon, but only once no slider is still active.
 window.endSliderDrag = function (key) {
   activeSliders[key] = false;
-
-  // Resume refresh after a short delay to allow the change to be sent
   setTimeout(() => {
-    // Only resume if no other sliders are active
     if (!Object.values(activeSliders).some((v) => v)) {
-      refreshPaused = false;
-
-      // Restart the refresh interval so next poll waits full duration
-      const interval = parseInt(
-        localStorage.getItem("refreshInterval") || "2500",
-      );
-      clearInterval(refreshInterval);
-      refreshInterval = setInterval(refresh, interval);
+      setPollingPaused("slider", false);
     }
   }, 500);
 };

@@ -48,6 +48,7 @@ func (a *App) SetCustomCSSPath(path string) {
 // ShowWindow shows the main window and updates tray state.
 func (a *App) ShowWindow() {
 	runtime.WindowShow(a.ctx)
+	runtime.EventsEmit(a.ctx, "window:visible", true)
 	if a.tray != nil {
 		a.tray.SetWindowShown(true)
 	}
@@ -56,6 +57,7 @@ func (a *App) ShowWindow() {
 // HideWindow hides the main window and updates tray state.
 func (a *App) HideWindow() {
 	runtime.WindowHide(a.ctx)
+	runtime.EventsEmit(a.ctx, "window:visible", false)
 	if a.tray != nil {
 		a.tray.SetWindowShown(false)
 	}
@@ -65,12 +67,14 @@ func (a *App) HideWindow() {
 // (used by TrayManager.ToggleWindow to avoid mutex deadlock).
 func (a *App) showWindowDirect() {
 	runtime.WindowShow(a.ctx)
+	runtime.EventsEmit(a.ctx, "window:visible", true)
 }
 
 // hideWindowDirect hides the window without calling back into tray state
 // (used by TrayManager.ToggleWindow to avoid mutex deadlock).
 func (a *App) hideWindowDirect() {
 	runtime.WindowHide(a.ctx)
+	runtime.EventsEmit(a.ctx, "window:visible", false)
 }
 
 // Quit exits the application

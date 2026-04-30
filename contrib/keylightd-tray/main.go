@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
@@ -25,7 +27,20 @@ func main() {
 
 	// Parse command-line flags
 	customCSSPath := flag.String("css", "", "Path to custom CSS file (default: $XDG_CONFIG_HOME/keylightd/keylightd-tray/custom.css)")
+	pprofAddr := flag.String("pprof", "", "Enable pprof HTTP server on this listen address (e.g. localhost:6060). Disabled if empty.")
 	flag.Parse()
+
+	// Optional pprof endpoint for runtime profiling. Disabled by default.
+	// When enabled: curl http://<addr>/debug/pprof/heap -o heap.pprof
+	//               go tool pprof -http=:8081 heap.pprof
+	if *pprofAddr != "" {
+		go func() {
+			log.Printf("pprof: listening on http://%s/debug/pprof/", *pprofAddr)
+			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+				log.Printf("pprof: server stopped: %v", err)
+			}
+		}()
+	}
 
 	// Create application with options
 	app := NewApp(version, commit, buildDate)
