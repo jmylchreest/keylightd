@@ -572,7 +572,7 @@ jobs:
           cat aur/keylightd-tray-bin/PKGBUILD
 
       - name: Publish keylightd-bin to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
         with:
           pkgname: keylightd-bin
           pkgbuild: aur/keylightd-bin/PKGBUILD
@@ -582,7 +582,7 @@ jobs:
           commit_message: "Update to ${{ needs.create-release.outputs.version }}"
 
       - name: Publish keylightd-tray-bin to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4.1.1
+        uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
         with:
           pkgname: keylightd-tray-bin
           pkgbuild: aur/keylightd-tray-bin/PKGBUILD
