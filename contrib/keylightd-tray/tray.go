@@ -18,30 +18,68 @@ var iconDisabled []byte
 //go:embed assets/light-unknown.png
 var iconUnknown []byte
 
+// iconKey identifies which embedded icon was last sent to the systray.
+// systray.SetIcon re-decodes the PNG and emits a DBus PropertiesChanged on
+// every call, so we skip the call when the key is unchanged.
+type iconKey int
+
+const (
+	iconKeyNone iconKey = iota
+	iconKeyUnknown
+	iconKeyEnabled
+	iconKeyDisabled
+)
+
 // TrayManager handles the system tray functionality
 type TrayManager struct {
-	mu             sync.Mutex
-	app            *App
-	mShow          *systray.MenuItem
-	mQuit          *systray.MenuItem
-	windowShown    bool
-	groupMenus     map[string]*systray.MenuItem
-	lightMenus     map[string]*systray.MenuItem
-	stopChan       chan struct{}
-	menuBuilt      bool
-	isBasicMenu    bool
-	lastGroupCount int
-	lastLightCount int
+	mu              sync.Mutex
+	app             *App
+	mShow           *systray.MenuItem
+	mQuit           *systray.MenuItem
+	windowShown     bool
+	groupMenus      map[string]*systray.MenuItem
+	lightMenus      map[string]*systray.MenuItem
+	stopChan        chan struct{}
+	menuBuilt       bool
+	isBasicMenu     bool
+	lastGroupCount  int
+	lastLightCount  int
+	lastIconKey     iconKey
+	lastTooltip     string
+	lastGroupTitles map[string]string
+	lastLightTitles map[string]string
 }
 
 // NewTrayManager creates a new tray manager
 func NewTrayManager(app *App) *TrayManager {
 	return &TrayManager{
-		app:         app,
-		windowShown: false,
-		groupMenus:  make(map[string]*systray.MenuItem),
-		lightMenus:  make(map[string]*systray.MenuItem),
-		stopChan:    make(chan struct{}),
+		app:             app,
+		windowShown:     false,
+		groupMenus:      make(map[string]*systray.MenuItem),
+		lightMenus:      make(map[string]*systray.MenuItem),
+		lastGroupTitles: make(map[string]string),
+		lastLightTitles: make(map[string]string),
+		stopChan:        make(chan struct{}),
+	}
+}
+
+// diffEmit calls emit(next) only when next differs from *last, updating *last
+// on emission. Used to suppress redundant systray/DBus signals when polled
+// status is unchanged.
+func diffEmit[T comparable](last *T, next T, emit func(T)) {
+	if next != *last {
+		emit(next)
+		*last = next
+	}
+}
+
+// diffEmitMap is the map-keyed sibling of diffEmit. Go does not allow taking
+// the address of a map value, so this variant performs the lookup and update
+// directly against the map.
+func diffEmitMap[K, V comparable](last map[K]V, key K, next V, emit func(V)) {
+	if last[key] != next {
+		emit(next)
+		last[key] = next
 	}
 }
 
@@ -119,6 +157,8 @@ func (t *TrayManager) rebuildMenuStructure(status *Status) {
 	// Clear maps
 	t.groupMenus = make(map[string]*systray.MenuItem)
 	t.lightMenus = make(map[string]*systray.MenuItem)
+	t.lastGroupTitles = make(map[string]string)
+	t.lastLightTitles = make(map[string]string)
 
 	// 1. Show/Hide at top
 	t.mShow = systray.AddMenuItem("Show", "Show the window")
@@ -132,6 +172,7 @@ func (t *TrayManager) rebuildMenuStructure(status *Status) {
 			title := formatMenuTitle(group.Name, group.On)
 			item := systray.AddMenuItem(title, "Toggle group")
 			t.groupMenus[group.ID] = item
+			t.lastGroupTitles[group.ID] = title
 			go t.handleGroupMenuItem(group.ID, item)
 		}
 	}
@@ -145,6 +186,7 @@ func (t *TrayManager) rebuildMenuStructure(status *Status) {
 			title := formatMenuTitle(light.Name, light.On)
 			item := systray.AddMenuItem(title, "Toggle light")
 			t.lightMenus[light.ID] = item
+			t.lastLightTitles[light.ID] = title
 			go t.handleLightMenuItem(light.ID, item)
 		}
 	}
@@ -228,17 +270,19 @@ func (t *TrayManager) toggleLight(lightID string) {
 	}
 }
 
-// updateMenuTitles updates the titles of existing menu items based on current state
+// updateMenuTitles updates the titles of existing menu items based on current state.
+// MenuItem.SetTitle re-emits the systray menu layout over DBus, so we diff
+// against the last emitted title per item and skip when unchanged.
 func (t *TrayManager) updateMenuTitles(status *Status) {
 	for _, group := range status.Groups {
 		if item, exists := t.groupMenus[group.ID]; exists {
-			item.SetTitle(formatMenuTitle(group.Name, group.On))
+			diffEmitMap(t.lastGroupTitles, group.ID, formatMenuTitle(group.Name, group.On), item.SetTitle)
 		}
 	}
 
 	for _, light := range status.Lights {
 		if item, exists := t.lightMenus[light.ID]; exists {
-			item.SetTitle(formatMenuTitle(light.Name, light.On))
+			diffEmitMap(t.lastLightTitles, light.ID, formatMenuTitle(light.Name, light.On), item.SetTitle)
 		}
 	}
 }
@@ -294,40 +338,52 @@ func (t *TrayManager) SetWindowShown(shown bool) {
 	}
 }
 
-// UpdateIconAndTooltip updates the icon and tooltip based on full status
+// UpdateIconAndTooltip updates the icon and tooltip based on full status.
+// Both calls hit DBus via godbus' encoder on every invocation, so we diff
+// against the last emitted values and skip when nothing has changed.
 func (t *TrayManager) UpdateIconAndTooltip(status *Status) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var (
+		nextKey     iconKey
+		nextIcon    []byte
+		nextTooltip string
+	)
+
 	if status.Total == 0 {
-		systray.SetIcon(iconUnknown)
-		systray.SetTooltip("Keylight Control - No lights")
-		return
-	}
-
-	// Update icon based on on/off count
-	if status.OnCount > 0 {
-		systray.SetIcon(iconEnabled)
+		nextKey = iconKeyUnknown
+		nextIcon = iconUnknown
+		nextTooltip = "Keylight Control - No lights"
 	} else {
-		systray.SetIcon(iconDisabled)
-	}
-
-	// Build detailed tooltip with groups and lights using same format as menu
-	var tooltip strings.Builder
-	tooltip.WriteString("Keylight Control\n")
-
-	// Add groups section
-	if len(status.Groups) > 0 {
-		tooltip.WriteString("\nGroups\n")
-		for _, group := range status.Groups {
-			tooltip.WriteString(formatMenuTitle(group.Name, group.On) + "\n")
+		if status.OnCount > 0 {
+			nextKey = iconKeyEnabled
+			nextIcon = iconEnabled
+		} else {
+			nextKey = iconKeyDisabled
+			nextIcon = iconDisabled
 		}
-	}
 
-	// Add lights section
-	if len(status.Lights) > 0 {
-		tooltip.WriteString("\nLights\n")
-		for _, light := range status.Lights {
-			tooltip.WriteString(formatMenuTitle(light.Name, light.On) + "\n")
+		var b strings.Builder
+		b.WriteString("Keylight Control\n")
+		if len(status.Groups) > 0 {
+			b.WriteString("\nGroups\n")
+			for _, group := range status.Groups {
+				b.WriteString(formatMenuTitle(group.Name, group.On) + "\n")
+			}
 		}
+		if len(status.Lights) > 0 {
+			b.WriteString("\nLights\n")
+			for _, light := range status.Lights {
+				b.WriteString(formatMenuTitle(light.Name, light.On) + "\n")
+			}
+		}
+		nextTooltip = b.String()
 	}
 
-	systray.SetTooltip(tooltip.String())
+	if nextKey != t.lastIconKey {
+		systray.SetIcon(nextIcon)
+		t.lastIconKey = nextKey
+	}
+	diffEmit(&t.lastTooltip, nextTooltip, systray.SetTooltip)
 }

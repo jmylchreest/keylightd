@@ -138,6 +138,21 @@ let pauseReasons = new Set();
 let currentIntervalMs = 2500;
 let lastStatusHash = null;
 
+// Tracks the *shape* of what's currently rendered (the sorted list of card
+// IDs). When a refresh comes in with the same shape, we update card values
+// in place via updateSliderValues — no innerHTML replacement, so we don't
+// thrash the DOM or any focus/scroll state. Only when the shape actually
+// changes (light added/removed, visibility toggled, etc.) do we fall back
+// to the full re-render path.
+const lastRenderedShape = { light: null, group: null };
+
+function shapeHashFor(items) {
+  return items
+    .map((i) => i.id)
+    .sort()
+    .join(",");
+}
+
 function setPollingPaused(reason, paused) {
   if (paused) pauseReasons.add(reason);
   else pauseReasons.delete(reason);
@@ -806,12 +821,21 @@ function renderGroups(groups) {
 
   if (filteredGroups.length === 0) {
     container.innerHTML = '<div class="empty-state">No groups visible</div>';
+    lastRenderedShape.group = null;
     return;
   }
 
-  // Check if any slider is active - if so, update values without re-rendering
   const hasActiveSlider = Object.values(activeSliders).some((v) => v);
   if (hasActiveSlider) {
+    updateSliderValues(filteredGroups, "group");
+    return;
+  }
+
+  // Same set of groups as last render? Patch values in place. Avoids the
+  // innerHTML reassignment / DOM-subtree replacement, which preserves focus
+  // and scroll position and skips webkit's layout/paint of new nodes.
+  const newShape = shapeHashFor(filteredGroups);
+  if (newShape === lastRenderedShape.group) {
     updateSliderValues(filteredGroups, "group");
     return;
   }
@@ -819,6 +843,7 @@ function renderGroups(groups) {
   container.innerHTML = filteredGroups
     .map((group) => createControlCard(group, "group"))
     .join("");
+  lastRenderedShape.group = newShape;
 }
 
 // Render lights
@@ -836,12 +861,20 @@ function renderLights(lights) {
 
   if (filteredLights.length === 0) {
     container.innerHTML = '<div class="empty-state">No lights visible</div>';
+    lastRenderedShape.light = null;
     return;
   }
 
-  // Check if any slider is active - if so, update values without re-rendering
   const hasActiveSlider = Object.values(activeSliders).some((v) => v);
   if (hasActiveSlider) {
+    updateSliderValues(filteredLights, "light");
+    return;
+  }
+
+  // Same set of lights as last render? Patch values in place — see the
+  // comment in renderGroups for the rationale.
+  const newShape = shapeHashFor(filteredLights);
+  if (newShape === lastRenderedShape.light) {
     updateSliderValues(filteredLights, "light");
     return;
   }
@@ -849,6 +882,7 @@ function renderLights(lights) {
   container.innerHTML = filteredLights
     .map((light) => createControlCard(light, "light"))
     .join("");
+  lastRenderedShape.light = newShape;
 }
 
 // Update slider values without full re-render
