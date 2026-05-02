@@ -89,7 +89,7 @@ jobs:
     if: always()
     steps:
       - name: Delete all workflow run artifacts
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: github-pages
           failOnError: false
