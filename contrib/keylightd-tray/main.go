@@ -4,7 +4,8 @@ import (
 	"flag"
 	"log"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
+	"time"
 
 	"fyne.io/systray"
 	"github.com/wailsapp/wails/v2"
@@ -33,10 +34,23 @@ func main() {
 	// Optional pprof endpoint for runtime profiling. Disabled by default.
 	// When enabled: curl http://<addr>/debug/pprof/heap -o heap.pprof
 	//               go tool pprof -http=:8081 heap.pprof
+	// Handlers are mounted on a dedicated mux (not DefaultServeMux) so the
+	// pprof endpoints are only reachable when -pprof is explicitly set.
 	if *pprofAddr != "" {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		srv := &http.Server{
+			Addr:              *pprofAddr,
+			Handler:           mux,
+			ReadHeaderTimeout: 5 * time.Second,
+		}
 		go func() {
 			log.Printf("pprof: listening on http://%s/debug/pprof/", *pprofAddr)
-			if err := http.ListenAndServe(*pprofAddr, nil); err != nil {
+			if err := srv.ListenAndServe(); err != nil {
 				log.Printf("pprof: server stopped: %v", err)
 			}
 		}()
