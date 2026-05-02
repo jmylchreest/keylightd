@@ -14,7 +14,7 @@ require (
 require (
 	fyne.io/systray v1.11.0
 	github.com/danielgtaylor/huma/v2 v2.37.3
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/httprate v0.15.0
 	github.com/google/uuid v1.6.0
