@@ -735,7 +735,7 @@ jobs:
 
       - name: Upload to EGO
         if: steps.check-changes.outputs.changed == 'true'
-        uses: murar8/gnome-extensions-action@0.1.0
+        uses: murar8/gnome-extensions-action@0.1.1
         with:
           source-dir: contrib/gnome-extension/keylightd-control@jmylchreest.github.io
           username: ${{ secrets.EGO_USERNAME }}
