@@ -117,6 +117,36 @@ func TestClient_Watch(t *testing.T) {
 		}
 	})
 
+	t.Run("context cancel during handshake", func(t *testing.T) {
+		clientConn, serverConn := net.Pipe()
+		oldDial := dial
+		dial = pipeDialer(clientConn)
+		defer func() { dial = oldDial }()
+
+		go func() {
+			// Swallow the subscribe request, never send the ack.
+			_, _ = bufio.NewReader(serverConn).ReadBytes('\n')
+		}()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		errCh := make(chan error, 1)
+		go func() {
+			_, err := New(logger, "/tmp/fake.sock").Watch(ctx)
+			errCh <- err
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+		select {
+		case err := <-errCh:
+			if err == nil {
+				t.Fatal("expected handshake error")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("Watch did not return promptly after cancel")
+		}
+	})
+
 	t.Run("server error response", func(t *testing.T) {
 		clientConn, serverConn := net.Pipe()
 		oldDial := dial
