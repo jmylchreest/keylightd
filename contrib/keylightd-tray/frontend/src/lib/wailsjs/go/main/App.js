@@ -89,3 +89,7 @@ export function SetTrayManager(arg1) {
 export function ShowWindow() {
   return window['go']['main']['App']['ShowWindow']();
 }
+
+export function WatchAlive() {
+  return window['go']['main']['App']['WatchAlive']();
+}
