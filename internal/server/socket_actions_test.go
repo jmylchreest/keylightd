@@ -14,6 +14,7 @@ import (
 
 	"github.com/jmylchreest/keylightd/internal/config"
 	"github.com/jmylchreest/keylightd/internal/events"
+	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 
 	"log/slog"
@@ -463,4 +464,34 @@ func TestSocketAction_SubscribeEvents(t *testing.T) {
 	err = json.NewDecoder(conn).Decode(&evt)
 	require.NoError(t, err)
 	assert.Equal(t, "light.state_changed", evt["type"])
+}
+
+// --- Client Watch end-to-end ---
+
+func TestSocketAction_ClientWatch(t *testing.T) {
+	server, socketPath := setupSocketTest(t)
+
+	c := client.New(slog.New(slog.DiscardHandler), socketPath)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch, err := c.Watch(ctx)
+	require.NoError(t, err)
+
+	server.eventBus.Publish(events.NewEvent(events.LightStateChanged, map[string]string{"id": "light-1"}))
+
+	select {
+	case e := <-ch:
+		assert.Equal(t, string(events.LightStateChanged), e.Type)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for event")
+	}
+
+	cancel()
+	select {
+	case _, ok := <-ch:
+		assert.False(t, ok, "channel should close after cancel")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for channel close")
+	}
 }
