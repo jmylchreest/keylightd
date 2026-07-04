@@ -1,5 +1,6 @@
 // Wails runtime bindings
 let GetStatus, GetVersion, GetDaemonVersion, SetLightState, SetGroupState;
+let WatchAlive;
 
 // Check if running in Wails or browser
 if (window.go && window.go.main && window.go.main.App) {
@@ -8,6 +9,7 @@ if (window.go && window.go.main && window.go.main.App) {
   GetDaemonVersion = window.go.main.App.GetDaemonVersion;
   SetLightState = window.go.main.App.SetLightState;
   SetGroupState = window.go.main.App.SetGroupState;
+  WatchAlive = window.go.main.App.WatchAlive;
 } else {
   // Mock functions for browser testing
   console.warn("Wails runtime not available - using mock data");
@@ -56,6 +58,8 @@ if (window.go && window.go.main && window.go.main.App) {
   SetGroupState = async (id, prop, value) => {
     console.log(`SetGroupState: ${id} ${prop} = ${value}`);
   };
+
+  WatchAlive = async () => false;
 }
 
 // Additional Wails bindings for group management
@@ -138,6 +142,13 @@ let pauseReasons = new Set();
 let currentIntervalMs = 2500;
 let lastStatusHash = null;
 
+// When the daemon event stream is up, polling drops to a slow safety net
+// and refreshes are driven by pushed events instead.
+let userIntervalMs = 2500;
+let watchAlive = false;
+let watchRefreshTimer = null;
+const WATCH_SAFETY_NET_MS = 90000;
+
 // Tracks the *shape* of what's currently rendered (the sorted list of card
 // IDs). When a refresh comes in with the same shape, we update card values
 // in place via updateSliderValues — no innerHTML replacement, so we don't
@@ -172,11 +183,34 @@ function applyPauseState() {
 }
 
 function changePollingInterval(intervalMs) {
-  currentIntervalMs = intervalMs;
+  userIntervalMs = intervalMs;
+  applyEffectiveInterval();
+}
+
+function applyEffectiveInterval() {
+  currentIntervalMs = watchAlive
+    ? Math.max(WATCH_SAFETY_NET_MS, userIntervalMs)
+    : userIntervalMs;
   if (refreshInterval) {
     clearInterval(refreshInterval);
     refreshInterval = setInterval(refresh, currentIntervalMs);
   }
+}
+
+function setupWatchEvents() {
+  if (!window.runtime || !window.runtime.EventsOn) return;
+  window.runtime.EventsOn("watch:status", (alive) => {
+    watchAlive = !!alive;
+    applyEffectiveInterval();
+  });
+  window.runtime.EventsOn("state:changed", () => {
+    if (pauseReasons.size > 0) return; // hidden/dragging: refresh happens on resume
+    if (watchRefreshTimer) clearTimeout(watchRefreshTimer);
+    watchRefreshTimer = setTimeout(() => {
+      watchRefreshTimer = null;
+      refresh();
+    }, 250);
+  });
 }
 
 function setupVisibilityPause() {
@@ -238,6 +272,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Hook window-visibility events from Go before first refresh so a
   // window that opens already-visible doesn't miss the initial event.
   setupVisibilityPause();
+  setupWatchEvents();
 
   // Initial load
   await refresh();
@@ -255,10 +290,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Start the polling loop at the user's configured rate. Replaces the
   // old hardcoded 1000ms initial poll — never poll faster than the user
   // explicitly chose.
-  currentIntervalMs = parseInt(
-    localStorage.getItem("refreshInterval") || "2500",
-  );
-  if (currentIntervalMs < 1000) currentIntervalMs = 1000;
+  userIntervalMs = parseInt(localStorage.getItem("refreshInterval") || "2500");
+  if (userIntervalMs < 1000) userIntervalMs = 1000;
+  // The watch may have connected before this listener registered.
+  try {
+    watchAlive = !!(await WatchAlive());
+  } catch (e) {
+    watchAlive = false;
+  }
+  applyEffectiveInterval();
   applyPauseState();
 });
 

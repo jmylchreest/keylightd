@@ -45,3 +45,5 @@ export function SetLightState(arg1:string,arg2:string,arg3:any):Promise<void>;
 export function SetTrayManager(arg1:main.TrayManager):Promise<void>;
 
 export function ShowWindow():Promise<void>;
+
+export function WatchAlive():Promise<boolean>;

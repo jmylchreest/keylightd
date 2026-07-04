@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -33,6 +34,9 @@ type App struct {
 	customCSSPath string
 	cssWatcher    *fsnotify.Watcher
 	watchedDirs   map[string]bool
+	watchMu       sync.Mutex
+	watchCancel   context.CancelFunc
+	watchAlive    bool
 }
 
 // SetTrayManager sets the tray manager reference
@@ -142,8 +146,75 @@ func (a *App) startup(ctx context.Context) {
 	// Create client
 	a.client = client.New(a.logger, socket)
 
+	a.startWatch(ctx)
+
 	// Start watching custom.css for changes
 	go a.watchCustomCSS()
+}
+
+// startWatch (re)starts the event subscription for the current client.
+func (a *App) startWatch(ctx context.Context) {
+	a.watchMu.Lock()
+	if a.watchCancel != nil {
+		a.watchCancel()
+	}
+	w, ok := a.client.(client.Watcher)
+	if !ok {
+		a.watchCancel = nil
+		a.watchMu.Unlock()
+		return
+	}
+	wctx, cancel := context.WithCancel(ctx)
+	a.watchCancel = cancel
+	a.watchMu.Unlock()
+
+	go a.runWatch(wctx, w)
+}
+
+// runWatch consumes daemon events and forwards them to the frontend,
+// resubscribing with backoff whenever the stream drops.
+func (a *App) runWatch(ctx context.Context, w client.Watcher) {
+	backoff := time.Second
+	for {
+		ch, err := w.Watch(ctx)
+		if err == nil {
+			backoff = time.Second
+			a.setWatchAlive(true)
+			for e := range ch {
+				runtime.EventsEmit(ctx, "state:changed", e.Type)
+			}
+			if ctx.Err() != nil {
+				return // canceled: replacement watch owns the status now
+			}
+			a.setWatchAlive(false)
+			a.logger.Info("watch: stream closed, resubscribing")
+		} else if ctx.Err() == nil {
+			a.logger.Warn("watch: subscribe failed, falling back to polling", "error", err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < 30*time.Second {
+			backoff *= 2
+		}
+	}
+}
+
+func (a *App) setWatchAlive(alive bool) {
+	a.watchMu.Lock()
+	a.watchAlive = alive
+	a.watchMu.Unlock()
+	runtime.EventsEmit(a.ctx, "watch:status", alive)
+}
+
+// WatchAlive reports whether the event subscription is currently active.
+func (a *App) WatchAlive() bool {
+	a.watchMu.Lock()
+	defer a.watchMu.Unlock()
+	return a.watchAlive
 }
 
 // SaveSettings saves the connection settings and reconnects the client
@@ -170,6 +241,7 @@ func (a *App) SaveSettings(settings Settings) error {
 		a.client = client.New(a.logger, socketPath)
 	}
 
+	a.startWatch(a.ctx) //nolint:contextcheck // Wails binding has no ctx param
 	return nil
 }
 
