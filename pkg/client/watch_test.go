@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -257,4 +258,146 @@ func TestHTTPClient_Watch(t *testing.T) {
 			t.Fatal("expected error")
 		}
 	})
+}
+
+// Every Watch goroutine must exit once its ctx is canceled or the peer
+// disconnects; the count must settle back to baseline afterwards.
+func TestWatch_NoGoroutineLeaks(t *testing.T) {
+	logger := slog.New(slog.DiscardHandler)
+	baseline := runtime.NumGoroutine()
+
+	// Unix: cancel while streaming.
+	func() {
+		clientConn, serverConn := net.Pipe()
+		oldDial := dial
+		dial = pipeDialer(clientConn)
+		defer func() { dial = oldDial }()
+		go func() {
+			reader := bufio.NewReader(serverConn)
+			_, _ = reader.ReadBytes('\n')
+			ack, _ := json.Marshal(map[string]any{"status": "ok", "subscribed": true})
+			_, _ = serverConn.Write(append(ack, '\n'))
+			_, _ = reader.ReadBytes('\n') // block until closed
+		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		ch, err := New(logger, "/tmp/fake.sock").Watch(ctx)
+		if err != nil {
+			t.Fatalf("Watch: %v", err)
+		}
+		cancel()
+		for range ch {
+		}
+		serverConn.Close()
+	}()
+
+	// Unix: server closes while streaming.
+	func() {
+		clientConn, serverConn := net.Pipe()
+		oldDial := dial
+		dial = pipeDialer(clientConn)
+		defer func() { dial = oldDial }()
+		go func() {
+			reader := bufio.NewReader(serverConn)
+			_, _ = reader.ReadBytes('\n')
+			ack, _ := json.Marshal(map[string]any{"status": "ok", "subscribed": true})
+			_, _ = serverConn.Write(append(ack, '\n'))
+			serverConn.Close()
+		}()
+		ch, err := New(logger, "/tmp/fake.sock").Watch(context.Background())
+		if err != nil {
+			t.Fatalf("Watch: %v", err)
+		}
+		for range ch {
+		}
+	}()
+
+	// Unix: handshake rejected.
+	func() {
+		clientConn, serverConn := net.Pipe()
+		oldDial := dial
+		dial = pipeDialer(clientConn)
+		defer func() { dial = oldDial }()
+		go func() {
+			reader := bufio.NewReader(serverConn)
+			_, _ = reader.ReadBytes('\n')
+			resp, _ := json.Marshal(map[string]any{"error": "nope"})
+			_, _ = serverConn.Write(append(resp, '\n'))
+		}()
+		if _, err := New(logger, "/tmp/fake.sock").Watch(context.Background()); err == nil {
+			t.Fatal("expected handshake error")
+		}
+		serverConn.Close()
+	}()
+
+	// Unix: cancel during handshake.
+	func() {
+		clientConn, serverConn := net.Pipe()
+		oldDial := dial
+		dial = pipeDialer(clientConn)
+		defer func() { dial = oldDial }()
+		go func() {
+			_, _ = bufio.NewReader(serverConn).ReadBytes('\n')
+		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			time.Sleep(20 * time.Millisecond)
+			cancel()
+		}()
+		if _, err := New(logger, "/tmp/fake.sock").Watch(ctx); err == nil {
+			t.Fatal("expected handshake error")
+		}
+		serverConn.Close()
+	}()
+
+	// WebSocket: cancel while streaming, then server close on a second watch.
+	// httptest stops tracking hijacked conns, so the server side must be
+	// closed explicitly rather than via CloseClientConnections.
+	func() {
+		upgrader := websocket.Upgrader{}
+		serverConns := make(chan *websocket.Conn, 2)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := upgrader.Upgrade(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			serverConns <- conn
+			for {
+				if _, _, err := conn.ReadMessage(); err != nil {
+					return
+				}
+			}
+		}))
+		defer srv.Close()
+
+		c := NewHTTP(logger, srv.URL, "")
+		ctx, cancel := context.WithCancel(context.Background())
+		ch, err := c.Watch(ctx)
+		if err != nil {
+			t.Fatalf("Watch: %v", err)
+		}
+		<-serverConns
+		cancel()
+		for range ch {
+		}
+
+		ch2, err := c.Watch(context.Background())
+		if err != nil {
+			t.Fatalf("Watch: %v", err)
+		}
+		(<-serverConns).Close()
+		for range ch2 {
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= baseline {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	buf := make([]byte, 1<<16)
+	n := runtime.Stack(buf, true)
+	t.Fatalf("goroutines leaked: baseline %d, now %d\n%s", baseline, runtime.NumGoroutine(), buf[:n])
 }

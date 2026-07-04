@@ -122,9 +122,9 @@ func subscribeEvents(ctx context.Context, conn net.Conn, reader *bufio.Reader) e
 	if err != nil {
 		return fmt.Errorf("failed to read subscribe response: %w", err)
 	}
-	if err := conn.SetDeadline(time.Time{}); err != nil {
-		return fmt.Errorf("failed to clear connection deadline: %w", err)
-	}
+	// Best-effort: if this fails the conn is already dead and the stream
+	// loop will surface it as a closed channel.
+	_ = conn.SetDeadline(time.Time{})
 
 	var ack map[string]any
 	if err := json.Unmarshal(line, &ack); err != nil {
