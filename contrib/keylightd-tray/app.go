@@ -37,7 +37,20 @@ type App struct {
 	watchMu       sync.Mutex
 	watchCancel   context.CancelFunc
 	watchAlive    bool
+	trayRefresh   chan struct{}
 }
+
+// Tray refresh cadence. The tray must stay correct while the window is
+// hidden, when the frontend deliberately stops refreshing — so the Go side
+// owns tray state rather than piggy-backing on frontend GetStatus calls.
+const (
+	// trayRefreshDebounce coalesces bursts of daemon events (a group toggle
+	// emits one event per light) into a single status fetch.
+	trayRefreshDebounce = 200 * time.Millisecond
+	// traySafetyNetInterval bounds tray staleness when the event stream is
+	// down and no explicit refresh is requested.
+	traySafetyNetInterval = 30 * time.Second
+)
 
 // SetTrayManager sets the tray manager reference
 func (a *App) SetTrayManager(tray *TrayManager) {
@@ -127,9 +140,10 @@ type Status struct {
 // NewApp creates a new App application struct
 func NewApp(version, commit, buildDate string) *App {
 	return &App{
-		version:   version,
-		commit:    commit,
-		buildDate: buildDate,
+		version:     version,
+		commit:      commit,
+		buildDate:   buildDate,
+		trayRefresh: make(chan struct{}, 1),
 	}
 }
 
@@ -148,8 +162,60 @@ func (a *App) startup(ctx context.Context) {
 
 	a.startWatch(ctx)
 
+	go a.runTrayRefresh(ctx)
+
 	// Start watching custom.css for changes
 	go a.watchCustomCSS()
+}
+
+// SignalTrayRefresh requests a tray icon/menu refresh. It never blocks: a
+// refresh is already pending when the buffer is full, and that pending
+// refresh will observe the same state this call would have.
+func (a *App) SignalTrayRefresh() {
+	if a.trayRefresh == nil {
+		return
+	}
+	select {
+	case a.trayRefresh <- struct{}{}:
+	default:
+	}
+}
+
+// runTrayRefresh keeps the tray icon, tooltip and menu in sync with the
+// daemon independently of the frontend.
+//
+// The window is hidden most of the time, and while hidden the frontend stops
+// calling GetStatus (see setPollingPaused in main.js). Without this loop the
+// tray would keep displaying whatever state was current when the window was
+// last visible — so toggling a light from the tray menu left the icon showing
+// the pre-toggle state until the window was reopened.
+func (a *App) runTrayRefresh(ctx context.Context) {
+	ticker := time.NewTicker(traySafetyNetInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.trayRefresh:
+			// Let a burst of related events settle, then collapse them
+			// into the single fetch below.
+			select {
+			case <-time.After(trayRefreshDebounce):
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case <-a.trayRefresh:
+			default:
+			}
+		case <-ticker.C:
+		}
+
+		if _, err := a.GetStatus(); err != nil {
+			a.logger.Debug("tray refresh: status unavailable", "error", err)
+		}
+	}
 }
 
 // startWatch (re)starts the event subscription for the current client.
@@ -182,6 +248,9 @@ func (a *App) runWatch(ctx context.Context, w client.Watcher) {
 			a.setWatchAlive(true)
 			for e := range ch {
 				runtime.EventsEmit(ctx, "state:changed", e.Type)
+				// The frontend ignores this event while hidden, so the
+				// tray refreshes off the same stream directly.
+				a.SignalTrayRefresh()
 			}
 			if ctx.Err() != nil {
 				return // canceled: replacement watch owns the status now

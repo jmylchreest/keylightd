@@ -249,7 +249,11 @@ func (t *TrayManager) toggleGroup(groupID string) {
 
 	for _, group := range status.Groups {
 		if group.ID == groupID {
-			_ = t.app.SetGroupState(groupID, "on", !group.On)
+			if err := t.app.SetGroupState(groupID, "on", !group.On); err == nil {
+				// GetStatus above painted the pre-toggle state; repaint
+				// rather than wait for the window to be reopened.
+				t.app.SignalTrayRefresh()
+			}
 			return
 		}
 	}
@@ -264,7 +268,11 @@ func (t *TrayManager) toggleLight(lightID string) {
 
 	for _, light := range status.Lights {
 		if light.ID == lightID {
-			_ = t.app.SetLightState(lightID, "on", !light.On)
+			if err := t.app.SetLightState(lightID, "on", !light.On); err == nil {
+				// GetStatus above painted the pre-toggle state; repaint
+				// rather than wait for the window to be reopened.
+				t.app.SignalTrayRefresh()
+			}
 			return
 		}
 	}
