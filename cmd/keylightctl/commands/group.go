@@ -151,7 +151,7 @@ func newGroupAddCommand(_ *slog.Logger) *cobra.Command {
 
 			if err := client.CreateGroup(name); err != nil {
 				PrintPromptResult("error", "Failed to Create Group", "", [][2]string{{"Name", name}, {"Error", err.Error()}})
-				return nil
+				return nil //nolint:nilerr // The structured error result is the CLI response; preserve the existing command contract.
 			}
 
 			fields := [][2]string{
