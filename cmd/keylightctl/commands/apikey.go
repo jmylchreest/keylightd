@@ -186,7 +186,7 @@ func newAPIKeyAddCommand(_ *slog.Logger) *cobra.Command {
 			createdKey, err := apiClient.AddAPIKey(name, expiresInDuration.Seconds())
 			if err != nil {
 				PrintPromptResult("error", "Failed to Add API Key", "", [][2]string{{"Name", name}, {"Error", err.Error()}})
-				return nil
+				return nil //nolint:nilerr // The structured error result is the CLI response; preserve the existing command contract.
 			}
 
 			keyStr, _ := createdKey["key"].(string)
@@ -291,7 +291,7 @@ func newAPIKeyDeleteCommand(_ *slog.Logger) *cobra.Command {
 
 			if err := apiClient.DeleteAPIKey(keyToDelete); err != nil {
 				PrintPromptResult("error", "Failed to Delete API Key", "", [][2]string{{"Key", obfuscateAPIKey(keyToDelete)}, {"Error", err.Error()}})
-				return nil
+				return nil //nolint:nilerr // The structured error result is the CLI response; preserve the existing command contract.
 			}
 
 			pterm.Success.Printf("API Key '%s' deleted successfully.\n", obfuscateAPIKey(keyToDelete))
