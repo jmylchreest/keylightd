@@ -25,11 +25,13 @@ var (
 		"_elg._tcp", // Elgato Key Light
 	}
 
-	// validProductNames contains all valid Elgato Key Light product names
+	// validProductNames contains all Elgato product names that expose the
+	// Key Light HTTP API (/elgato/accessory-info and /elgato/lights).
 	validProductNames = []string{
 		"Elgato Key Light",
 		"Elgato Key Light Air",
 		"Elgato Key Light MK.2",
+		"Elgato Ring Light",
 	}
 
 	// Discovery parameters - tuned for reliability across platforms.
