@@ -55,9 +55,9 @@ func newInvalidProductHandler() http.Handler {
 		if r.URL.Path == "/elgato/accessory-info" {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(AccessoryInfo{
-				ProductName:  "Elgato Ring Light",
-				SerialNumber: "SN-RING",
-				DisplayName:  "My Ring Light",
+				ProductName:  "Elgato Stream Deck",
+				SerialNumber: "SN-DECK",
+				DisplayName:  "My Stream Deck",
 			})
 			return
 		}
@@ -132,14 +132,58 @@ func TestValidateLight_ValidKeyLightMK2(t *testing.T) {
 	assert.Equal(t, entry.Port, light.Port)
 }
 
+func TestValidateLight_ValidRingLight(t *testing.T) {
+	server := httptest.NewServer(newAccessoryInfoHandler("Elgato Ring Light", 201, "Test Ring Light", 0))
+	defer server.Close()
+
+	entry := makeServiceEntry(t, server, "testring._elg._tcp.local.")
+	light, valid := validateLight(context.Background(), entry, discardLogger())
+
+	assert.True(t, valid)
+	assert.Equal(t, "Elgato Ring Light", light.ProductName)
+	assert.Equal(t, 201, light.HardwareBoardType)
+	assert.Equal(t, "SN-Test Ring Light", light.SerialNumber)
+	assert.Equal(t, "Test Ring Light", light.Name)
+	assert.Equal(t, entry.Port, light.Port)
+}
+
+// ringLightAccessoryInfo is the accessory-info response captured from a real
+// Elgato Ring Light (firmware 1.0.4), with serial, MAC and SSID redacted.
+// Unlike the Key Light, it reports hardwareRevision as a number rather than a
+// string, so decoding must not depend on that field's type.
+const ringLightAccessoryInfo = `{"productName":"Elgato Ring Light","hardwareBoardType":201,"hardwareRevision":0.2,"macAddress":"00:00:00:00:00:00","firmwareBuildNumber":151,"firmwareVersion":"1.0.4","serialNumber":"DW50XXXXXXXX","displayName":"Ring","features":["lights"],"wifi-info":{"ssid":"redacted","frequencyMHz":5000,"rssi":-45}}`
+
+func TestValidateLight_RingLightCapturedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/elgato/accessory-info" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(ringLightAccessoryInfo))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	entry := makeServiceEntry(t, server, "Elgato Ring Light 91E8._elg._tcp.local.")
+	light, valid := validateLight(context.Background(), entry, discardLogger())
+
+	require.True(t, valid, "captured Ring Light response should validate")
+	assert.Equal(t, "Elgato Ring Light", light.ProductName)
+	assert.Equal(t, 201, light.HardwareBoardType)
+	assert.Equal(t, 151, light.FirmwareBuild)
+	assert.Equal(t, "1.0.4", light.FirmwareVersion)
+	assert.Equal(t, "DW50XXXXXXXX", light.SerialNumber)
+	assert.Equal(t, "Ring", light.Name)
+}
+
 func TestValidateLight_InvalidProduct(t *testing.T) {
 	server := httptest.NewServer(newInvalidProductHandler())
 	defer server.Close()
 
-	entry := makeServiceEntry(t, server, "ring._elg._tcp.local.")
+	entry := makeServiceEntry(t, server, "streamdeck._elg._tcp.local.")
 	_, valid := validateLight(context.Background(), entry, discardLogger())
 
-	assert.False(t, valid, "non-Key-Light product should not validate")
+	assert.False(t, valid, "a product without the Key Light HTTP API should not validate")
 }
 
 func TestValidateLight_ServerError(t *testing.T) {

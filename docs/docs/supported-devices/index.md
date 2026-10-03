@@ -12,6 +12,10 @@ keylightd currently supports the following devices:
 - **Elgato Key Light MK.2** - Updated Key Light with 5 GHz Wi-Fi and Bluetooth support
 - **Elgato Key Light Air** - Compact wireless version of the Key Light
 
+## Elgato Ring Light
+
+- **Elgato Ring Light** - Ring-format light that exposes the same HTTP API as the Key Light series
+
 These devices are automatically discovered on your network using mDNS/Bonjour and can be controlled through keylightd's CLI, HTTP API, or Unix socket interface.
 
 ## Device-Specific Information
