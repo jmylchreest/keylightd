@@ -14,3 +14,28 @@ func TestUnescapeRFC6763LabelByteRange(t *testing.T) {
 		}
 	}
 }
+
+func TestTemperatureConversionLimits(t *testing.T) {
+	for _, tt := range []struct {
+		kelvin int
+		mireds int
+	}{
+		{-1, 344}, {0, 344}, {2899, 344}, {2900, 344},
+		{4000, 250}, {6500, 153}, {7000, 143}, {7001, 143},
+	} {
+		if got := convertTemperatureToDevice(tt.kelvin); got != tt.mireds {
+			t.Errorf("convertTemperatureToDevice(%d) = %d, want %d", tt.kelvin, got, tt.mireds)
+		}
+	}
+	for _, tt := range []struct {
+		mireds int
+		kelvin int
+	}{
+		{-1, 6993}, {0, 6993}, {142, 6993}, {143, 6993},
+		{250, 4000}, {344, 2906}, {345, 2906},
+	} {
+		if got := ConvertDeviceToTemperature(tt.mireds); got != tt.kelvin {
+			t.Errorf("ConvertDeviceToTemperature(%d) = %d, want %d", tt.mireds, got, tt.kelvin)
+		}
+	}
+}
