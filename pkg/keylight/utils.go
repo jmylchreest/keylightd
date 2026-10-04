@@ -54,7 +54,7 @@ func UnescapeRFC6763Label(s string) string {
 		if s[i] == '\\' && i+1 < len(s) {
 			// Check for \DDD decimal escape
 			if i+3 < len(s) && isDigit(s[i+1]) && isDigit(s[i+2]) && isDigit(s[i+3]) {
-				val, err := strconv.Atoi(s[i+1 : i+4])
+				val, err := strconv.ParseUint(s[i+1:i+4], 10, 8)
 				if err == nil {
 					b.WriteByte(byte(val))
 					i += 3

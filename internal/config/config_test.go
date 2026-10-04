@@ -22,6 +22,22 @@ func TestLoadDefaults_NoConfigFile(t *testing.T) {
 	assert.Equal(t, ":9123", cfg.Config.API.ListenAddress)
 }
 
+func TestSaveDoesNotFollowPredictableTempSymlink(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	victimPath := filepath.Join(t.TempDir(), "victim")
+	require.NoError(t, os.WriteFile(victimPath, []byte("unchanged"), 0600))
+	require.NoError(t, os.Symlink(victimPath, configPath+".tmp"))
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	require.NoError(t, New(v).Save())
+	data, err := os.ReadFile(victimPath)
+	require.NoError(t, err)
+	assert.Equal(t, "unchanged", string(data))
+	info, err := os.Stat(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
+}
+
 func TestAPIKeyDisabledPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")

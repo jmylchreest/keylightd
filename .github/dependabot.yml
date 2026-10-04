@@ -50,3 +50,15 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # Documentation and desktop frontend dependencies
+  - package-ecosystem: "npm"
+    directories:
+      - "/docs"
+      - "/contrib/keylightd-tray/frontend"
+    schedule:
+      interval: "weekly"
+    groups:
+      npm-dependencies:
+        patterns:
+          - "*"
