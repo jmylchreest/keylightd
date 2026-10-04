@@ -17,13 +17,16 @@ on:
   # This ensures tests also run when directly triggered by workflow_dispatch
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Run tests with coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -37,8 +40,13 @@ jobs:
       - name: Verify dependencies
         run: go mod verify
 
+      - name: Check Go vulnerabilities
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./cmd/... ./pkg/... ./internal/...
+
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v9.3.0
 
       - name: Run tests with coverage
         run: |
@@ -49,7 +57,7 @@ jobs:
             ./internal/...
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.txt

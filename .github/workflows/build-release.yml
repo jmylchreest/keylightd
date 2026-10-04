@@ -35,13 +35,13 @@ jobs:
       should_skip: ${{ steps.skip.outputs.should_skip }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Extract version
         id: version
-        uses: jmylchreest/gha-extract-git-version@v1
+        uses: jmylchreest/gha-extract-git-version@v1.1.0
 
       - name: Check for duplicate builds
         id: skip
@@ -89,7 +89,7 @@ jobs:
     if: needs.prepare.outputs.should_skip != 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -127,7 +127,7 @@ jobs:
             os: macos-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -170,7 +170,7 @@ jobs:
             contrib/systemd/keylightd.service
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*.tar.gz
@@ -202,7 +202,7 @@ jobs:
             os: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -213,7 +213,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -283,7 +283,7 @@ jobs:
           Compress-Archive -Path "LICENSE","README.md" -DestinationPath "dist/$zipName" -Update
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: keylightd-tray_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: |
@@ -298,7 +298,7 @@ jobs:
     if: needs.prepare.outputs.should_skip != 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Install dependencies
         run: |
@@ -311,7 +311,7 @@ jobs:
           make zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: keylightd-gnome-extension_${{ needs.prepare.outputs.version }}
           path: dist/gnome-extension/*.zip
@@ -328,12 +328,12 @@ jobs:
       is_release: ${{ needs.prepare.outputs.is_release }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           path: artifacts
           merge-multiple: false
@@ -484,7 +484,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Save checksums for publishing jobs
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_checksums
           path: release/keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
@@ -497,10 +497,10 @@ jobs:
     if: needs.create-release.outputs.is_release == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Download checksums
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
@@ -598,10 +598,10 @@ jobs:
     if: needs.create-release.outputs.is_release == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Download checksums
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.1
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
@@ -706,7 +706,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 

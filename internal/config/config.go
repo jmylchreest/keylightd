@@ -54,7 +54,7 @@ func GenerateKey(length int) (string, error) {
 	charsetLen := len(DefaultKeyCharset)
 	// Calculate the largest multiple of charsetLen that fits in a byte (256)
 	// to eliminate modulo bias
-	maxValid := byte(256 - (256 % charsetLen))
+	maxValid := 256 - (256 % charsetLen)
 
 	result := make([]byte, 0, length)
 	buf := make([]byte, length*2) // Over-allocate to reduce iterations
@@ -63,7 +63,7 @@ func GenerateKey(length int) (string, error) {
 			return "", fmt.Errorf("failed to read random bytes: %w", err)
 		}
 		for _, v := range buf {
-			if v < maxValid {
+			if int(v) < maxValid {
 				result = append(result, DefaultKeyCharset[int(v)%charsetLen])
 				if len(result) >= length {
 					break
@@ -287,11 +287,11 @@ func (c *Config) Save() error {
 	}
 
 	// Atomic write: write to temp file, fsync, rename over target
-	tmpPath := configPath + ".tmp"
-	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	f, err := os.CreateTemp(configDir, ".keylightd-config-*")
 	if err != nil {
 		return fmt.Errorf("error creating temp config file: %w", err)
 	}
+	tmpPath := f.Name()
 
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
