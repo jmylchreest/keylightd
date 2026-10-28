@@ -52,6 +52,7 @@ case "$TEST_TYPE" in
         echo "Running unit tests..."
         run_test "Import Checks" "check-imports.sh"
         run_test "Version Info Tests" "test-version-info.sh"
+        run_test "Publish Wrapper" "test-publish.sh"
         ;;
     "integration")
         echo "Running integration tests..."
@@ -61,6 +62,7 @@ case "$TEST_TYPE" in
         echo "Running all tests..."
         run_test "Import Checks" "check-imports.sh"
         run_test "Version Info Tests" "test-version-info.sh"
+        run_test "Publish Wrapper" "test-publish.sh"
         run_test "Build Integration Tests" "test-build-integration.sh"
         ;;
     *)

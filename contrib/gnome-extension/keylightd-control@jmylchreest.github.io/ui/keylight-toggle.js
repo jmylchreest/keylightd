@@ -114,7 +114,7 @@ export const KeylightdControlToggle = GObject.registerClass(
     _setupMenu() {
       // Create main content box
       this._mainBox = new St.BoxLayout({
-        vertical: true,
+        orientation: Clutter.Orientation.VERTICAL,
         style_class: "keylightd-menu-box",
       });
 
@@ -129,7 +129,7 @@ export const KeylightdControlToggle = GObject.registerClass(
 
       // Container for light controls
       this._lightsContainer = new St.BoxLayout({
-        vertical: true,
+        orientation: Clutter.Orientation.VERTICAL,
         style_class: "keylightd-lights-container",
       });
 
@@ -164,7 +164,7 @@ export const KeylightdControlToggle = GObject.registerClass(
       // Add a styled settings button at the bottom
       const settingsButtonBox = new St.BoxLayout({
         style_class: "keylightd-action-row",
-        vertical: false,
+        orientation: Clutter.Orientation.HORIZONTAL,
         x_align: Clutter.ActorAlign.CENTER,
         y_align: Clutter.ActorAlign.CENTER,
         x_expand: true,
@@ -1446,6 +1446,13 @@ export const KeylightdControlToggle = GObject.registerClass(
 
       // Unsubscribe from state events
       this._unsubscribeFromStateEvents();
+
+      // Removing menu children during teardown must not recalculate layout
+      // after settings and controller references have been cleared.
+      for (const id of this._lightsContainerSignals ?? []) {
+        this._lightsContainer.disconnect(id);
+      }
+      this._lightsContainerSignals = [];
 
       // Clear references
       this._extension = null;

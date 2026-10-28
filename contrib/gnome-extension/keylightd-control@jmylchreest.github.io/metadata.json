@@ -4,7 +4,9 @@
   "description": "Control keylightd via the GNOME Shell Quick Settings menu.",
   "shell-version": [
     "48",
-    "49"
+    "49",
+    "50",
+    "51"
   ],
   "url": "https://github.com/jmylchreest/keylightd",
   "settings-schema": "org.gnome.shell.extensions.keylightd-control",

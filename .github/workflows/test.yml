@@ -21,6 +21,32 @@ permissions:
   contents: read
 
 jobs:
+  gnome-extension:
+    name: GNOME ${{ matrix.gnome }} Wayland UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        gnome: [48, 49, 50, 51]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Run extension checks
+        run: bash contrib/gnome-extension/tests/run-tests.sh
+      - name: Test in GNOME and capture screenshots
+        env:
+          CONTAINER_RUNTIME: docker
+          GNOME_VERSION: ${{ matrix.gnome }}
+        run: make -C contrib/gnome-extension test-gnome
+      - name: Upload screenshots and session logs
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: gnome${{ matrix.gnome }}-ui-${{ github.run_attempt }}
+          path: dist/gnome${{ matrix.gnome }}-*/
+          retention-days: 7
+          if-no-files-found: warn
+
   test:
     name: Run tests with coverage
     runs-on: ubuntu-latest

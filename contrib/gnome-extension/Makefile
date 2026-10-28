@@ -2,7 +2,7 @@ EXT_UUID=keylightd-control@jmylchreest.github.io
 EXT_DIR=$(EXT_UUID)
 DIST_DIR=$(CURDIR)/../../dist/gnome-extension
 
-.PHONY: all build clean pack version-info test
+.PHONY: all build clean pack version-info test test-gnome test-gnome51 test-gnome-all
 
 all: clean build pack
 
@@ -13,6 +13,15 @@ version-info:
 test:
 	@echo "Running tests..."
 	@cd tests && ./run-tests.sh
+
+test-gnome:
+	@./tests/test-gnome-shell.sh
+
+test-gnome51:
+	@GNOME_VERSION=51 ./tests/test-gnome-shell.sh
+
+test-gnome-all:
+	@set -e; for version in 48 49 50 51; do GNOME_VERSION=$$version ./tests/test-gnome-shell.sh; done
 
 build: clean version-info test
 	@echo "Running build tasks (version info + tests) - no schema compilation needed for GNOME 45+"

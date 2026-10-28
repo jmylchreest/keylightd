@@ -201,9 +201,6 @@ export default class KeylightdControlExtension extends Extension {
 
     // Remove the indicator
     if (this._keylightdIndicator) {
-      Main.panel.statusArea.quickSettings.remove_child(
-        this._keylightdIndicator,
-      );
       this._keylightdIndicator.destroy();
       this._keylightdIndicator = null;
     }

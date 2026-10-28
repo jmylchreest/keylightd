@@ -193,6 +193,106 @@ Tests work seamlessly with GitHub Actions:
 
 ## Debugging
 
+### Reproducible GNOME 48–51 Wayland Tests
+
+From the repository root, run:
+
+```sh
+make -C contrib/gnome-extension test-gnome-all
+# Or select one release (the default is 51):
+GNOME_VERSION=48 make -C contrib/gnome-extension test-gnome
+```
+
+This requires Linux x86-64 and Podman. To use Docker, set
+`CONTAINER_RUNTIME=docker`. The first build downloads roughly 400–500 MiB of
+packages per release; subsequent builds reuse each runtime layer. No local GNOME
+installation is needed. The `test-gnome51` target remains available as a shortcut.
+
+The [Containerfile](tests/gnome-shell/Containerfile) pins the Arch base image by
+digest and installs packages from a dated Arch archive snapshot. It checks
+that the installed Shell matches the selected major version. Each run prints the Shell, Mutter, GJS
+and Mesa package versions and starts a fresh headless Wayland compositor with
+Mesa software rendering and a 1600×1200 virtual monitor. Both D-Bus buses and all
+settings live inside the container. The test has no network access, host mounts,
+display sockets or GPU devices, and does not require privileged mode.
+
+| GNOME Shell | Arch archive snapshot |
+| --- | --- |
+| 48 | 2025-08-01 |
+| 49 | 2026-02-01 |
+| 50 | 2026-08-01 |
+| 51 | 2026-10-28 |
+
+The container loads the extension with normal version validation, then a test
+extension checks menu orientation, constructs light and group controls including
+their sliders, and disables and re-enables the extension. A failure or timeout
+returns a nonzero exit code and prints the session log. Missing desktop services
+such as GDM or the calendar service can produce unrelated warnings in that log.
+This tests real Shell widgets and the extension lifecycle; it does not test
+physical lights or a real daemon. A container-local HTTP fixture supplies a
+Studio group and two lights with different power states.
+
+Screenshots and logs are copied to a new `dist/gnome<version>-*` directory on every run,
+including failed runs. Captures cover quick settings, the expanded light/group
+menu, all five preferences pages, add/edit/delete group dialogs and the log-level
+dropdown. CI runs a four-version matrix and uploads a separate
+`gnome<version>-ui-*` artifact for each version, retained for seven days.
+Release packaging waits for all four UI tests to pass. The screenshots are for
+visual review, not pixel-by-pixel golden tests.
+
+For an older checkout whose metadata does not list GNOME 51, the test runner also
+accepts `--allow-unsupported`. This bypasses version validation only in the
+container, reproducing the manual metadata workaround in
+[issue #56](https://github.com/jmylchreest/keylightd/issues/56):
+
+```sh
+contrib/gnome-extension/tests/test-gnome-shell.sh --allow-unsupported
+```
+
+The original code fails with `No property vertical on StBoxLayout`. GNOME 51
+removed that property; the extension now uses `Clutter.Orientation` for all four
+affected layouts, as described in the
+[GNOME 51 porting guide](https://gjs.guide/extensions/upgrading/gnome-shell-51.html).
+
+### Publishing to extensions.gnome.org
+
+One extension ZIP supports GNOME 48, 49, 50 and 51 through the `shell-version`
+list in `metadata.json`. A separate ZIP per Shell version is unnecessary while
+the same implementation works on all four. See GNOME's
+[multi-version support guide](https://gjs.guide/extensions/development/targeting-older-gnome.html).
+
+EGO also supports multiple uploaded versions under the same extension UUID.
+If incompatible changes eventually require a legacy branch, publish separate
+ZIPs with accurate, preferably non-overlapping `shell-version` lists. GNOME's
+[45 migration announcement](https://blogs.gnome.org/shell-dev/2023/09/02/extensions-in-gnome-45/)
+describes this approach for maintaining pre-45 and post-45 releases. Keep the
+older compatible release active while its users still need it.
+
+Stable releases with extension changes upload the already-built release ZIP
+using `gnome-extensions upload` from the pinned container runtime. This replaces
+the third-party upload action and avoids depending on the runner's GNOME CLI.
+Set repository secrets `EGO_USERNAME` and `EGO_PASSWORD` for the owning EGO
+account. The password is passed over stdin to `--password-file=-`.
+
+To upload an existing bundle manually from the command line:
+
+```sh
+export EGO_USERNAME=your-account
+read -rs EGO_PASSWORD
+export EGO_PASSWORD
+contrib/gnome-extension/publish.sh dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip
+unset EGO_PASSWORD
+```
+
+The script accepts the EGO upload terms, as the previous publishing action did.
+An upload submits a version to EGO; publication remains subject to GNOME's review
+process. Automatic uploads run only for stable releases. To test an upload from
+the current branch, manually run the **Build Release** workflow with
+`publish_extension=true` and `release=false`. This still requires the full GNOME
+test matrix and packaging to succeed, but does not create a stable release tag.
+Publishing errors retain the existing non-blocking release behavior, so inspect
+the **Publish to EGO** job to confirm the upload succeeded.
+
 ### Testing in a Nested Wayland Session (Recommended)
 
 Running GNOME Shell in a nested Wayland session allows you to test and debug your extension without affecting your main desktop session.
@@ -219,4 +319,4 @@ Running GNOME Shell in a nested Wayland session allows you to test and debug you
 ### General Tips
 - Use the [Looking Glass](https://wiki.gnome.org/Projects/GnomeShell/LookingGlass) debugger (`lg` in Alt+F2) for live JS console and object inspection.
 - Use `console.log()` and `console.error()` in your JS code for debugging output.
-- Always test with both the preferences dialog and the quick settings menu. 
+- Always test with both the preferences dialog and the quick settings menu.

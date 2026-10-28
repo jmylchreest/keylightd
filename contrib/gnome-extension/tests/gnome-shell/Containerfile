@@ -1,0 +1,21 @@
+ARG ARCH_IMAGE=docker.io/library/archlinux@sha256:dfc5be7be44cf1acf3d9b3b902e3e9c8a29f97ed41e35631823cdc9c97e5d4f0
+FROM ${ARCH_IMAGE} AS runtime
+
+# Freeze the complete package set, including Mutter, GJS and Mesa.
+ARG GNOME_VERSION=51
+ARG ARCH_SNAPSHOT=2026/10/28
+# GNOME 48's pacman owns python.sh, which moved to libmakepkg-dropins later.
+# Remove the newer split package before downgrading to that snapshot.
+RUN printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$ARCH_SNAPSHOT" > /etc/pacman.d/mirrorlist \
+    && pacman-key --init \
+    && pacman-key --populate archlinux \
+    && if [ "$GNOME_VERSION" = 48 ]; then pacman -Rdd --noconfirm libmakepkg-dropins; fi \
+    && pacman -Syyuu --noconfirm gnome-shell mesa dbus python \
+    && pacman -Scc --noconfirm \
+    && gnome-shell --version | grep -E "^GNOME Shell ${GNOME_VERSION}\."
+
+ENV LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=keyfile GNOME_VERSION=${GNOME_VERSION}
+FROM runtime AS test
+RUN pacman -S --noconfirm make zip
+COPY . /opt/keylightd-extension
+ENTRYPOINT ["bash", "/opt/keylightd-extension/tests/gnome-shell/session.sh"]

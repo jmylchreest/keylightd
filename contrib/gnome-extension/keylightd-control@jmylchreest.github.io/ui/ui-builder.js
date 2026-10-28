@@ -169,7 +169,7 @@ export class UIBuilder {
 
     // Create section container
     const section = new St.BoxLayout({
-      vertical: true,
+      orientation: Clutter.Orientation.VERTICAL,
       style_class: "keylightd-control-section",
       x_expand: true,
     });
