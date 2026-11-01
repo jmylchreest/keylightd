@@ -175,7 +175,7 @@ jobs:
             contrib/systemd/keylightd.service
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*.tar.gz
@@ -288,7 +288,7 @@ jobs:
           Compress-Archive -Path "LICENSE","README.md" -DestinationPath "dist/$zipName" -Update
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd-tray_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: |
@@ -315,7 +315,7 @@ jobs:
         run: make -C contrib/gnome-extension test-gnome
       - name: Upload GNOME screenshots and session logs
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: gnome${{ matrix.gnome }}-release-ui-${{ github.run_attempt }}
           path: dist/gnome${{ matrix.gnome }}-*/
@@ -342,7 +342,7 @@ jobs:
           make zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd-gnome-extension_${{ needs.prepare.outputs.version }}
           path: dist/gnome-extension/*.zip
@@ -515,7 +515,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Save checksums for publishing jobs
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_checksums
           path: release/keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
