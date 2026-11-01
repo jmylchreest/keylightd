@@ -40,7 +40,7 @@ jobs:
         run: make -C contrib/gnome-extension test-gnome
       - name: Upload screenshots and session logs
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: gnome${{ matrix.gnome }}-ui-${{ github.run_attempt }}
           path: dist/gnome${{ matrix.gnome }}-*/
