@@ -4,23 +4,50 @@ on:
   push:
     # branches:
     #   - main
-    tags:
-      - "v*"
-      - "!*SNAPSHOT*"
     paths-ignore:
       - "docs/**"
       - "**.md"
+    branches:
+      - main
   pull_request:
     paths-ignore:
       - "docs/**"
       - "**.md"
   # This ensures tests also run when directly triggered by workflow_dispatch
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      gnome: ${{ steps.scope.outputs.gnome }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            git diff --name-only "$BASE_SHA" HEAD > "$RUNNER_TEMP/changed-files"
+          fi
+          if [ "$EVENT" != pull_request ] || grep -Eq '^contrib/gnome-extension/|^\.github/|^Makefile$|^scripts/|^pkg/|^internal/|^cmd/|^go\.(mod|sum)$' "$RUNNER_TEMP/changed-files"; then
+            echo 'gnome=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'gnome=false' >> "$GITHUB_OUTPUT"
+          fi
   gnome-extension:
     name: GNOME ${{ matrix.gnome }} Wayland UI
     runs-on: ubuntu-latest
@@ -47,6 +74,8 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+    needs: changes
+    if: needs.changes.outputs.gnome == 'true'
   test:
     name: Run tests with coverage
     runs-on: ubuntu-latest
@@ -92,3 +121,6 @@ jobs:
       # Indicate test completion for debugging
       - name: Test completion status
         run: echo "Tests completed successfully at $(date)"
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true

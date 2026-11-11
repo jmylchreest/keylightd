@@ -2,8 +2,6 @@ name: Build Release
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -19,13 +17,14 @@ on:
         default: false
         type: boolean
 
+  schedule:
+    - cron: 17 5 * * *
 permissions:
   contents: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
+  group: release-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 jobs:
   prepare:
     name: Prepare Release
@@ -59,6 +58,19 @@ jobs:
             echo "should_skip=false" >> $GITHUB_OUTPUT
           fi
 
+          # Manual runs remain available to intentionally rebuild the same commit.
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            previous=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/build-release.yml/runs" \
+              --method GET -f head_sha="$GITHUB_SHA" -f status=success -f per_page=100 \
+              --jq '[.workflow_runs[] | select(.event == "schedule" or .event == "workflow_dispatch")] | length')
+            if [ "$previous" -gt 0 ]; then
+              echo 'Unchanged since the last successful snapshot; skipping.'
+              echo 'should_skip=true' >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Validate version base
         if: github.event.inputs.release == 'true'
         run: |
@@ -87,32 +99,22 @@ jobs:
           git tag -a "v${{ steps.version.outputs.version }}" -m "Release v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
 
+    permissions:
+      contents: write
+      actions: read
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: CI gate
     needs: prepare
     if: needs.prepare.outputs.should_skip != 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: stable
-          cache: true
-
-      - name: Run tests with race detector
-        run: |
-          go test -race -count=1 -timeout=120s \
-            ./cmd/... \
-            ./pkg/... \
-            ./internal/...
-
+    uses: ./.github/workflows/test.yml
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   build-binaries:
     name: Build binaries (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
-    needs: [prepare, test]
+    needs:
+      - prepare
+      - test
     if: needs.prepare.outputs.should_skip != 'true'
     strategy:
       fail-fast: false
@@ -184,7 +186,9 @@ jobs:
   build-keylightd-tray:
     name: Build keylightd-tray (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ${{ matrix.os }}
-    needs: [prepare, test]
+    needs:
+      - prepare
+      - test
     if: needs.prepare.outputs.should_skip != 'true'
     strategy:
       fail-fast: false
@@ -220,9 +224,26 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Resolve Wails tool version
+        id: wails-version
+        shell: bash
+        working-directory: contrib/keylightd-tray
+        run: |
+          echo "version=$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)" >> "$GITHUB_OUTPUT"
+          echo "go=$(go env GOVERSION)" >> "$GITHUB_OUTPUT"
+      - name: Cache Wails tool
+        id: wails-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: "~/go/bin/wails\n~/go/bin/wails.exe"
+          key: wails-${{ runner.os }}-${{ runner.arch }}-${{ steps.wails-version.outputs.go }}-${{ steps.wails-version.outputs.version }}
       - name: Install Wails
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+        run: go install "github.com/wailsapp/wails/v2/cmd/wails@$WAILS_VERSION"
 
+        if: steps.wails-cache.outputs.cache-hit != 'true'
+        env:
+          WAILS_VERSION: ${{ steps.wails-version.outputs.version }}
+        shell: bash
       - name: Install Linux dependencies
         if: matrix.goos == 'linux'
         run: |
@@ -296,36 +317,12 @@ jobs:
             dist/*.zip
           retention-days: 1
 
-  test-gnome-extension:
-    name: Test GNOME ${{ matrix.gnome }} UI
-    runs-on: ubuntu-latest
-    needs: prepare
-    if: needs.prepare.outputs.should_skip != 'true'
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        gnome: [48, 49, 50, 51]
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - name: Verify GNOME UI before release
-        env:
-          CONTAINER_RUNTIME: docker
-          GNOME_VERSION: ${{ matrix.gnome }}
-        run: make -C contrib/gnome-extension test-gnome
-      - name: Upload GNOME screenshots and session logs
-        if: always()
-        uses: actions/upload-artifact@v7.0.1
-        with:
-          name: gnome${{ matrix.gnome }}-release-ui-${{ github.run_attempt }}
-          path: dist/gnome${{ matrix.gnome }}-*/
-          retention-days: 7
-          if-no-files-found: warn
-
   build-gnome-extension:
     name: Build GNOME extension
     runs-on: ubuntu-latest
-    needs: [prepare, test-gnome-extension]
+    needs:
+      - prepare
+      - test
     if: needs.prepare.outputs.should_skip != 'true'
     steps:
       - name: Checkout code
@@ -352,7 +349,10 @@ jobs:
     name: Create Release
     runs-on: ubuntu-latest
     needs:
-      [prepare, build-binaries, build-keylightd-tray, build-gnome-extension]
+      - prepare
+      - build-binaries
+      - build-keylightd-tray
+      - build-gnome-extension
     outputs:
       version: ${{ needs.prepare.outputs.version }}
       version_tag: ${{ needs.prepare.outputs.version_tag }}
@@ -785,7 +785,11 @@ jobs:
   cleanup-artifacts:
     name: Clean up build artifacts
     runs-on: ubuntu-latest
-    needs: [create-release, publish-aur, publish-homebrew, publish-ego]
+    needs:
+      - create-release
+      - publish-aur
+      - publish-homebrew
+      - publish-ego
     if: always()
     steps:
       - name: Delete all workflow run artifacts
