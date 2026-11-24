@@ -32,6 +32,7 @@ func NewLightCommand(logger *slog.Logger) *cobra.Command {
 		newLightListCommand(),
 		newLightGetCommand(),
 		newLightSetCommand(logger),
+		newLightSetupCommand(),
 	)
 
 	return cmd

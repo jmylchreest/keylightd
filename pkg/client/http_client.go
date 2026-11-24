@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -222,4 +223,30 @@ func (c *HTTPClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (m
 		return nil, err
 	}
 	return resp, nil
+}
+
+// StartLightSetup asks the daemon to start a setup session.
+func (c *HTTPClient) StartLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodPost, id)
+}
+
+// GetLightSetup returns the current setup session status.
+func (c *HTTPClient) GetLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodGet, id)
+}
+
+// CancelLightSetup cancels an active setup session.
+func (c *HTTPClient) CancelLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodDelete, id)
+}
+
+func (c *HTTPClient) lightSetupRequest(method, id string) (map[string]any, error) {
+	var status map[string]any
+	err := c.request(method, "/api/v1/lights/"+url.PathEscape(id)+"/setup", nil, &status)
+	return status, err
+}
+
+// ForgetLightCredentials removes the daemon-managed identity of a light.
+func (c *HTTPClient) ForgetLightCredentials(id string) error {
+	return c.request(http.MethodDelete, "/api/v1/lights/"+url.PathEscape(id)+"/credentials", nil, nil)
 }

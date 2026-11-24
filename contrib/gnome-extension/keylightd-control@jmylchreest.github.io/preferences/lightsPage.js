@@ -278,6 +278,46 @@ export var LightsPage = GObject.registerClass(
         subtitle: _("ID: %s").format(light.id),
       });
 
+      if (light.needsConfiguration?.length) {
+        row.subtitle = _("Setup required");
+        const path = `lights/${encodeURIComponent(light.id)}/setup`;
+        const buttons = [];
+        const addSetupButton = (label, method) => {
+          const button = new Gtk.Button({ label, valign: Gtk.Align.CENTER });
+          buttons.push(button);
+          button.connect("clicked", async () => {
+            for (const control of buttons) control.sensitive = false;
+            try {
+              const status = await fetchAPI(path, method);
+              const stages = {
+                configuring: _("Configuring…"),
+                canceling: _("Canceling…"),
+                canceled: _("Setup canceled"),
+                failed: _("Setup failed"),
+                timed_out: _("Setup timed out"),
+                ready: _("Setup complete"),
+              };
+              row.subtitle = stages[status.stage] || _("Setup required");
+              if (status.stage === "ready") await this._loadLights();
+            } catch (error) {
+              this._setStatus(
+                method === "POST"
+                  ? _("Could not start setup. Check Bluetooth support on the keylightd host.")
+                  : _("Could not retrieve or change the setup session."),
+                true,
+              );
+              filteredLog("debug", "Light setup request failed", error);
+            } finally {
+              for (const control of buttons) control.sensitive = true;
+            }
+          });
+          row.add_suffix(button);
+        };
+        addSetupButton(_("Configure…"), "POST");
+        addSetupButton(_("Check status"), "GET");
+        addSetupButton(_("Cancel setup"), "DELETE");
+      }
+
       // Get current visible lights
       const visibleLights = this._settings.get_strv("visible-lights") || [];
       const isVisible = visibleLights.includes(light.id);

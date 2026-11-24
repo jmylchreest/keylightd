@@ -502,6 +502,19 @@ export const KeylightdControlToggle = GObject.registerClass(
                   ? `${name} · ${_("Experimental")}`
                   : name;
 
+              if (lightDetails.needsConfiguration?.length) {
+                const configure = new St.Button({
+                  label: _("%s · Configure…").format(displayName),
+                  style_class: "button",
+                  can_focus: true,
+                  x_expand: true,
+                });
+                configure.connect("clicked", () => this._extension._openPreferences());
+                this._lightsContainer.add_child(configure);
+                itemCount++;
+                continue;
+              }
+
               // Check if we have an existing section for this light
               const sectionKey = `light:${light.id}`;
               const existingSection = existingSections.get(sectionKey);

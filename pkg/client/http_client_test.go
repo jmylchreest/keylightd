@@ -346,3 +346,29 @@ func TestNewHTTP_NoTrailingSlash(t *testing.T) {
 	c := NewHTTP(testLogger(), "http://example.com", "key")
 	assert.Equal(t, "http://example.com", c.baseURL)
 }
+
+func TestHTTPClientLightSetup(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "test-api-key", r.Header.Get("X-API-Key"))
+		jsonHandler(http.StatusOK, map[string]any{"stage": r.Method})(w, r)
+	}
+	_, client := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /api/v1/lights/{id}/setup":   handler,
+		"GET /api/v1/lights/{id}/setup":    handler,
+		"DELETE /api/v1/lights/{id}/setup": handler,
+		"DELETE /api/v1/lights/{id}/credentials": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "desk light", r.PathValue("id"))
+			w.WriteHeader(http.StatusNoContent)
+		},
+	})
+	for method, call := range map[string]func(string) (map[string]any, error){
+		http.MethodPost:   client.StartLightSetup,
+		http.MethodGet:    client.GetLightSetup,
+		http.MethodDelete: client.CancelLightSetup,
+	} {
+		status, err := call("desk light")
+		require.NoError(t, err)
+		assert.Equal(t, method, status["stage"])
+	}
+	require.NoError(t, client.ForgetLightCredentials("desk light"))
+}
