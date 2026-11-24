@@ -25,6 +25,7 @@ var products = productRegistry{
 		{Manufacturer: "elgato", Name: "Elgato Ring Light", BoardIDs: []int{201}},
 	},
 	experimental: []Product{
+		{Manufacturer: "elgato", Name: "Elgato Key Light Air MK.2", BoardIDs: []int{214}},
 		{Manufacturer: "elgato", Name: "Elgato Key Light Mini", BoardIDs: []int{202}},
 		{Manufacturer: "elgato", Name: "Elgato Key Light Neo", BoardIDs: []int{210}},
 	},

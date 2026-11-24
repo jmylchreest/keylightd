@@ -25,6 +25,7 @@ import (
 
 // Manager manages Key Light devices
 type Manager struct {
+	airMK2                *AirMK2Discovery
 	httpProbeOnDisconnect map[string]bool
 	lights                map[string]Light
 	clients               map[string]DeviceClient
@@ -47,6 +48,20 @@ func NewManager(logger *slog.Logger, lightConfig ...config.LightConfig) *Manager
 		clients:               make(map[string]DeviceClient),
 		logger:                logger,
 	}
+}
+
+// SetAirMK2Discovery installs device profiles before discovery starts.
+func (m *Manager) SetAirMK2Discovery(provider *AirMK2Discovery) {
+	m.airMK2 = provider
+}
+
+func (m *Manager) addPendingDevice(light Light) {
+	light.LastSeen = time.Now()
+	m.mu.Lock()
+	m.lights[light.ID] = light
+	delete(m.clients, light.ID)
+	m.mu.Unlock()
+	m.emit(events.LightDiscovered, &light)
 }
 
 // SetEventBus sets the event bus for publishing state change events.
@@ -79,6 +94,9 @@ func (m *Manager) GetDiscoveredLights() []*Light {
 func (m *Manager) GetLight(ctx context.Context, id string) (*Light, error) {
 	// Get client and light information
 	client, light, err := m.deviceClient(id)
+	if light != nil && len(light.NeedsConfiguration) > 0 {
+		return light, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +378,7 @@ func (m *Manager) cleanupStaleLights(ctx context.Context, timeout time.Duration)
 		}
 		var state *LightState
 		enabled, configured := m.httpProbeOnDisconnect[candidate.SerialNumber]
-		if !configured || enabled {
+		if len(candidate.NeedsConfiguration) == 0 && (!configured || enabled) {
 			client, _, err := m.deviceClient(candidate.ID)
 			if err != nil {
 				continue

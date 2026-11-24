@@ -108,6 +108,7 @@ func (m *Manager) StartDiscoveryWithRestart(ctx context.Context, interval time.D
 func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) error {
 	return m.DiscoverWith(ctx, interval, elgatoDiscovery{
 		logger:     m.logger,
+		airMK2:     m.airMK2,
 		lightCount: func() int { return len(m.GetLights()) },
 	})
 }
@@ -115,13 +116,19 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 // DiscoverWith runs a provider and registers its devices with the manager.
 func (m *Manager) DiscoverWith(ctx context.Context, interval time.Duration, provider DiscoveryProvider) error {
 	return provider.Discover(ctx, interval, func(light Light, client DeviceClient) {
-		if ctx.Err() == nil && client != nil {
+		if ctx.Err() != nil {
+			return
+		}
+		if client != nil {
 			m.addDevice(ctx, light, client)
+		} else if len(light.NeedsConfiguration) > 0 {
+			m.addPendingDevice(light)
 		}
 	})
 }
 
 type elgatoDiscovery struct {
+	airMK2     *AirMK2Discovery
 	logger     *slog.Logger
 	lightCount func() int
 }
@@ -203,7 +210,14 @@ func (p elgatoDiscovery) Discover(ctx context.Context, interval time.Duration, f
 					// This ensures that cancelling the browse timeout does not
 					// kill in-flight HTTP validation requests for other lights.
 					validateCtx, validateCancel := context.WithTimeout(ctx, params.validateTimeout)
-					light, client, valid := openElgatoLight(validateCtx, localEntry, p.logger)
+					var light Light
+					var client DeviceClient
+					var valid bool
+					if slices.Contains(entry.Text, "tls=CERT_1_VER_EN") {
+						light, client, valid = p.airMK2.openDiscovered(validateCtx, localEntry)
+					} else {
+						light, client, valid = openElgatoLight(validateCtx, localEntry, p.logger)
+					}
 					validateCancel()
 
 					if !valid {
@@ -312,7 +326,7 @@ func openElgatoLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logg
 		}
 		return Light{}, nil, false
 	}
-	if _, ok := ResolveProduct("elgato", info.HardwareBoardType, info.ProductName); !ok {
+	if product, ok := ResolveProduct("elgato", info.HardwareBoardType, info.ProductName); !ok || info.HardwareBoardType == 214 || product.Name == "Elgato Key Light Air MK.2" {
 		if logger != nil {
 			logger.Debug("validateLight: discovered device is not a valid Elgato Key Light",
 				"productName", info.ProductName,

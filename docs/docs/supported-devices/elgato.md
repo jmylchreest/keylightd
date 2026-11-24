@@ -114,3 +114,28 @@ The device exposes the following HTTP endpoints:
   ]
 }
 ```
+
+## Key Light Air MK.2
+
+The Key Light Air MK.2 (board 214) is experimental. The client and discovery
+flow are tested with simulated devices. Physical interoperability is unverified.
+
+Configure an already provisioned light with its address, the CA that verifies
+its server certificate, and a client certificate and private key trusted by
+the light. If the certificate identifies the device by DNS name and you
+connect by IP, supply that certificate name with `server_name`.
+
+```yaml
+config:
+  air_mk2:
+    - address: "192.0.2.10:9123"
+      server_name: "light.example"
+      ca_file: /path/to/light-ca.pem
+      cert_file: /path/to/client-chain.pem
+      key_file: /path/to/client-key.pem
+```
+
+Restart keylightd after configuring the device. Discovery matches credentials by
+the advertised IP address and port. An unconfigured discovery reports
+`needsConfiguration` with `credentials_missing`. The client reads and updates
+power, brightness, and white colour temperature over a TLS WebSocket.

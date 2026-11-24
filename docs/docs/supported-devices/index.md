@@ -27,6 +27,7 @@ For detailed technical information about supported devices, including API endpoi
 ## Experimental devices
 
 {/* BEGIN GENERATED EXPERIMENTAL DEVICES */}
+- **Elgato Key Light Air MK.2** (board 214)
 - **Elgato Key Light Mini** (board 202)
 - **Elgato Key Light Neo** (board 210)
 {/* END GENERATED EXPERIMENTAL DEVICES */}
