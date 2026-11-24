@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
@@ -87,7 +88,13 @@ func TestOnboardAirMK2(t *testing.T) {
 	require.Nil(t, client)
 	require.Equal(t, []string{"credentials_missing"}, pending.NeedsConfiguration)
 	manager.addPendingDevice(pending)
-	require.NoError(t, manager.ConfigureAirMK2(ctx, pending.ID, pairer))
+	status, err := manager.StartAirMK2Setup(ctx, pending.ID, pairer)
+	require.NoError(t, err)
+	require.Equal(t, "configuring", status.Stage)
+	require.Eventually(t, func() bool {
+		status, ok := manager.DeviceSetupStatus(pending.ID)
+		return ok && status.Stage == "ready"
+	}, time.Second, time.Millisecond)
 	require.ErrorContains(t, manager.ConfigureAirMK2(ctx, pending.ID, pairer), "already has stored credentials")
 
 	restarted, err := NewAirMK2Discovery(nil, discardLogger())

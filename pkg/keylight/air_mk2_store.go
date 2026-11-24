@@ -128,3 +128,27 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 	}
 	return p.credentials.save(id, identity)
 }
+
+// StartAirMK2Setup starts pairing with a context owned by the daemon.
+func (m *Manager) StartAirMK2Setup(ctx context.Context, id string, pairer AirMK2Pairer) (SetupStatus, error) {
+	if pairer == nil {
+		return SetupStatus{}, errors.New("air MK.2 pairing transport is unavailable")
+	}
+	return m.setup.Start(ctx, id, func(ctx context.Context) error {
+		if err := m.ConfigureAirMK2(ctx, id, pairer); err != nil {
+			m.logger.Debug("Air MK.2 setup failed", "id", id)
+			return err
+		}
+		return nil
+	})
+}
+
+// DeviceSetupStatus returns the current or last setup session for the device.
+func (m *Manager) DeviceSetupStatus(id string) (SetupStatus, bool) {
+	return m.setup.Status(id)
+}
+
+// CancelDeviceSetup requests cancellation of the active setup session.
+func (m *Manager) CancelDeviceSetup(id string) bool {
+	return m.setup.Cancel(id)
+}

@@ -25,6 +25,7 @@ import (
 
 // Manager manages Key Light devices
 type Manager struct {
+	setup                 SetupSessions
 	airMK2                *AirMK2Discovery
 	httpProbeOnDisconnect map[string]bool
 	lights                map[string]Light
