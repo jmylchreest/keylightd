@@ -1,0 +1,9 @@
+{
+  "productName": "Elgato Key Light Air",
+  "hardwareBoardType": 200,
+  "serialNumber": "TEST-key-light-air",
+  "displayName": "Fixture key-light-air",
+  "features": [
+    "lights"
+  ]
+}

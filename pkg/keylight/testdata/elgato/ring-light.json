@@ -1,0 +1,9 @@
+{
+  "productName": "Elgato Ring Light",
+  "hardwareBoardType": 201,
+  "serialNumber": "TEST-ring-light",
+  "displayName": "Fixture ring-light",
+  "features": [
+    "lights"
+  ]
+}
