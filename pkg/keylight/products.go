@@ -30,6 +30,17 @@ var products = productRegistry{
 	},
 }
 
+// ExperimentalProducts returns a snapshot of the experimental device registry.
+func ExperimentalProducts() []Product {
+	result := slices.Clone(products.experimental)
+	for i := range result {
+		result[i].BoardIDs = slices.Clone(result[i].BoardIDs)
+		result[i].Names = slices.Clone(result[i].Names)
+		result[i].Experimental = true
+	}
+	return result
+}
+
 // ResolveProduct scopes identifiers to a manufacturer, matching a known board
 // before falling back to an exact product name or alias. The returned value owns its slices, so callers cannot change
 // the registry. An unknown product is not implicitly experimental.

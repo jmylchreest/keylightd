@@ -92,6 +92,9 @@ jobs:
       - name: Display Go version
         run: go version
 
+      - name: Check generated device guide
+        run: go run ./cmd/keylight-device-docs -check
+
       - name: Verify dependencies
         run: go mod verify
 
