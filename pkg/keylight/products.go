@@ -17,9 +17,6 @@ type productRegistry struct {
 	experimental []Product
 }
 
-// Board IDs were checked against Control Center Android 1.9.1 (701).
-// Keep this list at parity with the existing HTTP/CCT implementation. Recognizing
-// a product in the app does not establish that keylightd can control it.
 var products = productRegistry{
 	supported: []Product{
 		{Manufacturer: "elgato", Name: "Elgato Key Light", BoardIDs: []int{53}},

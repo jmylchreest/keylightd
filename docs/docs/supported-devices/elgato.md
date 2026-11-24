@@ -27,10 +27,7 @@ registry structure and lookup. The experimental list is currently empty; unknown
 devices are not automatically experimental. Mini, Neo, RGB strips, and Air MK.2 have
 not been added by this change.
 
-Board mappings were checked against Control Center Android 1.9.1 (701). This establishes
-identity mappings, not validation of additional device protocols. Discovery continues
-to use `_elg._tcp` over mDNS and the existing Elgato HTTP client. Separate discovery
-providers and device clients are planned as a later change.
+Discovery uses `_elg._tcp` over mDNS and the Elgato HTTP client.
 
 ## Temperature Control
 

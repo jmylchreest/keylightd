@@ -1,0 +1,9 @@
+{
+  "productName": "Elgato Key Light",
+  "hardwareBoardType": 53,
+  "serialNumber": "TEST-key-light",
+  "displayName": "Fixture key-light",
+  "features": [
+    "lights"
+  ]
+}
