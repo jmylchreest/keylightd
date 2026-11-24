@@ -53,7 +53,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 func newTestManager(logger *slog.Logger) (*Manager, *http.Client) {
 	m := NewManager(logger)
 	mockClient := &http.Client{Transport: &mockRoundTripper{}}
-	m.clients = make(map[string]*KeyLightClient)
+	m.clients = make(map[string]DeviceClient)
 	m.lights = make(map[string]Light)
 	return m, mockClient
 }

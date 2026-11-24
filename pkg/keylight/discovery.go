@@ -106,11 +106,32 @@ func (m *Manager) StartDiscoveryWithRestart(ctx context.Context, interval time.D
 }
 
 func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) error {
+	return m.DiscoverWith(ctx, interval, elgatoDiscovery{
+		logger:     m.logger,
+		lightCount: func() int { return len(m.GetLights()) },
+	})
+}
+
+// DiscoverWith runs a provider and registers its devices with the manager.
+func (m *Manager) DiscoverWith(ctx context.Context, interval time.Duration, provider DiscoveryProvider) error {
+	return provider.Discover(ctx, interval, func(light Light, client DeviceClient) {
+		if ctx.Err() == nil && client != nil {
+			m.addDevice(ctx, light, client)
+		}
+	})
+}
+
+type elgatoDiscovery struct {
+	logger     *slog.Logger
+	lightCount func() int
+}
+
+func (p elgatoDiscovery) Discover(ctx context.Context, interval time.Duration, found func(Light, DeviceClient)) error {
 	params := defaultDiscoveryParams
 	minInterval := params.calculateMaxDiscoveryTime() + time.Second
 	if interval < minInterval {
 		interval = minInterval
-		m.logger.Warn("Discovery interval too short, using minimum required interval",
+		p.logger.Warn("Discovery interval too short, using minimum required interval",
 			"minInterval", minInterval)
 	}
 
@@ -124,13 +145,13 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 
 			// If we already have lights from a previous attempt, skip retries
 			if attempt > 1 {
-				if len(m.GetLights()) > 0 {
-					m.logger.Debug("Skipping retry, lights already discovered",
+				if p.lightCount() > 0 {
+					p.logger.Debug("Skipping retry, lights already discovered",
 						"attempt", attempt,
-						"lightCount", len(m.GetLights()))
+						"lightCount", p.lightCount())
 					return nil
 				}
-				m.logger.Debug("Starting retry attempt", "attempt", attempt)
+				p.logger.Debug("Starting retry attempt", "attempt", attempt)
 				time.Sleep(params.browseDelay)
 			}
 
@@ -142,7 +163,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			if err != nil {
 				cancel()
 				return errors.LogErrorAndReturn(
-					m.logger,
+					p.logger,
 					errors.Internalf("failed to create zeroconf resolver: %w", err),
 					"discovery resolver creation failed",
 					"attempt", attempt,
@@ -153,7 +174,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			go func() {
 				defer close(entriesDone)
 				for entry := range entries {
-					m.logger.Debug("zeroconf: received entry",
+					p.logger.Debug("zeroconf: received entry",
 						"instance", entry.Instance,
 						"service", entry.Service,
 						"addrIPv4", entry.AddrIPv4,
@@ -182,24 +203,24 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 					// This ensures that cancelling the browse timeout does not
 					// kill in-flight HTTP validation requests for other lights.
 					validateCtx, validateCancel := context.WithTimeout(ctx, params.validateTimeout)
-					light, valid := validateLight(validateCtx, localEntry, m.logger)
+					light, client, valid := openElgatoLight(validateCtx, localEntry, p.logger)
 					validateCancel()
 
 					if !valid {
-						m.logger.Debug("zeroconf: entry did not validate as key light",
+						p.logger.Debug("zeroconf: entry did not validate as key light",
 							"instance", entry.Instance,
 							"addrIPv4", entry.AddrIPv4,
 							"port", entry.Port,
 							"attempt", attempt)
 						continue
 					}
-					m.logger.Debug("light: validated Light",
+					p.logger.Debug("light: validated Light",
 						"name", light.Name,
 						"id", light.ID,
 						"addr", light.IP,
 						"port", light.Port,
 						"attempt", attempt)
-					m.AddLight(ctx, light)
+					found(light, client)
 				}
 			}()
 
@@ -208,7 +229,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 				err = resolver.Browse(discoverCtx, serviceName, domain, entries)
 				if err != nil {
 					_ = errors.LogErrorAndReturn(
-						m.logger,
+						p.logger,
 						err,
 						"Browse attempt failed",
 						"attempt", attempt,
@@ -227,10 +248,10 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 			// Wait for all entry processing (including HTTP validations) to complete
 			<-entriesDone
 
-			m.logger.Debug("Browse attempt completed",
+			p.logger.Debug("Browse attempt completed",
 				"attempt", attempt,
 				"timeout", timeout,
-				"lightsFound", len(m.GetLights()))
+				"lightsFound", p.lightCount())
 		}
 
 		return nil
@@ -238,7 +259,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 
 	if err := discover(); err != nil {
 		return errors.LogErrorAndReturn(
-			m.logger,
+			p.logger,
 			err,
 			"initial discovery failed",
 		)
@@ -251,7 +272,7 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 		case <-ticker.C:
 			if err := discover(); err != nil {
 				_ = errors.LogErrorAndReturn(
-					m.logger,
+					p.logger,
 					err,
 					"light: stopping discovery",
 				)
@@ -260,13 +281,12 @@ func (m *Manager) DiscoverLights(ctx context.Context, interval time.Duration) er
 	}
 }
 
-// validateLight checks if the mDNS entry is a valid Elgato Key Light by querying /elgato/accessory-info
-func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
+func openElgatoLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger) (Light, DeviceClient, bool) {
 	if entry == nil {
 		if logger != nil {
 			logger.Debug("validateLight: skipping nil service entry")
 		}
-		return Light{}, false
+		return Light{}, nil, false
 	}
 	if entry.AddrV4 == nil || entry.Port == 0 {
 		if logger != nil {
@@ -275,7 +295,7 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 				"addr", entry.AddrV4,
 				"port", entry.Port)
 		}
-		return Light{}, false
+		return Light{}, nil, false
 	}
 
 	client := NewKeyLightClient(entry.AddrV4.String(), entry.Port, logger)
@@ -290,7 +310,7 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 				"port", entry.Port,
 			)
 		}
-		return Light{}, false
+		return Light{}, nil, false
 	}
 	if _, ok := ResolveProduct("elgato", info.HardwareBoardType, info.ProductName); !ok {
 		if logger != nil {
@@ -299,7 +319,7 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 				"name", entry.Name,
 				"addr", entry.AddrV4)
 		}
-		return Light{}, false
+		return Light{}, nil, false
 	}
 	// Build the Light struct with info
 	light := Light{
@@ -314,5 +334,5 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 		Name:              UnescapeRFC6763Label(info.DisplayName),
 	}
 	light.resolveModel()
-	return light, true
+	return light, client, true
 }

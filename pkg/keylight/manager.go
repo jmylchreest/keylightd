@@ -3,7 +3,7 @@ Concurrency Notes (audit):
 - Read operations (GetDiscoveredLights, GetLights) use RLock and return snapshots (map/slice copies or new structs) to avoid external mutation of internal state.
 - Mutations (AddLight, SetLightState*, cleanupStaleLights) perform network/device I/O outside the write lock; only the minimal in-memory updates are under Lock to reduce contention.
 - cleanupStaleLights uses a two-phase approach: RLock to collect stale IDs, then Lock to remove, minimizing time spent holding the write lock.
-- getOrCreateClient & state fetch patterns avoid holding locks during remote calls.
+- deviceClient & state fetch patterns avoid holding locks during remote calls.
 - Returned *Light pointers from GetLight should be treated as read-only by callers; direct mutation risks data races unless routed through manager methods.
 Future considerations:
 - Enforce deep-copy semantics for GetLight to eliminate accidental external mutation risks.
@@ -26,7 +26,7 @@ import (
 // Manager manages Key Light devices
 type Manager struct {
 	lights   map[string]Light
-	clients  map[string]*KeyLightClient
+	clients  map[string]DeviceClient
 	mu       sync.RWMutex
 	logger   *slog.Logger
 	eventBus *events.Bus
@@ -36,7 +36,7 @@ type Manager struct {
 func NewManager(logger *slog.Logger) *Manager {
 	return &Manager{
 		lights:  make(map[string]Light),
-		clients: make(map[string]*KeyLightClient),
+		clients: make(map[string]DeviceClient),
 		logger:  logger,
 	}
 }
@@ -70,7 +70,7 @@ func (m *Manager) GetDiscoveredLights() []*Light {
 // GetLight returns a light by ID and updates its state
 func (m *Manager) GetLight(ctx context.Context, id string) (*Light, error) {
 	// Get client and light information
-	client, light, err := m.getOrCreateClient(id)
+	client, light, err := m.deviceClient(id)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (m *Manager) SetLightState(ctx context.Context, id string, propertyValue Li
 	}
 
 	// Get client for this light
-	client, _, err := m.getOrCreateClient(id)
+	client, _, err := m.deviceClient(id)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,10 @@ func (m *Manager) GetLights() map[string]*Light {
 // AddLight adds a light to the manager and fetches its initial state.
 func (m *Manager) AddLight(ctx context.Context, light Light) {
 	// Create client for this light - not blocking, can be done before lock
-	client := NewKeyLightClient(light.IP.String(), light.Port, m.logger)
+	m.addDevice(ctx, light, NewKeyLightClient(light.IP.String(), light.Port, m.logger))
+}
+
+func (m *Manager) addDevice(ctx context.Context, light Light, client DeviceClient) {
 	// Using caller-provided ctx
 
 	// Get current state - happens OUTSIDE the lock
