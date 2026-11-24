@@ -18,7 +18,7 @@ require (
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-chi/httprate v0.16.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/jmylchreest/slog-logfilter v0.2.1
 	github.com/wailsapp/wails/v2 v2.16.0
 )
