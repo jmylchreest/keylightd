@@ -53,7 +53,9 @@ type SetLightStateOutput struct {
 
 // LightHandler implements light-related HTTP handlers.
 type LightHandler struct {
-	Lights keylight.LightManager
+	Lights         keylight.LightManager
+	SetupContext   context.Context
+	PairerForLight func(string) (keylight.AirMK2Pairer, error)
 }
 
 // ListLights returns all discovered lights as a map keyed by ID.
@@ -126,6 +128,10 @@ type LightHandlers interface {
 	ListLights(ctx context.Context, input *ListLightsInput) (*ListLightsOutput, error)
 	GetLight(ctx context.Context, input *GetLightInput) (*GetLightOutput, error)
 	SetLightState(ctx context.Context, input *SetLightStateInput) (*SetLightStateOutput, error)
+	SetupStatus(context.Context, *GetLightInput) (*SetupOutput, error)
+	StartSetup(context.Context, *GetLightInput) (*SetupOutput, error)
+	CancelSetup(context.Context, *GetLightInput) (*SetupOutput, error)
+	ForgetSetup(context.Context, *GetLightInput) (*struct{}, error)
 }
 
 // Ensure SetLightStateOutput is valid for non-error responses.

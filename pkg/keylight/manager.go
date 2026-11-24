@@ -15,6 +15,8 @@ package keylight
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -304,6 +306,16 @@ func (m *Manager) addDevice(ctx context.Context, light Light, client DeviceClien
 	// Acquire write lock briefly to update the maps
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// A concurrent forget can invalidate the identity after discovery loaded it.
+	if air, ok := client.(*AirMK2Client); ok && air.managedIdentity {
+		if m.airMK2 == nil || m.airMK2.credentials == nil {
+			return
+		}
+		if _, err := os.Stat(filepath.Join(m.airMK2.credentials.Directory, airMK2CredentialFile(light.ID))); err != nil {
+			return
+		}
+	}
 
 	// Check if light already exists
 	if existingLight, exists := m.lights[light.ID]; exists {

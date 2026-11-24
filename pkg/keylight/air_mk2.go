@@ -22,9 +22,10 @@ import (
 
 // AirMK2Client controls a provisioned light using its trusted TLS configuration.
 type AirMK2Client struct {
-	endpoint string
-	dialer   websocket.Dialer
-	slot     chan struct{}
+	managedIdentity bool
+	endpoint        string
+	dialer          websocket.Dialer
+	slot            chan struct{}
 }
 
 var _ DeviceClient = (*AirMK2Client)(nil)

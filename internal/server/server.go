@@ -150,7 +150,7 @@ func (s *Server) Start() error {
 		s.logger.Info("Starting HTTP API server", "address", s.cfg.Config.API.ListenAddress)
 
 		// Create handler implementations
-		lightHandler := &handlers.LightHandler{Lights: s.lights}
+		lightHandler := &handlers.LightHandler{Lights: s.lights, SetupContext: s.rootCtx}
 		groupHandler := &handlers.GroupHandler{Groups: s.groups, Lights: s.lights}
 		apiKeyHandler := &handlers.APIKeyHandler{Manager: s.apikeyManager}
 		loggingHandler := &handlers.LoggingHandler{Logger: s.logger}

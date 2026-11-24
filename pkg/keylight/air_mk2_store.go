@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/jmylchreest/keylightd/internal/events"
 )
 
 // AirMK2CredentialStore holds daemon-owned identities in a private directory.
@@ -86,6 +88,9 @@ func (s AirMK2CredentialStore) load(id, host string, port int) (*AirMK2Client, s
 		return nil, "", errors.New("invalid device CA certificate")
 	}
 	client, err := NewAirMK2Client(host, port, &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{pair}, ServerName: stored.ServerName})
+	if err == nil {
+		client.managedIdentity = true
+	}
 	return client, stored.Serial, err
 }
 
@@ -151,4 +156,44 @@ func (m *Manager) DeviceSetupStatus(id string) (SetupStatus, bool) {
 // CancelDeviceSetup requests cancellation of the active setup session.
 func (m *Manager) CancelDeviceSetup(id string) bool {
 	return m.setup.Cancel(id)
+}
+
+// ForgetAirMK2 removes a daemon-managed Air MK.2 identity.
+func (m *Manager) ForgetAirMK2(id string) error {
+	p := m.airMK2
+	if p == nil || p.credentials == nil {
+		return errors.New("air MK.2 credential storage is unavailable")
+	}
+	if !p.pairing.TryLock() {
+		return errors.New("air MK.2 setup is in progress")
+	}
+	defer p.pairing.Unlock()
+	root, err := os.OpenRoot(p.credentials.Directory)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrLightNotFound
+		}
+		return err
+	}
+	defer root.Close()
+	m.mu.Lock()
+	if err := root.Remove(airMK2CredentialFile(id)); err != nil {
+		m.mu.Unlock()
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrLightNotFound
+		}
+		return err
+	}
+	light, exists := m.lights[id]
+	if exists {
+		light.NeedsConfiguration = []string{"credentials_missing"}
+		light.State = nil
+		m.lights[id] = light
+	}
+	delete(m.clients, id)
+	m.mu.Unlock()
+	if exists {
+		m.emit(events.LightDiscovered, &light)
+	}
+	return nil
 }

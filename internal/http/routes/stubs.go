@@ -29,7 +29,7 @@ func StubHandlers() *Handlers {
 
 // --- Light stubs ---
 
-type stubLightHandlers struct{}
+type stubLightHandlers struct{ handlers.LightHandler }
 
 func (s *stubLightHandlers) ListLights(_ context.Context, _ *handlers.ListLightsInput) (*handlers.ListLightsOutput, error) {
 	return nil, nil
