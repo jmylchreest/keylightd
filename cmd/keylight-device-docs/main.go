@@ -65,5 +65,5 @@ func updateGuide(check bool) error {
 	if check {
 		return fmt.Errorf("%s is stale: run go run ./cmd/keylight-device-docs", guidePath)
 	}
-	return os.WriteFile(guidePath, []byte(updated), 0o644)
+	return os.WriteFile(guidePath, []byte(updated), 0o600)
 }
