@@ -96,6 +96,25 @@ func (c *KeyLightClient) GetAccessoryInfo(ctx context.Context) (*AccessoryInfo, 
 	return &info, nil
 }
 
+// BatteryInfo describes the Mini's battery and charging telemetry.
+type BatteryInfo struct {
+	PowerSource           int     `json:"powerSource"`
+	Level                 float64 `json:"level"`
+	Status                int     `json:"status"`
+	CurrentBatteryVoltage int     `json:"currentBatteryVoltage"`
+	InputChargeVoltage    int     `json:"inputChargeVoltage"`
+	InputChargeCurrent    int     `json:"inputChargeCurrent"`
+}
+
+// GetBatteryInfo reads battery telemetry from a compatible device.
+func (c *KeyLightClient) GetBatteryInfo(ctx context.Context) (*BatteryInfo, error) {
+	var info BatteryInfo
+	if err := c.doGet(ctx, "/battery-info", &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
 // GetLightState retrieves the current state of the light
 func (c *KeyLightClient) GetLightState(ctx context.Context) (*LightState, error) {
 	var state LightState

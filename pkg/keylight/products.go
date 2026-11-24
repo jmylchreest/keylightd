@@ -24,7 +24,10 @@ var products = productRegistry{
 		{Manufacturer: "elgato", Name: "Elgato Key Light MK.2", BoardIDs: []int{205}},
 		{Manufacturer: "elgato", Name: "Elgato Ring Light", BoardIDs: []int{201}},
 	},
-	experimental: []Product{{Manufacturer: "elgato", Name: "Elgato Key Light Neo", BoardIDs: []int{210}}},
+	experimental: []Product{
+		{Manufacturer: "elgato", Name: "Elgato Key Light Mini", BoardIDs: []int{202}},
+		{Manufacturer: "elgato", Name: "Elgato Key Light Neo", BoardIDs: []int{210}},
+	},
 }
 
 // ResolveProduct scopes identifiers to a manufacturer, matching a known board

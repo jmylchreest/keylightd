@@ -23,7 +23,8 @@ For example, board 205 resolves to Key Light MK.2 even if its product name is si
 
 Light responses retain the device's `productname` and add `manufacturer`, the canonical
 `model`, and an `experimental` flag. Supported and experimental products use the same
-registry structure and lookup. Key Light Neo (board 210) is experimental and tested with simulated responses. The API includes power information when the device reports it.
+registry structure and lookup. Key Light Mini (board 202) is experimental and tested with simulated responses. Battery telemetry is sampled during discovery and shown by `keylightctl light get` when available.
+Key Light Neo (board 210) is experimental and tested with simulated responses. The API includes power information when the device reports it.
 
 Discovery uses `_elg._tcp` over mDNS and the Elgato HTTP client.
 

@@ -23,7 +23,7 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 		{"key-light-air", 200, "Elgato Key Light Air"},
 		{"key-light-mk2", 205, "Elgato Key Light MK.2"},
 		{"ring-light", 201, "Elgato Ring Light"},
-		{"key-light-mini", 202, ""},
+		{"key-light-mini", 202, "Elgato Key Light Mini"},
 		{"key-light-neo", 210, "Elgato Key Light Neo"},
 	} {
 		t.Run(fixture.file, func(t *testing.T) {
@@ -42,6 +42,8 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 				switch {
 				case r.Method == http.MethodGet && r.URL.Path == "/elgato/accessory-info":
 					_, _ = w.Write(info)
+				case fixture.board == 202 && r.Method == http.MethodGet && r.URL.Path == "/elgato/battery-info":
+					_, _ = w.Write([]byte(`{"powerSource":1,"level":95.28,"status":2}`))
 				case r.Method == http.MethodGet && r.URL.Path == "/elgato/lights":
 					_ = json.NewEncoder(w).Encode(current)
 				case r.Method == http.MethodPut && r.URL.Path == "/elgato/lights":
@@ -63,7 +65,7 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 			require.Equal(t, fixture.model != "", accepted)
 			if accepted {
 				require.Equal(t, fixture.model, light.Model)
-				require.Equal(t, fixture.board == 210, light.Experimental)
+				require.Equal(t, fixture.board == 202 || fixture.board == 210, light.Experimental)
 				if fixture.board == 210 {
 					require.Equal(t, &PowerInfo{OperationMode: 1, MaximumBrightness: 40}, light.PowerInfo)
 					manager := NewManager(discardLogger())
@@ -75,6 +77,13 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 			} else {
 				// Candidate fixtures exercise the wire client independently of registry admission.
 				client = NewKeyLightClient(entry.AddrV4.String(), entry.Port, discardLogger())
+			}
+			if fixture.board == 202 {
+				manager := NewManager(discardLogger())
+				manager.addDevice(ctx, light, client)
+				battery := manager.GetLights()[light.ID].BatteryInfo
+				require.NotNil(t, battery)
+				require.Equal(t, 95.28, battery.Level)
 			}
 			identity, err := client.GetAccessoryInfo(ctx)
 			require.NoError(t, err)

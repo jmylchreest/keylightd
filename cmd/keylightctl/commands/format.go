@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -200,7 +201,7 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 		tempDevice = v
 	}
 	tempKelvin := keylight.ConvertDeviceToTemperature(tempDevice)
-	return pterm.TableData{
+	table := pterm.TableData{
 		[]string{pterm.Bold.Sprint("ID"), pterm.Bold.Sprint(id)},
 		[]string{"Product", fmt.Sprintf("%v", light["productname"])},
 		[]string{"Serial", fmt.Sprintf("%v", light["serialnumber"])},
@@ -212,6 +213,43 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 		[]string{"Port", fmt.Sprintf("%v", light["port"])},
 		[]string{"Last Seen", formatLastSeen(light["lastseen"])},
 	}
+	// Core rows always appear in the same order. The state payload repeats
+	// values already shown above, so keep it out of the detail table.
+	core := []string{"id", "productname", "serialnumber", "firmwareversion", "firmwarebuild",
+		"on", "temperature", "brightness", "ip", "port", "lastseen", "state"}
+	var extra []string
+	for key, value := range light {
+		if value != nil && !slices.Contains(core, key) {
+			extra = append(extra, key)
+		}
+	}
+	slices.Sort(extra)
+	for _, key := range extra {
+		table = appendMetadataRows(table, key, light[key])
+	}
+	return table
+}
+
+func appendMetadataRows(table pterm.TableData, path string, value any) pterm.TableData {
+	switch value := value.(type) {
+	case nil:
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		for _, key := range keys {
+			table = appendMetadataRows(table, path+"."+key, value[key])
+		}
+	case []any:
+		for i, item := range value {
+			table = appendMetadataRows(table, fmt.Sprintf("%s[%d]", path, i), item)
+		}
+	default:
+		table = append(table, []string{path, fmt.Sprint(value)})
+	}
+	return table
 }
 
 // formatLastSeen formats the LastSeen time for display

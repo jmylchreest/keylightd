@@ -266,6 +266,19 @@ func (m *Manager) addDevice(ctx context.Context, light Light, client DeviceClien
 		}
 	}
 
+	if light.HardwareBoardType == 202 && (light.Manufacturer == "" || light.Manufacturer == "elgato") {
+		if reader, ok := client.(interface {
+			GetBatteryInfo(context.Context) (*BatteryInfo, error)
+		}); ok {
+			info, err := reader.GetBatteryInfo(ctx)
+			if err == nil {
+				light.BatteryInfo = info
+			} else {
+				m.logger.Debug("Battery telemetry unavailable", "id", light.ID, "error", err)
+			}
+		}
+	}
+
 	// Set LastSeen timestamp
 	light.LastSeen = time.Now()
 
