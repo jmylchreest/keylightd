@@ -4,6 +4,34 @@ sidebar_position: 2
 
 # Elgato Key Light Series
 
+## Product registry
+
+The registry accepts the same four models as before:
+
+| Manufacturer | Model | Hardware board ID |
+| --- | --- | --- |
+| `elgato` | Elgato Key Light | 53 |
+| `elgato` | Elgato Key Light Air | 200 |
+| `elgato` | Elgato Key Light MK.2 | 205 |
+| `elgato` | Elgato Ring Light | 201 |
+
+Identifiers are scoped to the manufacturer. A registered board ID takes precedence
+over the reported product name. If the board ID is absent or unrecognised, an exact
+registered product name or alias is accepted, preserving existing discovery behaviour.
+For example, board 205 resolves to Key Light MK.2 even if its product name is simply
+`Elgato Key Light`.
+
+Light responses retain the device's `productname` and add `manufacturer`, the canonical
+`model`, and an `experimental` flag. Supported and experimental products use the same
+registry structure and lookup. The experimental list is currently empty; unknown
+devices are not automatically experimental. Mini, Neo, RGB strips, and Air MK.2 have
+not been added by this change.
+
+Board mappings were checked against Control Center Android 1.9.1 (701). This establishes
+identity mappings, not validation of additional device protocols. Discovery continues
+to use `_elg._tcp` over mDNS and the existing Elgato HTTP client. Separate discovery
+providers and device clients are planned as a later change.
+
 ## Temperature Control
 
 The Elgato Key Light uses mireds (micro reciprocal degrees) for temperature control. Mireds are a unit of measurement used to express color temperature, calculated as:

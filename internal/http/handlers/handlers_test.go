@@ -226,6 +226,9 @@ func TestLightFromKeylight(t *testing.T) {
 		Temperature:     300,
 		On:              true,
 		ProductName:     "Key Light",
+		Manufacturer:    "elgato",
+		Model:           "Elgato Key Light",
+		Experimental:    true,
 		SerialNumber:    "SN123",
 		FirmwareVersion: "1.0.0",
 	}
@@ -237,6 +240,9 @@ func TestLightFromKeylight(t *testing.T) {
 	assert.Equal(t, 42, resp.Brightness)
 	assert.True(t, resp.On)
 	assert.Equal(t, "Key Light", resp.ProductName)
+	assert.Equal(t, "elgato", resp.Manufacturer)
+	assert.Equal(t, "Elgato Key Light", resp.Model)
+	assert.True(t, resp.Experimental)
 	assert.Equal(t, "SN123", resp.SerialNumber)
 }
 

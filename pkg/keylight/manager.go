@@ -277,6 +277,7 @@ func (m *Manager) AddLight(ctx context.Context, light Light) {
 		}
 	}
 
+	light.resolveModel()
 	m.clients[light.ID] = client
 	m.lights[light.ID] = light // Add or update the light with fetched state
 

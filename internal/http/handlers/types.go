@@ -13,6 +13,9 @@ import (
 
 // LightResponse is the API representation of a discovered light.
 type LightResponse struct {
+	Manufacturer      string    `json:"manufacturer,omitempty" doc:"Canonical manufacturer identifier"`
+	Model             string    `json:"model,omitempty" doc:"Canonical model name resolved from the product registry"`
+	Experimental      bool      `json:"experimental" doc:"Whether this model is experimentally supported"`
 	ID                string    `json:"id" doc:"Unique light identifier"`
 	Name              string    `json:"name" doc:"Display name of the light"`
 	IP                string    `json:"ip" doc:"IP address of the light"`
@@ -31,6 +34,9 @@ type LightResponse struct {
 // LightFromKeylight converts a keylight.Light to a LightResponse.
 func LightFromKeylight(l *keylight.Light) LightResponse {
 	return LightResponse{
+		Manufacturer:      l.Manufacturer,
+		Model:             l.Model,
+		Experimental:      l.Experimental,
 		ID:                l.ID,
 		Name:              l.Name,
 		IP:                l.IP.String(),
