@@ -225,16 +225,29 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 	}
 	slices.Sort(extra)
 	for _, key := range extra {
-		value := light[key]
-		rendered, ok := value.(string)
-		if !ok {
-			encoded, err := json.Marshal(value)
-			if err != nil {
-				continue
-			}
-			rendered = string(encoded)
+		table = appendMetadataRows(table, key, light[key])
+	}
+	return table
+}
+
+func appendMetadataRows(table pterm.TableData, path string, value any) pterm.TableData {
+	switch value := value.(type) {
+	case nil:
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
 		}
-		table = append(table, []string{key, rendered})
+		slices.Sort(keys)
+		for _, key := range keys {
+			table = appendMetadataRows(table, path+"."+key, value[key])
+		}
+	case []any:
+		for i, item := range value {
+			table = appendMetadataRows(table, fmt.Sprintf("%s[%d]", path, i), item)
+		}
+	default:
+		table = append(table, []string{path, fmt.Sprint(value)})
 	}
 	return table
 }
