@@ -349,3 +349,9 @@ func TestValidateLight_SharedContextCancelsAll(t *testing.T) {
 	_, valid2 := validateLight(sharedCtx, entry2, discardLogger())
 	assert.False(t, valid2, "second validation should fail with cancelled shared context") //nolint:misspell
 }
+
+// validateLight checks if the mDNS entry is a valid Elgato Key Light by querying /elgato/accessory-info
+func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger) (Light, bool) {
+	light, _, valid := openElgatoLight(ctx, entry, logger)
+	return light, valid
+}

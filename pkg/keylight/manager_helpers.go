@@ -9,43 +9,18 @@ import (
 	"github.com/jmylchreest/keylightd/internal/errors"
 )
 
-// getOrCreateClient retrieves an existing client or creates a new one for the given light ID.
-// It uses fine-grained locking to minimize lock contention.
-func (m *Manager) getOrCreateClient(id string) (*KeyLightClient, *Light, error) {
-	// First try with a read lock
+// deviceClient retrieves the light and the client registered with it.
+func (m *Manager) deviceClient(id string) (DeviceClient, *Light, error) {
 	m.mu.RLock()
+	defer m.mu.RUnlock()
 	light, exists := m.lights[id]
-	client, clientExists := m.clients[id]
-	m.mu.RUnlock()
-
 	if !exists {
 		return nil, nil, errors.NotFoundf("light %s not found", id)
 	}
-
-	// If client exists, return it immediately
-	if clientExists {
-		return client, &light, nil
-	}
-
-	// Client doesn't exist, create one with a write lock
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	// Re-check existence after acquiring write lock
-	light, exists = m.lights[id]
+	client, exists := m.clients[id]
 	if !exists {
-		return nil, nil, errors.NotFoundf("light %s not found", id)
+		return nil, nil, errors.DeviceUnavailablef("light %s has no registered client", id)
 	}
-
-	// Check again for client after acquiring write lock
-	if client, exists := m.clients[id]; exists {
-		return client, &light, nil
-	}
-
-	// Create new client and store it
-	client = NewKeyLightClient(light.IP.String(), light.Port, m.logger)
-	m.clients[id] = client
-
 	return client, &light, nil
 }
 
@@ -101,7 +76,7 @@ func (m *Manager) updateLightInfo(id string, info *AccessoryInfo) (*Light, error
 }
 
 // fetchLightState retrieves the current state of a light from the device.
-func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, id string) (*LightState, error) {
+func (m *Manager) fetchLightState(ctx context.Context, client DeviceClient, id string) (*LightState, error) {
 
 	state, err := client.GetLightState(ctx)
 	if err != nil {
@@ -116,7 +91,7 @@ func (m *Manager) fetchLightState(ctx context.Context, client *KeyLightClient, i
 }
 
 // fetchAccessoryInfo retrieves accessory information for a light from the device.
-func (m *Manager) fetchAccessoryInfo(ctx context.Context, client *KeyLightClient, id string) (*AccessoryInfo, error) {
+func (m *Manager) fetchAccessoryInfo(ctx context.Context, client DeviceClient, id string) (*AccessoryInfo, error) {
 
 	info, err := client.GetAccessoryInfo(ctx)
 	if err != nil {
