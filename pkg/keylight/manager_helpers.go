@@ -92,6 +92,8 @@ func (m *Manager) updateLightInfo(id string, info *AccessoryInfo) (*Light, error
 		light.Name = info.DisplayName
 	}
 
+	light.resolveModel()
+
 	// Store updated light back into the map
 	m.lights[id] = light
 

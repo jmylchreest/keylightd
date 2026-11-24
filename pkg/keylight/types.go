@@ -14,6 +14,7 @@ var (
 
 // Light represents a Key Light device
 type Light struct {
+	Manufacturer      string      `json:"manufacturer,omitempty"`
 	ID                string      `json:"id"`
 	Name              string      `json:"name"`
 	IP                net.IP      `json:"ip"`
@@ -21,6 +22,8 @@ type Light struct {
 	Temperature       int         `json:"temperature"`
 	Brightness        int         `json:"brightness"`
 	On                bool        `json:"on"`
+	Model             string      `json:"model,omitempty"`
+	Experimental      bool        `json:"experimental"`
 	ProductName       string      `json:"productname"`
 	HardwareBoardType int         `json:"hardwareboardtype"`
 	FirmwareVersion   string      `json:"firmwareversion"`

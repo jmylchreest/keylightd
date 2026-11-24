@@ -25,15 +25,6 @@ var (
 		"_elg._tcp", // Elgato Key Light
 	}
 
-	// validProductNames contains all Elgato product names that expose the
-	// Key Light HTTP API (/elgato/accessory-info and /elgato/lights).
-	validProductNames = []string{
-		"Elgato Key Light",
-		"Elgato Key Light Air",
-		"Elgato Key Light MK.2",
-		"Elgato Ring Light",
-	}
-
 	// Discovery parameters - tuned for reliability across platforms.
 	// initialBrowseTimeout must be >= the HTTP client timeout (5s) so that
 	// validateLight's HTTP calls don't get pre-empted by the discovery context.
@@ -44,8 +35,6 @@ var (
 		validateTimeout:      5 * time.Second,
 	}
 )
-
-// No helper functions needed, using slices.Contains directly
 
 // DiscoveryParams holds platform-specific discovery configuration
 type DiscoveryParams struct {
@@ -303,7 +292,7 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 		}
 		return Light{}, false
 	}
-	if !slices.Contains(validProductNames, info.ProductName) {
+	if _, ok := ResolveProduct("elgato", info.HardwareBoardType, info.ProductName); !ok {
 		if logger != nil {
 			logger.Debug("validateLight: discovered device is not a valid Elgato Key Light",
 				"productName", info.ProductName,
@@ -324,5 +313,6 @@ func validateLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logger
 		SerialNumber:      info.SerialNumber,
 		Name:              UnescapeRFC6763Label(info.DisplayName),
 	}
+	light.resolveModel()
 	return light, true
 }
