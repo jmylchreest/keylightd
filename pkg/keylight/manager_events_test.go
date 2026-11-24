@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net"
+	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -133,6 +135,7 @@ func TestSetLightState_NoEventWithoutBus(t *testing.T) {
 func TestCleanupStaleLights_EmitsLightRemovedEvent(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{Level: slog.LevelInfo}))
 	manager, mockHTTP := newTestManager(logger)
+	mockHTTP.Transport = probeRoundTripper(func(*http.Request) (*http.Response, error) { return nil, errors.New("offline") })
 	bus := events.NewBus()
 	manager.SetEventBus(bus)
 
@@ -150,7 +153,7 @@ func TestCleanupStaleLights_EmitsLightRemovedEvent(t *testing.T) {
 	getEvents := collectEvents(bus)
 
 	// Run cleanup with 5-minute timeout
-	manager.cleanupStaleLights(5 * time.Minute)
+	manager.cleanupStaleLights(context.Background(), 5*time.Minute)
 
 	evts := getEvents()
 	require.Len(t, evts, 1)
@@ -179,7 +182,7 @@ func TestCleanupStaleLights_NoEventForFreshLights(t *testing.T) {
 
 	getEvents := collectEvents(bus)
 
-	manager.cleanupStaleLights(5 * time.Minute)
+	manager.cleanupStaleLights(context.Background(), 5*time.Minute)
 
 	evts := getEvents()
 	assert.Len(t, evts, 0, "no events should be emitted for fresh lights")
@@ -188,6 +191,7 @@ func TestCleanupStaleLights_NoEventForFreshLights(t *testing.T) {
 func TestMultipleStaleCleanup_EmitsMultipleEvents(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), &slog.HandlerOptions{Level: slog.LevelInfo}))
 	manager, mockHTTP := newTestManager(logger)
+	mockHTTP.Transport = probeRoundTripper(func(*http.Request) (*http.Response, error) { return nil, errors.New("offline") })
 	bus := events.NewBus()
 	manager.SetEventBus(bus)
 
@@ -205,7 +209,7 @@ func TestMultipleStaleCleanup_EmitsMultipleEvents(t *testing.T) {
 	}
 
 	getEvents := collectEvents(bus)
-	manager.cleanupStaleLights(5 * time.Minute)
+	manager.cleanupStaleLights(context.Background(), 5*time.Minute)
 
 	evts := getEvents()
 	assert.Len(t, evts, 3, "should emit one event per stale light removed")

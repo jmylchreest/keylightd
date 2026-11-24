@@ -196,3 +196,26 @@ func TestSaveFailurePreservesConfigAndCleansTempFile(t *testing.T) {
 func TestSaveWithoutConfigPath(t *testing.T) {
 	require.ErrorContains(t, New(viper.New()).Save(), "no config file path set")
 }
+
+func TestLightProbeConfigRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keylightd.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`config:
+  lights:
+    - serial_number: CN38I1A02013
+      http_probe_on_disconnect: false
+    - serial_number: CN38I1A02369
+      http_probe_on_disconnect: true
+    - serial_number: DEFAULT
+`), 0600))
+	cfg, err := Load("keylightd", path)
+	require.NoError(t, err)
+	require.Len(t, cfg.Config.Lights, 3)
+	require.NotNil(t, cfg.Config.Lights[0].HTTPProbeOnDisconnect)
+	assert.False(t, *cfg.Config.Lights[0].HTTPProbeOnDisconnect)
+	assert.True(t, *cfg.Config.Lights[1].HTTPProbeOnDisconnect)
+	assert.Nil(t, cfg.Config.Lights[2].HTTPProbeOnDisconnect)
+	require.NoError(t, cfg.Save())
+	reloaded, err := Load("keylightd", path)
+	require.NoError(t, err)
+	assert.Equal(t, cfg.Config.Lights, reloaded.Config.Lights)
+}

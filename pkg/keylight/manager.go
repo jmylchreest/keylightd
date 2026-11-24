@@ -2,7 +2,7 @@
 Concurrency Notes (audit):
 - Read operations (GetDiscoveredLights, GetLights) use RLock and return snapshots (map/slice copies or new structs) to avoid external mutation of internal state.
 - Mutations (AddLight, SetLightState*, cleanupStaleLights) perform network/device I/O outside the write lock; only the minimal in-memory updates are under Lock to reduce contention.
-- cleanupStaleLights uses a two-phase approach: RLock to collect stale IDs, then Lock to remove, minimizing time spent holding the write lock.
+- cleanupStaleLights snapshots stale devices, probes outside the lock, then rechecks each snapshot before updating or removing it.
 - deviceClient & state fetch patterns avoid holding locks during remote calls.
 - Returned *Light pointers from GetLight should be treated as read-only by callers; direct mutation risks data races unless routed through manager methods.
 Future considerations:
@@ -25,19 +25,27 @@ import (
 
 // Manager manages Key Light devices
 type Manager struct {
-	lights   map[string]Light
-	clients  map[string]DeviceClient
-	mu       sync.RWMutex
-	logger   *slog.Logger
-	eventBus *events.Bus
+	httpProbeOnDisconnect map[string]bool
+	lights                map[string]Light
+	clients               map[string]DeviceClient
+	mu                    sync.RWMutex
+	logger                *slog.Logger
+	eventBus              *events.Bus
 }
 
 // NewManager creates a new manager
-func NewManager(logger *slog.Logger) *Manager {
+func NewManager(logger *slog.Logger, lightConfig ...config.LightConfig) *Manager {
+	probes := make(map[string]bool)
+	for _, option := range lightConfig {
+		if option.SerialNumber != "" && option.HTTPProbeOnDisconnect != nil {
+			probes[option.SerialNumber] = *option.HTTPProbeOnDisconnect
+		}
+	}
 	return &Manager{
-		lights:  make(map[string]Light),
-		clients: make(map[string]DeviceClient),
-		logger:  logger,
+		httpProbeOnDisconnect: probes,
+		lights:                make(map[string]Light),
+		clients:               make(map[string]DeviceClient),
+		logger:                logger,
 	}
 }
 
@@ -311,61 +319,69 @@ func (m *Manager) StartCleanupWorker(ctx context.Context, cleanupInterval time.D
 				m.logger.Info("light: cleanup worker stopped (context canceled)")
 				return
 			case <-ticker.C:
-				m.cleanupStaleLights(timeout)
+				m.cleanupStaleLights(ctx, timeout)
 			}
 		}
 	}()
 }
 
-// cleanupStaleLights removes lights that haven't been seen for a while
-func (m *Manager) cleanupStaleLights(timeout time.Duration) {
-	// Use default timeout if the provided one is invalid
+// cleanupStaleLights checks stale devices directly before treating missed mDNS as a disconnect.
+func (m *Manager) cleanupStaleLights(ctx context.Context, timeout time.Duration) {
 	if timeout <= 0 {
-		m.logger.Debug("Invalid cleanup timeout, using default",
-			"provided", timeout,
-			"default", config.DefaultStateTimeout)
 		timeout = config.DefaultStateTimeout
 	}
-
 	now := time.Now()
-
-	// First identify stale lights with read lock to minimize lock duration
 	m.mu.RLock()
-	staleLights := []string{}
-
-	for id, light := range m.lights {
+	var stale []Light
+	for _, light := range m.lights {
 		if now.Sub(light.LastSeen) > timeout {
-			staleLights = append(staleLights, id)
+			stale = append(stale, light)
 		}
 	}
 	m.mu.RUnlock()
 
-	// If no stale lights, return quickly without acquiring write lock
-	if len(staleLights) == 0 {
-		return
-	}
-
-	// Now remove the stale lights with write lock
-	m.mu.Lock()
-
-	// Double-check the lights are still stale after acquiring write lock
-	var removed []Light
-	for _, id := range staleLights {
-		if light, exists := m.lights[id]; exists {
-			// Re-check timeout condition to handle race condition
-			// where the light might have been updated while we were unlocked
-			if now.Sub(light.LastSeen) > timeout {
-				m.logger.Info("Removing stale light", "id", id)
-				removed = append(removed, light)
-				delete(m.lights, id)
-				delete(m.clients, id)
+	for _, candidate := range stale {
+		if ctx.Err() != nil {
+			return
+		}
+		var state *LightState
+		enabled, configured := m.httpProbeOnDisconnect[candidate.SerialNumber]
+		if !configured || enabled {
+			client, _, err := m.deviceClient(candidate.ID)
+			if err != nil {
+				continue
+			}
+			probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			state, err = client.GetLightState(probeCtx)
+			cancel()
+			if err != nil || state == nil || len(state.Lights) != 1 || state.NumberOfLights != 1 {
+				state = nil
 			}
 		}
-	}
-	m.mu.Unlock()
-
-	// Emit removal events outside the lock
-	for i := range removed {
-		m.emit(events.LightRemoved, &removed[i])
+		// Shutdown cancellation is not evidence that the device is offline.
+		if ctx.Err() != nil {
+			return
+		}
+		m.mu.Lock()
+		current, exists := m.lights[candidate.ID]
+		// Discovery or a control request may have refreshed or replaced this device
+		// while the probe was in flight. Never overwrite that newer information.
+		if !exists || !current.LastSeen.Equal(candidate.LastSeen) ||
+			!current.IP.Equal(candidate.IP) || current.Port != candidate.Port {
+			m.mu.Unlock()
+			continue
+		}
+		if state != nil {
+			updated, _ := m.updateLightState(candidate.ID, state)
+			m.mu.Unlock()
+			m.logger.Debug("Retaining stale light after successful HTTP probe", "id", candidate.ID)
+			m.emit(events.LightStateChanged, updated)
+			continue
+		}
+		delete(m.lights, candidate.ID)
+		delete(m.clients, candidate.ID)
+		m.mu.Unlock()
+		m.logger.Info("Removing stale light", "id", candidate.ID)
+		m.emit(events.LightRemoved, &current)
 	}
 }

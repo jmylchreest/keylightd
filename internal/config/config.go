@@ -85,6 +85,7 @@ type State struct {
 
 // ConfigBlock holds operational/configuration settings
 type ConfigBlock struct {
+	Lights    []LightConfig   `mapstructure:"lights" yaml:"lights,omitempty"`
 	Server    ServerConfig    `yaml:"server"`
 	Discovery DiscoveryConfig `yaml:"discovery"`
 	Logging   LoggingConfig   `yaml:"logging"`
@@ -127,6 +128,13 @@ type DiscoveryConfig struct {
 	Interval        int `mapstructure:"interval" yaml:"interval"`
 	CleanupInterval int `mapstructure:"cleanup_interval" yaml:"cleanup_interval"`
 	CleanupTimeout  int `mapstructure:"cleanup_timeout" yaml:"cleanup_timeout"`
+}
+
+// LightConfig holds config-file overrides matched by the device serial number.
+type LightConfig struct {
+	SerialNumber string `mapstructure:"serial_number" yaml:"serial_number"`
+	// A nil value preserves the enabled default for existing configurations.
+	HTTPProbeOnDisconnect *bool `mapstructure:"http_probe_on_disconnect" yaml:"http_probe_on_disconnect,omitempty"`
 }
 
 // LoggingConfig represents the logging configuration
@@ -255,6 +263,9 @@ func (c *Config) Save() error {
 
 	// Only write config if any sub-block is non-default
 	configMap := map[string]any{}
+	if len(c.Config.Lights) > 0 {
+		configMap["lights"] = c.Config.Lights
+	}
 	if !isDefaultServer(c.Config.Server) {
 		configMap["server"] = c.Config.Server
 	}

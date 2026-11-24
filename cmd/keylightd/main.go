@@ -89,7 +89,7 @@ func main() {
 				logger.Info("Log filters active", "count", len(filters))
 			}
 
-			manager := keylight.NewManager(logger)
+			manager := keylight.NewManager(logger, cfg.Config.Lights...)
 			srv := server.New(logger, cfg, manager, server.VersionInfo{
 				Version:   version,
 				Commit:    commit,
