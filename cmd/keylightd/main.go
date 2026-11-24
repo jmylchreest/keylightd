@@ -90,13 +90,11 @@ func main() {
 			}
 
 			manager := keylight.NewManager(logger, cfg.Config.Lights...)
-			var airDiscovery *keylight.AirMK2Discovery
-			if len(cfg.Config.AirMK2) > 0 {
-				airDiscovery, err = keylight.NewAirMK2Discovery(cfg.Config.AirMK2, logger)
-				if err != nil {
-					return err
-				}
+			airDiscovery, err := keylight.NewAirMK2Discovery(cfg.Config.AirMK2, logger)
+			if err != nil {
+				return err
 			}
+			airDiscovery.SetAirMK2CredentialDirectory(cfg.Viper().ConfigFileUsed())
 			srv := server.New(logger, cfg, manager, server.VersionInfo{
 				Version:   version,
 				Commit:    commit,

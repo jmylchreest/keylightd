@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -158,8 +159,10 @@ func (c *AirMK2Client) exchange(ctx context.Context, write *LightState, method s
 
 // AirMK2Discovery checks explicitly configured endpoints with a stable client per endpoint.
 type AirMK2Discovery struct {
-	devices []airMK2Endpoint
-	logger  *slog.Logger
+	credentials *AirMK2CredentialStore
+	pairing     sync.Mutex
+	devices     []airMK2Endpoint
+	logger      *slog.Logger
 }
 
 type airMK2Endpoint struct {
@@ -218,35 +221,51 @@ func (p *AirMK2Discovery) openDiscovered(ctx context.Context, entry *ServiceEntr
 	light := Light{ID: UnescapeRFC6763Label(entry.Name), Name: UnescapeRFC6763Label(entry.Name),
 		IP: entry.AddrV4, Port: entry.Port, Manufacturer: "elgato", Model: model, Experimental: true,
 		ProductName: model}
-	if p != nil {
-		for _, device := range p.devices {
-			if device.port != entry.Port || !entry.AddrV4.Equal(net.ParseIP(device.host)) {
-				continue
-			}
-			info, err := device.client.GetAccessoryInfo(ctx)
-			if err != nil {
-				var verification *tls.CertificateVerificationError
-				if errors.As(err, &verification) {
-					light.NeedsConfiguration = []string{"server_untrusted"}
-					return light, nil, true
-				}
-				p.logger.Debug("Air MK.2 identity unavailable", "address", device.address, "error", err)
-				return Light{}, nil, false
-			}
-			if info.HardwareBoardType != 214 || info.SerialNumber == "" {
-				return Light{}, nil, false
-			}
-			light.HardwareBoardType = info.HardwareBoardType
-			light.SerialNumber = info.SerialNumber
-			light.PowerInfo = info.PowerInfo
-			light.FirmwareVersion = info.FirmwareVersion
-			light.FirmwareBuild = info.FirmwareBuildNumber
-			if info.DisplayName != "" {
-				light.Name = UnescapeRFC6763Label(info.DisplayName)
-			}
-			return light, device.client, true
+	light.NeedsConfiguration = []string{"credentials_missing"}
+	if p == nil {
+		return light, nil, true
+	}
+
+	var client *AirMK2Client
+	var serial string
+	for _, device := range p.devices {
+		if device.port == entry.Port && entry.AddrV4.Equal(net.ParseIP(device.host)) {
+			client = device.client
+			break
 		}
 	}
-	light.NeedsConfiguration = []string{"credentials_missing"}
-	return light, nil, true
+	if client == nil && p.credentials != nil {
+		var err error
+		client, serial, err = p.credentials.load(light.ID, entry.AddrV4.String(), entry.Port)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			light.NeedsConfiguration = []string{"credentials_invalid"}
+			return light, nil, true
+		}
+	}
+	if client == nil {
+		return light, nil, true
+	}
+	info, err := client.GetAccessoryInfo(ctx)
+	if err != nil {
+		var verification *tls.CertificateVerificationError
+		if errors.As(err, &verification) {
+			light.NeedsConfiguration = []string{"server_untrusted"}
+			return light, nil, true
+		}
+		p.logger.Debug("Air MK.2 identity unavailable", "id", light.ID, "error", err)
+		return Light{}, nil, false
+	}
+	if info.HardwareBoardType != 214 || info.SerialNumber == "" || (serial != "" && info.SerialNumber != serial) {
+		return Light{}, nil, false
+	}
+	light.NeedsConfiguration = nil
+	light.HardwareBoardType = info.HardwareBoardType
+	light.SerialNumber = info.SerialNumber
+	light.PowerInfo = info.PowerInfo
+	light.FirmwareVersion = info.FirmwareVersion
+	light.FirmwareBuild = info.FirmwareBuildNumber
+	if info.DisplayName != "" {
+		light.Name = UnescapeRFC6763Label(info.DisplayName)
+	}
+	return light, client, true
 }

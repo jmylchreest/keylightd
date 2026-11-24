@@ -1,0 +1,130 @@
+package keylight
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+// AirMK2CredentialStore holds daemon-owned identities in a private directory.
+type AirMK2CredentialStore struct {
+	Directory string
+}
+
+type airMK2Credentials struct {
+	CA          []byte
+	Certificate []byte
+	Key         []byte
+	ServerName  string
+	Serial      string
+}
+
+func airMK2CredentialFile(id string) string {
+	return fmt.Sprintf("%x.json", sha256.Sum256([]byte(id)))
+}
+
+func (s AirMK2CredentialStore) save(id string, identity *AirMK2Identity) error {
+	if err := os.MkdirAll(s.Directory, 0o700); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(s.Directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	data, err := json.Marshal(airMK2Credentials{identity.CA, identity.ClientCertificate, identity.ClientKey, identity.ServerName, identity.Info.SerialNumber})
+	if err != nil {
+		return err
+	}
+	// Publish the complete record without replacing a previous identity.
+	temporary := ".pending-" + rand.Text()
+	file, err := root.OpenFile(temporary, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = root.Remove(temporary) }()
+	_, writeErr := file.Write(data)
+	syncErr := file.Sync()
+	closeErr := file.Close()
+	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
+		return err
+	}
+	return root.Link(temporary, airMK2CredentialFile(id))
+}
+
+func (s AirMK2CredentialStore) load(id, host string, port int) (*AirMK2Client, string, error) {
+	root, err := os.OpenRoot(s.Directory)
+	if err != nil {
+		return nil, "", err
+	}
+	defer root.Close()
+	data, err := root.ReadFile(airMK2CredentialFile(id))
+	if err != nil {
+		return nil, "", err
+	}
+	var stored airMK2Credentials
+	if err := json.Unmarshal(data, &stored); err != nil {
+		return nil, "", err
+	}
+	if stored.Serial == "" || stored.ServerName == "" {
+		return nil, "", errors.New("air MK.2 credential record has no verified identity")
+	}
+	pair, err := tls.X509KeyPair(stored.Certificate, stored.Key)
+	if err != nil {
+		return nil, "", err
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(stored.CA) {
+		return nil, "", errors.New("invalid device CA certificate")
+	}
+	client, err := NewAirMK2Client(host, port, &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{pair}, ServerName: stored.ServerName})
+	return client, stored.Serial, err
+}
+
+// SetAirMK2CredentialDirectory enables persisted credentials for automatic discovery.
+// Call before starting discovery.
+func (p *AirMK2Discovery) SetAirMK2CredentialDirectory(configPath string) {
+	p.credentials = &AirMK2CredentialStore{Directory: filepath.Join(filepath.Dir(configPath), "air-mk2-identities")}
+}
+
+// ConfigureAirMK2 pairs one discovered light and persists its verified identity.
+// The pairer must already be bound to the explicitly selected peripheral.
+func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2Pairer) error {
+	p := m.airMK2
+	if p == nil || p.credentials == nil {
+		return errors.New("air MK.2 credential storage is unavailable")
+	}
+	m.mu.RLock()
+	light, exists := m.lights[id]
+	m.mu.RUnlock()
+	if !exists {
+		return ErrLightNotFound
+	}
+	if light.Model != "Elgato Key Light Air MK.2" || len(light.NeedsConfiguration) == 0 {
+		return errors.New("light does not require Air MK.2 setup")
+	}
+	// Only one operation may use the pairing transport at a time.
+	if !p.pairing.TryLock() {
+		return errors.New("air MK.2 setup is in progress")
+	}
+	defer p.pairing.Unlock()
+	if _, err := os.Stat(filepath.Join(p.credentials.Directory, airMK2CredentialFile(id))); !errors.Is(err, os.ErrNotExist) {
+		return errors.New("air MK.2 already has stored credentials or storage is unavailable")
+	}
+	identity, err := OnboardAirMK2(ctx, pairer)
+	if err != nil {
+		return err
+	}
+	if light.SerialNumber != "" && !strings.EqualFold(light.SerialNumber, identity.Info.SerialNumber) {
+		return errors.New("paired Air MK.2 identity does not match the selected light")
+	}
+	return p.credentials.save(id, identity)
+}
