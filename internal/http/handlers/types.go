@@ -30,12 +30,14 @@ type LightResponse struct {
 	FirmwareBuild     int                   `json:"firmwarebuild" doc:"Firmware build number"`
 	SerialNumber      string                `json:"serialnumber" doc:"Serial number"`
 	LastSeen          time.Time             `json:"lastseen" doc:"Last time the light was seen on the network"`
+	PowerInfo         *keylight.PowerInfo   `json:"power_info,omitempty" doc:"Power and brightness limit when reported"`
 }
 
 // LightFromKeylight converts a keylight.Light to a LightResponse.
 func LightFromKeylight(l *keylight.Light) LightResponse {
 	return LightResponse{
 		BatteryInfo:       l.BatteryInfo,
+		PowerInfo:         l.PowerInfo,
 		Manufacturer:      l.Manufacturer,
 		Model:             l.Model,
 		Experimental:      l.Experimental,

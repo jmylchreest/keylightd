@@ -5,5 +5,9 @@
   "displayName": "Fixture key-light-neo",
   "features": [
     "lights"
-  ]
+  ],
+  "power-info": {
+    "operationMode": 1,
+    "maximumBrightness": 40
+  }
 }

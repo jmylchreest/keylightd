@@ -24,7 +24,7 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 		{"key-light-mk2", 205, "Elgato Key Light MK.2"},
 		{"ring-light", 201, "Elgato Ring Light"},
 		{"key-light-mini", 202, "Elgato Key Light Mini"},
-		{"key-light-neo", 210, ""},
+		{"key-light-neo", 210, "Elgato Key Light Neo"},
 	} {
 		t.Run(fixture.file, func(t *testing.T) {
 			info, err := os.ReadFile("testdata/elgato/" + fixture.file + ".json")
@@ -65,7 +65,15 @@ func TestElgatoDeviceFixtures(t *testing.T) {
 			require.Equal(t, fixture.model != "", accepted)
 			if accepted {
 				require.Equal(t, fixture.model, light.Model)
-				require.Equal(t, fixture.board == 202, light.Experimental)
+				require.Equal(t, fixture.board == 202 || fixture.board == 210, light.Experimental)
+				if fixture.board == 210 {
+					require.Equal(t, &PowerInfo{OperationMode: 1, MaximumBrightness: 40}, light.PowerInfo)
+					manager := NewManager(discardLogger())
+					manager.addDevice(ctx, light, client)
+					require.Equal(t, light.PowerInfo, manager.GetLights()[light.ID].PowerInfo)
+				} else {
+					require.Nil(t, light.PowerInfo)
+				}
 			} else {
 				// Candidate fixtures exercise the wire client independently of registry admission.
 				client = NewKeyLightClient(entry.AddrV4.String(), entry.Port, discardLogger())

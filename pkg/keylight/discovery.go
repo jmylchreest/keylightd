@@ -327,6 +327,7 @@ func openElgatoLight(ctx context.Context, entry *ServiceEntry, logger *slog.Logg
 		IP:                entry.AddrV4,
 		Port:              entry.Port,
 		ProductName:       info.ProductName,
+		PowerInfo:         info.PowerInfo,
 		HardwareBoardType: info.HardwareBoardType,
 		FirmwareVersion:   info.FirmwareVersion,
 		FirmwareBuild:     info.FirmwareBuildNumber,

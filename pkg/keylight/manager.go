@@ -257,6 +257,7 @@ func (m *Manager) addDevice(ctx context.Context, light Light, client DeviceClien
 		info, infoErr := m.fetchAccessoryInfo(ctx, client, light.ID)
 		if infoErr == nil && info != nil {
 			light.ProductName = info.ProductName
+			light.PowerInfo = info.PowerInfo
 			light.HardwareBoardType = info.HardwareBoardType
 			light.FirmwareVersion = info.FirmwareVersion
 			light.FirmwareBuild = info.FirmwareBuildNumber

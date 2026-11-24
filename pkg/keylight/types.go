@@ -12,6 +12,12 @@ var (
 	ErrLightNotFound = errors.New("light not found")
 )
 
+// PowerInfo describes the device's reported operating mode and brightness limit.
+type PowerInfo struct {
+	OperationMode     int `json:"operationMode"`
+	MaximumBrightness int `json:"maximumBrightness"`
+}
+
 // Light represents a Key Light device
 type Light struct {
 	BatteryInfo       *BatteryInfo `json:"battery_info,omitempty"`
@@ -32,6 +38,7 @@ type Light struct {
 	SerialNumber      string       `json:"serialnumber"`
 	State             *LightState  `json:"state,omitempty"`
 	LastSeen          time.Time    `json:"lastseen"`
+	PowerInfo         *PowerInfo   `json:"power_info,omitempty"`
 }
 
 // LightManager defines the interface for managing Keylight devices
