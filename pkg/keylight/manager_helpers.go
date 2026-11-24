@@ -60,6 +60,7 @@ func (m *Manager) updateLightInfo(id string, info *AccessoryInfo) (*Light, error
 	// Update info fields
 	if info != nil {
 		light.ProductName = info.ProductName
+		light.PowerInfo = info.PowerInfo
 		light.HardwareBoardType = info.HardwareBoardType
 		light.FirmwareVersion = info.FirmwareVersion
 		light.FirmwareBuild = info.FirmwareBuildNumber
