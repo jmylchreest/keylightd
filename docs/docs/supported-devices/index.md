@@ -24,13 +24,23 @@ For detailed technical information about supported devices, including API endpoi
 
 - [Elgato Key Light Series](elgato.md) - Technical details and API specifications
 
-## Adding Support for New Devices
+## Experimental devices
 
-If you have a similar HTTP-based lighting device that you'd like to see supported, please [open an issue](https://github.com/jmylchreest/keylightd/issues) with:
+- **Elgato Key Light Mini** (board 202)
+- **Elgato Key Light Neo** (board 210)
 
-- Device model and manufacturer
-- Network discovery method (mDNS service type, if applicable)
-- Available API endpoints and documentation
-- Sample API requests and responses
+These models have passed simulated tests. Reports from owners using real hardware
+help us verify compatibility. If you have one, try discovery, power, brightness,
+and colour temperature, and [open an issue](https://github.com/jmylchreest/keylightd/issues/new)
+with what worked or failed. Include your model, firmware version, keylightd version,
+and platform. If you can see battery or power information, include whether it
+looks right.
 
-We welcome contributions to expand device compatibility!
+You can also just use keylightd with any listed device. Everyday use is welcome,
+and reporting your results is optional.
+
+## Request support for another device
+
+If your light is missing from the list, [open a device support request](https://github.com/jmylchreest/keylightd/issues/new).
+Include the manufacturer and exact model, and link any public protocol documentation
+you know of.

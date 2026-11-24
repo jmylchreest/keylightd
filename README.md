@@ -87,6 +87,16 @@ sudo systemctl enable keylightd
 sudo systemctl start keylightd
 ```
 
+## Device support and testing
+
+See the [device support guide](https://jmylchreest.github.io/keylightd/docs/supported-devices/)
+for supported and experimental models. Owners of experimental lights are welcome
+to try them and share what works or fails. You're also welcome to use keylightd
+without taking part in testing.
+
+If your device is missing from the list, [open a support request](https://github.com/jmylchreest/keylightd/issues/new)
+with its manufacturer and model.
+
 ## Documentation
 For detailed documentation, see [github pages](https://jmylchreest.github.io/keylightd/)
 
