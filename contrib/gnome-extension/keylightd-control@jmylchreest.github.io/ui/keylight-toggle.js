@@ -496,6 +496,12 @@ export const KeylightdControlToggle = GObject.registerClass(
                 light.id,
               );
 
+              const name = lightDetails.name || light.id;
+              const displayName =
+                lightDetails.experimental === true
+                  ? `${name} · ${_("Experimental")}`
+                  : name;
+
               // Check if we have an existing section for this light
               const sectionKey = `light:${light.id}`;
               const existingSection = existingSections.get(sectionKey);
@@ -505,7 +511,7 @@ export const KeylightdControlToggle = GObject.registerClass(
               if (existingSection && !existingSection.is_finalized) {
                 // Update existing section instead of creating new one
                 this._uiBuilder.updateControlSection(existingSection, {
-                  name: lightDetails.name || light.id,
+                  name: displayName,
                   on: lightDetails.on === true,
                   brightness: lightDetails.brightness || 50,
                   temperatureK: this._uiBuilder._convertDeviceToKelvin(
@@ -519,7 +525,7 @@ export const KeylightdControlToggle = GObject.registerClass(
                 lightSection = this._uiBuilder.createControlSection({
                   id: light.id,
                   type: "light",
-                  name: lightDetails.name || light.id,
+                  name: displayName,
                   isOn: lightDetails.on === true,
                   brightness: lightDetails.brightness || 50,
                   temperature: this._uiBuilder._convertDeviceToKelvin(

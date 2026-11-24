@@ -29,6 +29,7 @@ export namespace main {
 	    brightness: number;
 	    temperature: number;
 	    productName: string;
+	    experimental: boolean;
 	    serialNumber: string;
 	
 	    static createFrom(source: any = {}) {
@@ -43,6 +44,7 @@ export namespace main {
 	        this.brightness = source["brightness"];
 	        this.temperature = source["temperature"];
 	        this.productName = source["productName"];
+	        this.experimental = source["experimental"];
 	        this.serialNumber = source["serialNumber"];
 	    }
 	}
