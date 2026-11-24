@@ -26,7 +26,12 @@ func main() {
 func updateGuide(check bool) error {
 	const begin = "{/* BEGIN GENERATED EXPERIMENTAL DEVICES */}"
 	const end = "{/* END GENERATED EXPERIMENTAL DEVICES */}"
-	data, err := os.ReadFile(guidePath)
+	root, err := os.OpenRoot(".")
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	data, err := root.ReadFile(guidePath)
 	if err != nil {
 		return err
 	}
@@ -65,5 +70,5 @@ func updateGuide(check bool) error {
 	if check {
 		return fmt.Errorf("%s is stale: run go run ./cmd/keylight-device-docs", guidePath)
 	}
-	return os.WriteFile(guidePath, []byte(updated), 0o600)
+	return root.WriteFile(guidePath, []byte(updated), 0o600)
 }
