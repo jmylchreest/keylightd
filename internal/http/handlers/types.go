@@ -13,27 +13,29 @@ import (
 
 // LightResponse is the API representation of a discovered light.
 type LightResponse struct {
-	Manufacturer      string    `json:"manufacturer,omitempty" doc:"Canonical manufacturer identifier"`
-	Model             string    `json:"model,omitempty" doc:"Canonical model name resolved from the product registry"`
-	Experimental      bool      `json:"experimental" doc:"Whether this model is experimentally supported"`
-	ID                string    `json:"id" doc:"Unique light identifier"`
-	Name              string    `json:"name" doc:"Display name of the light"`
-	IP                string    `json:"ip" doc:"IP address of the light"`
-	Port              int       `json:"port" doc:"Port number of the light"`
-	Temperature       int       `json:"temperature" doc:"Color temperature in mireds"`
-	Brightness        int       `json:"brightness" doc:"Brightness level (0-100)"`
-	On                bool      `json:"on" doc:"Whether the light is currently on"`
-	ProductName       string    `json:"productname" doc:"Product name"`
-	HardwareBoardType int       `json:"hardwareboardtype" doc:"Hardware board type identifier"`
-	FirmwareVersion   string    `json:"firmwareversion" doc:"Firmware version string"`
-	FirmwareBuild     int       `json:"firmwarebuild" doc:"Firmware build number"`
-	SerialNumber      string    `json:"serialnumber" doc:"Serial number"`
-	LastSeen          time.Time `json:"lastseen" doc:"Last time the light was seen on the network"`
+	PowerInfo         *keylight.PowerInfo `json:"power_info,omitempty" doc:"Power and brightness limit when reported"`
+	Manufacturer      string              `json:"manufacturer,omitempty" doc:"Canonical manufacturer identifier"`
+	Model             string              `json:"model,omitempty" doc:"Canonical model name resolved from the product registry"`
+	Experimental      bool                `json:"experimental" doc:"Whether this model is experimentally supported"`
+	ID                string              `json:"id" doc:"Unique light identifier"`
+	Name              string              `json:"name" doc:"Display name of the light"`
+	IP                string              `json:"ip" doc:"IP address of the light"`
+	Port              int                 `json:"port" doc:"Port number of the light"`
+	Temperature       int                 `json:"temperature" doc:"Color temperature in mireds"`
+	Brightness        int                 `json:"brightness" doc:"Brightness level (0-100)"`
+	On                bool                `json:"on" doc:"Whether the light is currently on"`
+	ProductName       string              `json:"productname" doc:"Product name"`
+	HardwareBoardType int                 `json:"hardwareboardtype" doc:"Hardware board type identifier"`
+	FirmwareVersion   string              `json:"firmwareversion" doc:"Firmware version string"`
+	FirmwareBuild     int                 `json:"firmwarebuild" doc:"Firmware build number"`
+	SerialNumber      string              `json:"serialnumber" doc:"Serial number"`
+	LastSeen          time.Time           `json:"lastseen" doc:"Last time the light was seen on the network"`
 }
 
 // LightFromKeylight converts a keylight.Light to a LightResponse.
 func LightFromKeylight(l *keylight.Light) LightResponse {
 	return LightResponse{
+		PowerInfo:         l.PowerInfo,
 		Manufacturer:      l.Manufacturer,
 		Model:             l.Model,
 		Experimental:      l.Experimental,

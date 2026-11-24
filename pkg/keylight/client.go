@@ -23,13 +23,14 @@ type LightState struct {
 
 // AccessoryInfo represents the device information
 type AccessoryInfo struct {
-	ProductName         string   `json:"productName"`
-	HardwareBoardType   int      `json:"hardwareBoardType"`
-	FirmwareBuildNumber int      `json:"firmwareBuildNumber"`
-	FirmwareVersion     string   `json:"firmwareVersion"`
-	SerialNumber        string   `json:"serialNumber"`
-	DisplayName         string   `json:"displayName"`
-	Features            []string `json:"features"`
+	PowerInfo           *PowerInfo `json:"power-info,omitempty"`
+	ProductName         string     `json:"productName"`
+	HardwareBoardType   int        `json:"hardwareBoardType"`
+	FirmwareBuildNumber int        `json:"firmwareBuildNumber"`
+	FirmwareVersion     string     `json:"firmwareVersion"`
+	SerialNumber        string     `json:"serialNumber"`
+	DisplayName         string     `json:"displayName"`
+	Features            []string   `json:"features"`
 }
 
 // KeyLightClient handles HTTP communication with a Key Light device

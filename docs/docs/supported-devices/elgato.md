@@ -6,7 +6,7 @@ sidebar_position: 2
 
 ## Product registry
 
-The registry accepts the same four models as before:
+The registry recognizes the following models:
 
 | Manufacturer | Model | Hardware board ID |
 | --- | --- | --- |
@@ -23,9 +23,7 @@ For example, board 205 resolves to Key Light MK.2 even if its product name is si
 
 Light responses retain the device's `productname` and add `manufacturer`, the canonical
 `model`, and an `experimental` flag. Supported and experimental products use the same
-registry structure and lookup. The experimental list is currently empty; unknown
-devices are not automatically experimental. Mini, Neo, RGB strips, and Air MK.2 have
-not been added by this change.
+registry structure and lookup. Key Light Neo (board 210) is experimental and tested with simulated responses. The API includes power information when the device reports it.
 
 Discovery uses `_elg._tcp` over mDNS and the Elgato HTTP client.
 
