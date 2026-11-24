@@ -26,8 +26,10 @@ For detailed technical information about supported devices, including API endpoi
 
 ## Experimental devices
 
+{/* BEGIN GENERATED EXPERIMENTAL DEVICES */}
 - **Elgato Key Light Mini** (board 202)
 - **Elgato Key Light Neo** (board 210)
+{/* END GENERATED EXPERIMENTAL DEVICES */}
 
 These models have passed simulated tests. Reports from owners using real hardware
 help us verify compatibility. If you have one, try discovery, power, brightness,
