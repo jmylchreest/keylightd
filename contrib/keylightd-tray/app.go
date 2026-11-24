@@ -115,6 +115,7 @@ type Light struct {
 	Brightness   int    `json:"brightness"`
 	Temperature  int    `json:"temperature"`
 	ProductName  string `json:"productName"`
+	Experimental bool   `json:"experimental"`
 	SerialNumber string `json:"serialNumber"`
 }
 
@@ -720,6 +721,8 @@ func (a *App) convertLight(id string, data map[string]any) Light {
 		productName = v
 	}
 
+	experimental, _ := data["experimental"].(bool)
+
 	serialNumber := ""
 	if v, ok := data["serialnumber"].(string); ok {
 		serialNumber = v
@@ -732,6 +735,7 @@ func (a *App) convertLight(id string, data map[string]any) Light {
 		Brightness:   brightness,
 		Temperature:  tempKelvin,
 		ProductName:  productName,
+		Experimental: experimental,
 		SerialNumber: serialNumber,
 	}
 }

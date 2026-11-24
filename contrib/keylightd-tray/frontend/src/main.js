@@ -932,6 +932,10 @@ function updateSliderValues(items, type) {
       `.control-card[data-id="${item.id}"][data-type="${type}"]`,
     );
     if (!card) return;
+    if (type === "light") {
+      const details = card.querySelector(".control-details");
+      if (details) details.textContent = lightDetailsText(item);
+    }
 
     // Update brightness slider if not active
     const brightnessKey = `brightness-${item.id}`;
@@ -976,6 +980,11 @@ function updateSliderValues(items, type) {
   });
 }
 
+function lightDetailsText(item) {
+  const model = item.productName || "Key Light";
+  return item.experimental === true ? `${model} · Experimental` : model;
+}
+
 // Create a control card HTML
 function createControlCard(item, type) {
   const id = item.id;
@@ -986,7 +995,7 @@ function createControlCard(item, type) {
 
   const details =
     type === "light"
-      ? item.productName || "Key Light"
+      ? lightDetailsText(item)
       : `${item.lightIds?.length || 0} lights`;
 
   const brightnessKey = `brightness-${id}`;
