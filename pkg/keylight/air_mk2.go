@@ -32,7 +32,7 @@ var _ DeviceClient = (*AirMK2Client)(nil)
 // server certificate verification against the supplied TLS configuration.
 func NewAirMK2Client(host string, port int, config *tls.Config) (*AirMK2Client, error) {
 	if config == nil || config.InsecureSkipVerify || (len(config.Certificates) == 0 && config.GetClientCertificate == nil) {
-		return nil, fmt.Errorf("Air MK.2 requires verified TLS and a client certificate")
+		return nil, errors.New("air MK.2 requires verified TLS and a client certificate")
 	}
 	endpoint := url.URL{Scheme: "wss", Host: net.JoinHostPort(host, strconv.Itoa(port)), Path: "/"}
 	return &AirMK2Client{endpoint: endpoint.String(), dialer: websocket.Dialer{TLSClientConfig: config.Clone()}, slot: make(chan struct{}, 1)}, nil
@@ -68,7 +68,7 @@ func (c *AirMK2Client) SetLightState(ctx context.Context, on bool, brightness, t
 		return err
 	}
 	if state.NumberOfLights != 1 || len(state.Lights) != 1 || state.Lights[0] != payload.Lights[0] {
-		return fmt.Errorf("Air MK.2 state did not match the requested update")
+		return errors.New("air MK.2 state did not match the requested update")
 	}
 	return nil
 }
@@ -137,16 +137,16 @@ func (c *AirMK2Client) exchange(ctx context.Context, write *LightState, method s
 			continue
 		}
 		if reply.Version != "2.0" {
-			return fmt.Errorf("invalid Air MK.2 RPC version")
+			return errors.New("invalid Air MK.2 RPC version")
 		}
 		if reply.Error != nil {
-			return fmt.Errorf("Air MK.2 RPC error %d: %s", reply.Error.Code, reply.Error.Message)
+			return fmt.Errorf("air MK.2 RPC error %d: %s", reply.Error.Code, reply.Error.Message)
 		}
 		if reply.ID != "read" {
 			continue
 		}
 		if len(reply.Result) == 0 || string(reply.Result) == "null" {
-			return fmt.Errorf("missing Air MK.2 RPC result")
+			return errors.New("missing Air MK.2 RPC result")
 		}
 		if err := json.Unmarshal(reply.Result, result); err != nil {
 			return err
@@ -175,7 +175,7 @@ func NewAirMK2Discovery(entries []config.AirMK2Config, logger *slog.Logger) (*Ai
 	for _, entry := range entries {
 		endpoint, err := loadAirMK2Endpoint(entry)
 		if err != nil {
-			return nil, fmt.Errorf("Air MK.2 %q: %w", entry.Address, err)
+			return nil, fmt.Errorf("air MK.2 %q: %w", entry.Address, err)
 		}
 		provider.devices = append(provider.devices, endpoint)
 	}
@@ -189,7 +189,7 @@ func loadAirMK2Endpoint(entry config.AirMK2Config) (airMK2Endpoint, error) {
 	}
 	port, err := strconv.Atoi(rawPort)
 	if err != nil || port < 1 || port > 65535 || net.ParseIP(host) == nil {
-		return airMK2Endpoint{}, fmt.Errorf("expected an IP address and valid port")
+		return airMK2Endpoint{}, errors.New("expected an IP address and valid port")
 	}
 	pair, err := tls.LoadX509KeyPair(entry.CertFile, entry.KeyFile)
 	if err != nil {
@@ -201,7 +201,7 @@ func loadAirMK2Endpoint(entry config.AirMK2Config) (airMK2Endpoint, error) {
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(pem) {
-		return airMK2Endpoint{}, fmt.Errorf("invalid device CA certificate")
+		return airMK2Endpoint{}, errors.New("invalid device CA certificate")
 	}
 	client, err := NewAirMK2Client(host, port, &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{pair}, ServerName: entry.ServerName})
 	if err != nil {

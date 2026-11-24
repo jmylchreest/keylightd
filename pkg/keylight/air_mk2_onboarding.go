@@ -9,9 +9,11 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -88,7 +90,7 @@ func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, e
 		return nil, err
 	}
 	if pairer == nil {
-		return nil, fmt.Errorf("Air MK.2 pairing transport is required")
+		return nil, errors.New("air MK.2 pairing transport is required")
 	}
 	now := time.Now()
 	caTemplate, err := airCertificateTemplate("keylightd Air MK.2 CA", now)
@@ -141,10 +143,10 @@ func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, e
 		return nil, fmt.Errorf("verify provisioned Air MK.2: %w", err)
 	}
 	if info.HardwareBoardType != 214 || info.SerialNumber == "" {
-		return nil, fmt.Errorf("unexpected identity from provisioned Air MK.2")
+		return nil, errors.New("unexpected identity from provisioned Air MK.2")
 	}
 	if _, err := device.GetLightState(ctx); err != nil {
 		return nil, fmt.Errorf("read provisioned Air MK.2 state: %w", err)
 	}
-	return &AirMK2Identity{ca.pem, client.pem, client.keyPEM, serverName, net.JoinHostPort(host, fmt.Sprint(port)), *info}, nil
+	return &AirMK2Identity{ca.pem, client.pem, client.keyPEM, serverName, net.JoinHostPort(host, strconv.Itoa(port)), *info}, nil
 }
