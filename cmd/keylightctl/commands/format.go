@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -212,8 +213,28 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 		[]string{"Port", fmt.Sprintf("%v", light["port"])},
 		[]string{"Last Seen", formatLastSeen(light["lastseen"])},
 	}
-	if battery, ok := light["battery_info"].(map[string]any); ok && battery["level"] != nil {
-		table = append(table, []string{"Battery", fmt.Sprintf("%v%%", battery["level"])})
+	// Core rows always appear in the same order. The state payload repeats
+	// values already shown above, so keep it out of the detail table.
+	core := []string{"id", "productname", "serialnumber", "firmwareversion", "firmwarebuild",
+		"on", "temperature", "brightness", "ip", "port", "lastseen", "state"}
+	var extra []string
+	for key, value := range light {
+		if value != nil && !slices.Contains(core, key) {
+			extra = append(extra, key)
+		}
+	}
+	slices.Sort(extra)
+	for _, key := range extra {
+		value := light[key]
+		rendered, ok := value.(string)
+		if !ok {
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				continue
+			}
+			rendered = string(encoded)
+		}
+		table = append(table, []string{key, rendered})
 	}
 	return table
 }
