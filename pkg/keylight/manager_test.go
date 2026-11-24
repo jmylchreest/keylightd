@@ -9,11 +9,15 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/internal/config"
+	"github.com/jmylchreest/keylightd/internal/events"
 )
 
 // mockRoundTripper implements http.RoundTripper for testing
@@ -155,6 +159,7 @@ func TestCleanupStaleDevices(t *testing.T) {
 		Level: slog.LevelInfo,
 	}))
 	manager, mockHTTP := newTestManager(logger)
+	mockHTTP.Transport = probeRoundTripper(func(*http.Request) (*http.Response, error) { return nil, errors.New("offline") })
 
 	// Add a test light with stale timestamp
 	staleLight := Light{
@@ -178,7 +183,7 @@ func TestCleanupStaleDevices(t *testing.T) {
 	manager.clients[freshLight.ID] = NewKeyLightClient(freshLight.IP.String(), freshLight.Port, logger, mockHTTP)
 
 	// Run cleanup with 5 minute timeout
-	manager.cleanupStaleLights(5 * time.Minute)
+	manager.cleanupStaleLights(context.Background(), 5*time.Minute)
 
 	// Stale light should be removed, fresh light should remain
 	assert.NotContains(t, manager.lights, staleLight.ID)
@@ -245,4 +250,95 @@ func TestStartCleanupWorker(t *testing.T) {
 
 	// Give it a moment to start
 	time.Sleep(20 * time.Millisecond)
+}
+
+type probeRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f probeRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestCleanupHTTPProbe(t *testing.T) {
+	disabled, enabled := false, true
+	for _, tc := range []struct {
+		name         string
+		option       *bool
+		optionSerial string
+		response     string
+		keep         bool
+		calls        int
+	}{
+		{"default enabled", nil, "serial", `{"numberOfLights":1,"lights":[{"on":1,"brightness":42,"temperature":250}]}`, true, 1},
+		{"explicit enabled", &enabled, "serial", `{"numberOfLights":1,"lights":[{"on":1,"brightness":42,"temperature":250}]}`, true, 1},
+		{"disabled", &disabled, "serial", "", false, 0},
+		{"other serial unaffected", &disabled, "other", `{"numberOfLights":1,"lights":[{"on":1,"brightness":42,"temperature":250}]}`, true, 1},
+		{"empty state", nil, "serial", `{"numberOfLights":0,"lights":[]}`, false, 1},
+		{"invalid response", nil, "serial", "invalid", false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			logger := slog.New(slog.DiscardHandler)
+			m := NewManager(logger, config.LightConfig{SerialNumber: tc.optionSerial, HTTPProbeOnDisconnect: tc.option})
+			m.SetEventBus(events.NewBus())
+			getEvents := collectEvents(m.eventBus)
+			old := time.Now().Add(-10 * time.Minute)
+			m.lights["light"] = Light{ID: "light", SerialNumber: "serial", IP: net.ParseIP("127.0.0.1"), Port: 9123, LastSeen: old}
+			calls := 0
+			hc := &http.Client{Transport: probeRoundTripper(func(r *http.Request) (*http.Response, error) {
+				calls++
+				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Equal(t, "/elgato/lights", r.URL.Path)
+				deadline, ok := r.Context().Deadline()
+				assert.True(t, ok)
+				assert.LessOrEqual(t, time.Until(deadline), 5*time.Second)
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewBufferString(tc.response)), Header: make(http.Header)}, nil
+			})}
+			m.clients["light"] = NewKeyLightClient("127.0.0.1", 9123, logger, hc)
+			m.cleanupStaleLights(context.Background(), time.Minute)
+			assert.Equal(t, tc.calls, calls)
+			light, exists := m.lights["light"]
+			assert.Equal(t, tc.keep, exists)
+			evts := getEvents()
+			require.Len(t, evts, 1)
+			if tc.keep {
+				assert.True(t, light.LastSeen.After(old))
+				assert.Equal(t, 42, light.Brightness)
+				assert.True(t, light.On)
+				assert.Equal(t, events.LightStateChanged, evts[0].Type)
+			} else {
+				assert.NotContains(t, m.clients, "light")
+				assert.Equal(t, events.LightRemoved, evts[0].Type)
+			}
+		})
+	}
+}
+
+func TestCleanupProbePreservesConcurrentRefreshAndCancellation(t *testing.T) {
+	for _, cancelDuringProbe := range []bool{false, true} {
+		t.Run(strconv.FormatBool(cancelDuringProbe), func(t *testing.T) {
+			logger := slog.New(slog.DiscardHandler)
+			m := NewManager(logger)
+			old := time.Now().Add(-10 * time.Minute)
+			m.lights["light"] = Light{ID: "light", IP: net.ParseIP("127.0.0.1"), LastSeen: old}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			hc := &http.Client{Transport: probeRoundTripper(func(r *http.Request) (*http.Response, error) {
+				if cancelDuringProbe {
+					cancel()
+				} else {
+					// Acquiring this lock also verifies probes do not hold the manager lock.
+					m.mu.Lock()
+					light := m.lights["light"]
+					light.LastSeen = time.Now()
+					light.Brightness = 77
+					m.lights["light"] = light
+					m.mu.Unlock()
+				}
+				return nil, errors.New("probe failed")
+			})}
+			m.clients["light"] = NewKeyLightClient("127.0.0.1", 9123, logger, hc)
+			m.cleanupStaleLights(ctx, time.Minute)
+			require.Contains(t, m.lights, "light")
+			if !cancelDuringProbe {
+				assert.Equal(t, 77, m.lights["light"].Brightness)
+			}
+		})
+	}
 }

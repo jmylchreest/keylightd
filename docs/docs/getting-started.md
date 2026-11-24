@@ -128,6 +128,12 @@ config:
     # How long before marking a device as offline (seconds, default: 180)
     cleanup_timeout: 180
 
+  # Optional per-light overrides, matched by serial number
+  lights:
+    - serial_number: "CN38I1A02013"
+      # Check HTTP reachability before removing a stale light (default: true)
+      http_probe_on_disconnect: true
+
   # Logging configuration
   logging:
     # Log level: debug, info, warn, error (default: info)
@@ -135,6 +141,22 @@ config:
     # Log format: text, json (default: text)
     format: text
 ```
+
+### Keeping lights available when discovery is interrupted
+
+By default, when a light exceeds `cleanup_timeout`, keylightd probes its last
+known address using the HTTP light-state endpoint before removing it. A valid
+response refreshes its state and last-seen time, so missed mDNS announcements
+alone do not make a reachable light disappear. Each probe has a five-second
+timeout. Failed probes still allow stale lights to be removed.
+
+Set `config.lights[].http_probe_on_disconnect: false` to disable this check for
+an individual light. Match the `serial_number` shown by `keylightctl light list`.
+An omitted entry or option defaults to `true`. This setting is available only
+in the configuration file; restart keylightd after editing it.
+
+This fallback applies to lights already discovered by the running daemon. It
+does not discover new devices or recover an address changed by DHCP.
 
 ## Creating Your First API Key
 
