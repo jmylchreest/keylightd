@@ -200,7 +200,7 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 		tempDevice = v
 	}
 	tempKelvin := keylight.ConvertDeviceToTemperature(tempDevice)
-	return pterm.TableData{
+	table := pterm.TableData{
 		[]string{pterm.Bold.Sprint("ID"), pterm.Bold.Sprint(id)},
 		[]string{"Product", fmt.Sprintf("%v", light["productname"])},
 		[]string{"Serial", fmt.Sprintf("%v", light["serialnumber"])},
@@ -212,6 +212,10 @@ func LightTableData(id string, light map[string]any) pterm.TableData {
 		[]string{"Port", fmt.Sprintf("%v", light["port"])},
 		[]string{"Last Seen", formatLastSeen(light["lastseen"])},
 	}
+	if battery, ok := light["battery_info"].(map[string]any); ok && battery["level"] != nil {
+		table = append(table, []string{"Battery", fmt.Sprintf("%v%%", battery["level"])})
+	}
+	return table
 }
 
 // formatLastSeen formats the LastSeen time for display

@@ -14,23 +14,24 @@ var (
 
 // Light represents a Key Light device
 type Light struct {
-	Manufacturer      string      `json:"manufacturer,omitempty"`
-	ID                string      `json:"id"`
-	Name              string      `json:"name"`
-	IP                net.IP      `json:"ip"`
-	Port              int         `json:"port"`
-	Temperature       int         `json:"temperature"`
-	Brightness        int         `json:"brightness"`
-	On                bool        `json:"on"`
-	Model             string      `json:"model,omitempty"`
-	Experimental      bool        `json:"experimental"`
-	ProductName       string      `json:"productname"`
-	HardwareBoardType int         `json:"hardwareboardtype"`
-	FirmwareVersion   string      `json:"firmwareversion"`
-	FirmwareBuild     int         `json:"firmwarebuild"`
-	SerialNumber      string      `json:"serialnumber"`
-	State             *LightState `json:"state,omitempty"`
-	LastSeen          time.Time   `json:"lastseen"`
+	BatteryInfo       *BatteryInfo `json:"battery_info,omitempty"`
+	Manufacturer      string       `json:"manufacturer,omitempty"`
+	ID                string       `json:"id"`
+	Name              string       `json:"name"`
+	IP                net.IP       `json:"ip"`
+	Port              int          `json:"port"`
+	Temperature       int          `json:"temperature"`
+	Brightness        int          `json:"brightness"`
+	On                bool         `json:"on"`
+	Model             string       `json:"model,omitempty"`
+	Experimental      bool         `json:"experimental"`
+	ProductName       string       `json:"productname"`
+	HardwareBoardType int          `json:"hardwareboardtype"`
+	FirmwareVersion   string       `json:"firmwareversion"`
+	FirmwareBuild     int          `json:"firmwarebuild"`
+	SerialNumber      string       `json:"serialnumber"`
+	State             *LightState  `json:"state,omitempty"`
+	LastSeen          time.Time    `json:"lastseen"`
 }
 
 // LightManager defines the interface for managing Keylight devices
