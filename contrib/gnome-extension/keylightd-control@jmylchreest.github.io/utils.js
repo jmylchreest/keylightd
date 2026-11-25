@@ -191,6 +191,8 @@ export async function fetchAPI(
   let url = `${endpoint}/api/v1/${path}`;
   let session = new Soup.Session();
   let message = Soup.Message.new(method, url);
+  const pairingRequest = method === "POST" && path.endsWith("/setup");
+  if (pairingRequest) message.add_flags(Soup.MessageFlags.NO_REDIRECT);
   message.get_request_headers().append("X-API-Key", apiKey);
 
   // Log request details
@@ -201,7 +203,7 @@ export async function fetchAPI(
 
   if (body) {
     let bodyStr = JSON.stringify(body);
-    filteredLog("info", `[${requestId}] Request body: ${bodyStr}`);
+    if (!pairingRequest) filteredLog("info", `[${requestId}] Request body: ${bodyStr}`);
     let bytes = new GLib.Bytes(bodyStr);
     message.set_request_body_from_bytes("application/json", bytes);
   }
@@ -240,7 +242,7 @@ export async function fetchAPI(
                   ? text.substring(0, maxLogLength) + "... [truncated]"
                   : text;
 
-              filteredLog(
+              if (!pairingRequest) filteredLog(
                 "info",
                 `[${requestId}] Response body (${method} ${path}, ${statusCode}): ${logText}`,
               );
@@ -291,12 +293,14 @@ export async function fetchAPI(
             } else {
               let errorBody = "";
               try {
-                let decoder = new TextDecoder("utf-8");
-                errorBody = decoder.decode(bytes.get_data());
-                filteredLog(
-                  "error",
-                  `[${requestId}] Error response (${method} ${path}, ${statusCode}): ${errorBody}`,
-                );
+                if (!pairingRequest) {
+                  let decoder = new TextDecoder("utf-8");
+                  errorBody = decoder.decode(bytes.get_data());
+                  filteredLog(
+                    "error",
+                    `[${requestId}] Error response (${method} ${path}, ${statusCode}): ${errorBody}`,
+                  );
+                }
               } catch (decodeError) {
                 filteredLog(
                   "error",

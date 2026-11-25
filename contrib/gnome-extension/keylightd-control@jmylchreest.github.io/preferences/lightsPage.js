@@ -284,6 +284,68 @@ export var LightsPage = GObject.registerClass(
       }
     }
 
+    _showSetupDialog(parent, light, submit) {
+      const fields = new Adw.PreferencesGroup();
+      const peripheral = new Adw.EntryRow({ title: _("Bluetooth address or UUID") });
+      const ssid = new Adw.EntryRow({ title: _("Wi-Fi network name") });
+      const security = new Adw.ComboRow({
+        title: _("Wi-Fi security"),
+        model: Gtk.StringList.new([_("WPA2 Personal (AES)"), _("Open network")]),
+      });
+      const password = new Adw.PasswordEntryRow({ title: _("Wi-Fi password") });
+      for (const field of [peripheral, ssid, security, password])
+        fields.add(field);
+
+      const dialog = new Adw.AlertDialog({
+        heading: _("Configure light"),
+        body: _("Put the light in pairing mode and enter its Bluetooth address on the keylightd host."),
+        extra_child: fields,
+      });
+      dialog.add_response("cancel", _("Cancel"));
+      dialog.add_response("start", _("Start setup"));
+      dialog.set_response_appearance("start", Adw.ResponseAppearance.SUGGESTED);
+      dialog.set_close_response("cancel");
+
+      const encoder = new TextEncoder();
+      const update = () => {
+        const secured = security.selected === 0;
+        password.visible = secured;
+        const address = peripheral.text.trim();
+        const hasAddress = /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address) ||
+          /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(address);
+        const ssidLength = encoder.encode(ssid.text).length;
+        const passwordLength = encoder.encode(password.text).length;
+        dialog.set_response_enabled("start",
+          hasAddress &&
+          ssidLength > 0 && ssidLength <= 32 &&
+          (!secured || (passwordLength > 0 && passwordLength <= 64)) &&
+          Number.isInteger(light.port) && light.port > 0 && light.port <= 65535);
+      };
+      for (const entry of [peripheral, ssid, password])
+        entry.connect("changed", update);
+      security.connect("notify::selected", update);
+      update();
+
+      dialog.connect("response", (_dialog, response) => {
+        if (response !== "start") {
+          password.text = "";
+          return;
+        }
+        const secured = security.selected === 0;
+        const options = {
+          peripheral: peripheral.text.trim(),
+          ssid: ssid.text,
+          password: secured ? password.text : "",
+          security: secured ? 200 : 0,
+          port: light.port,
+        };
+        password.text = "";
+        submit(options);
+      });
+      dialog.present(parent);
+      return dialog;
+    }
+
     _createLightRow(light) {
       const row = new Adw.ActionRow({
         title: light.name,
@@ -336,13 +398,12 @@ export var LightsPage = GObject.registerClass(
         const addSetupButton = (label, method) => {
           const button = new Gtk.Button({ label, valign: Gtk.Align.CENTER });
           buttons.push(button);
-          button.connect("clicked", async () => {
-            popover.popdown();
+          const request = async (body = null) => {
             for (const control of buttons) control.sensitive = false;
             this._clearStatus();
             const generation = ++requestGeneration;
             try {
-              const status = await fetchAPI(path, method);
+              const status = await fetchAPI(path, method, body);
               for (const control of buttons) control.sensitive = true;
               await showProgress(status, generation);
             } catch (error) {
@@ -362,6 +423,13 @@ export var LightsPage = GObject.registerClass(
               if (generation === requestGeneration)
                 for (const control of buttons) control.sensitive = true;
             }
+          };
+          button.connect("clicked", () => {
+            popover.popdown();
+            if (method === "POST")
+              this._showSetupDialog(row, light, request);
+            else
+              request();
           });
           menu.append(button);
         };

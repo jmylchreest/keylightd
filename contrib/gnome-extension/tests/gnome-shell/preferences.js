@@ -80,6 +80,41 @@ app.connect('activate', () => {
                 dialog.response('cancel');
         }
 
+        const lights = pages.find(page => page.title === 'Lights');
+        window.set_visible_page(lights);
+        const pending = {id: 'air', name: 'Air MK.2', port: 9123, needsConfiguration: ['credentials_missing']};
+        const row = lights._createLightRow(pending);
+        const menu = descendants(row).find(widget => widget instanceof Gtk.MenuButton);
+        if (!menu)
+            throw new Error('Setup menu not found');
+        const dialog = lights._showSetupDialog(lights, pending, options => {
+            if (JSON.stringify(options) !== JSON.stringify({
+                peripheral: '00:11:22:33:44:55', ssid: 'Test Wi-Fi',
+                password: 'fixture-password', security: 200, port: 9123,
+            }))
+                throw new Error('Unexpected pairing settings');
+            submitted = true;
+        });
+        let submitted = false;
+        if (dialog.get_response_enabled('start'))
+            throw new Error('An empty setup form can be submitted');
+        const fields = descendants(dialog.get_extra_child());
+        const entries = fields.filter(widget => widget instanceof Adw.EntryRow);
+        const password = fields.find(widget => widget instanceof Adw.PasswordEntryRow);
+        entries[0].text = '00:11:22:33:44:55';
+        entries[1].text = 'Test Wi-Fi';
+        password.text = 'fixture-password';
+        if (!dialog.get_response_enabled('start'))
+            throw new Error('A complete setup form cannot be submitted');
+        await capture('12-air-mk2-setup');
+        const start = descendants(dialog).find(widget =>
+            widget instanceof Gtk.Button && widget.label === 'Start setup');
+        if (!start)
+            throw new Error('Setup start button not found');
+        start.emit('clicked');
+        if (!submitted || password.text)
+            throw new Error('Setup must submit the form and clear its password');
+
         window.set_visible_page(pages[0]);
         const combo = descendants(pages[0]).find(widget => widget instanceof Adw.ComboRow);
         if (!combo)

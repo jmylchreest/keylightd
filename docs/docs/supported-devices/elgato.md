@@ -163,5 +163,8 @@ over mutual TLS before saving its identity.
 
 Linux uses BlueZ with `CGO_ENABLED=0`. macOS uses CoreBluetooth and the
 native macOS toolchain with CGO enabled. The CLI currently requires an
-existing mDNS discovery entry. Supply pairing inputs through the CLI or
-HTTP API. GNOME Preferences can show setup status and remove saved setup.
+existing mDNS discovery entry. In GNOME Preferences, open **Lights**, then
+**Setup → Configure** on the light. Enter its Bluetooth address, Wi-Fi network
+name, and password. The form uses the WebSocket port from discovery and
+supports WPA2 Personal (AES) and open networks. Use a loopback API URL or
+HTTPS. The Setup menu also shows session status and lets you cancel setup.
