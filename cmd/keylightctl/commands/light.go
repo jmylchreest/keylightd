@@ -171,8 +171,16 @@ func newLightGetCommand() *cobra.Command {
 
 			// If a specific property was requested, only show that
 			if len(args) > 1 {
-				property := strings.ToLower(args[1])
+				property := args[1]
 				value, ok := light[property]
+				if !ok {
+					for key, candidate := range light {
+						if strings.EqualFold(key, property) {
+							property, value, ok = key, candidate, true
+							break
+						}
+					}
+				}
 				if !ok {
 					return fmt.Errorf("invalid property: %s", property)
 				}

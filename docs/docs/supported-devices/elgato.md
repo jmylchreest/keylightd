@@ -140,7 +140,8 @@ the advertised IP address and port. An unconfigured discovery reports
 `needsConfiguration` with `credentials_missing`. The client reads and updates
 power, brightness, and white colour temperature over a TLS WebSocket.
 
-For daemon-managed setup, the CLI's HTTP connection supports
+For daemon-managed setup, set `KEYLIGHTCTL_API_URL` and `KEYLIGHTCTL_API_KEY`
+to connect the CLI to the daemon's HTTP API. The CLI supports
 `keylightctl light setup start <id>`, `status <id>`, `cancel <id>`, and
 `forget <id>`. The GNOME extension links lights that need setup to its
 Preferences, where you can start setup, check status, or cancel.

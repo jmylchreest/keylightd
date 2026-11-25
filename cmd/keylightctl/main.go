@@ -57,7 +57,10 @@ func main() {
 	// Use the NewRootCommand from the commands package
 	rootCmd := commands.NewRootCommand(logger, version, commit, buildDate)
 
-	apiClient := client.New(logger, socket)
+	var apiClient client.ClientInterface = client.New(logger, socket)
+	if endpoint := os.Getenv("KEYLIGHTCTL_API_URL"); endpoint != "" {
+		apiClient = client.NewHTTP(logger, endpoint, os.Getenv("KEYLIGHTCTL_API_KEY"))
+	}
 
 	// Get the context initialized by NewRootCommand (which includes the logger)
 	// and add the apiClient to it.
