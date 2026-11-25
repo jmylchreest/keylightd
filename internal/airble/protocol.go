@@ -8,6 +8,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 const certificatePayload = 242
@@ -178,12 +180,12 @@ func joinWiFi(ctx context.Context, credentials, state characteristicIO, address 
 			}
 		}
 	}); err != nil {
-		return "", fmt.Errorf("subscribe to Wi-Fi address: %w", err)
+		return "", fmt.Errorf("%w: subscribe to Wi-Fi address: %w", keylight.SetupBluetoothFailed, err)
 	}
 	defer func() { _ = address.Notifications(nil) }()
 
 	if err := credentials.Write(frame); err != nil {
-		return "", fmt.Errorf("write Wi-Fi credentials: %w", err)
+		return "", fmt.Errorf("%w: write Wi-Fi credentials: %w", keylight.SetupBluetoothFailed, err)
 	}
 
 	ticker := time.NewTicker(250 * time.Millisecond)
@@ -192,16 +194,26 @@ func joinWiFi(ctx context.Context, credentials, state characteristicIO, address 
 	for {
 		select {
 		case <-joinCtx.Done():
-			return "", joinCtx.Err()
+			return "", fmt.Errorf("%w: %w", keylight.SetupWiFiJoinFailed, joinCtx.Err())
 		case ip := <-addresses:
 			return ip, nil
 		case <-ticker.C:
 			n, err := state.Read(value[:])
 			if err != nil {
-				return "", fmt.Errorf("read Wi-Fi state: %w", err)
+				return "", fmt.Errorf("%w: read Wi-Fi state: %w", keylight.SetupBluetoothFailed, err)
 			}
-			if n > 0 && value[0] >= 100 {
-				return "", fmt.Errorf("light reported Wi-Fi setup failure (state %d)", value[0])
+			if n == 0 {
+				continue
+			}
+			switch value[0] {
+			case 101:
+				return "", keylight.SetupWiFiCredentialsRejected
+			case 102:
+				return "", keylight.SetupWiFiJoinFailed
+			default:
+				if value[0] >= 100 {
+					return "", fmt.Errorf("light reported setup failure (state %d)", value[0])
+				}
 			}
 		}
 	}

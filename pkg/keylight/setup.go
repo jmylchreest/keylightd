@@ -7,11 +7,38 @@ import (
 	"time"
 )
 
+// SetupFailure is a stable reason that can be returned without transport details.
+type SetupFailure string
+
+func (reason SetupFailure) Error() string { return string(reason) }
+
+const (
+	SetupBluetoothFailed          SetupFailure = "bluetooth_failed"
+	SetupCertificateInstallFailed SetupFailure = "certificate_install_failed"
+	SetupWiFiCredentialsRejected  SetupFailure = "wifi_credentials_rejected"
+	SetupWiFiJoinFailed           SetupFailure = "wifi_join_failed"
+	SetupVerificationFailed       SetupFailure = "verification_failed"
+	SetupSaveFailed               SetupFailure = "save_failed"
+)
+
+func setupFailureReason(err error) string {
+	for _, reason := range []SetupFailure{
+		SetupBluetoothFailed, SetupCertificateInstallFailed, SetupWiFiCredentialsRejected,
+		SetupWiFiJoinFailed, SetupVerificationFailed, SetupSaveFailed,
+	} {
+		if errors.Is(err, reason) {
+			return string(reason)
+		}
+	}
+	return ""
+}
+
 // SetupStatus is safe to return to a frontend. Credentials and transport
 // errors remain on the daemon.
 type SetupStatus struct {
-	DeviceID string `json:"deviceId"`
-	Stage    string `json:"stage"`
+	DeviceID      string `json:"deviceId"`
+	Stage         string `json:"stage"`
+	FailureReason string `json:"failureReason,omitempty"`
 }
 
 // SetupSessions owns the lifetime of an explicitly started device setup.
@@ -46,10 +73,12 @@ func (s *SetupSessions) Start(ctx context.Context, id string, run func(context.C
 			s.status.Stage = "ready"
 		case setupCtx.Err() == context.Canceled:
 			s.status.Stage = "canceled"
-		case setupCtx.Err() == context.DeadlineExceeded:
+		case setupCtx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded):
 			s.status.Stage = "timed_out"
+			s.status.FailureReason = setupFailureReason(err)
 		default:
 			s.status.Stage = "failed"
+			s.status.FailureReason = setupFailureReason(err)
 		}
 		s.active = nil
 	}()

@@ -2,6 +2,8 @@ package keylight
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,4 +27,29 @@ func TestSetupSessionCancellation(t *testing.T) {
 		status, ok := sessions.Status("light")
 		return ok && status.Stage == "canceled"
 	}, time.Second, time.Millisecond)
+}
+
+func TestSetupSessionFailureReason(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		err    error
+		stage  string
+		reason string
+	}{
+		{"credentials", fmt.Errorf("%w: private detail", SetupWiFiCredentialsRejected), "failed", "wifi_credentials_rejected"},
+		{"timeout", fmt.Errorf("%w: %w", SetupWiFiJoinFailed, context.DeadlineExceeded), "timed_out", "wifi_join_failed"},
+		{"unknown", errors.New("private detail"), "failed", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var sessions SetupSessions
+			_, err := sessions.Start(t.Context(), "light", func(context.Context) error { return tc.err })
+			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				status, ok := sessions.Status("light")
+				return ok && status.Stage == tc.stage
+			}, time.Second, time.Millisecond)
+			status, _ := sessions.Status("light")
+			require.Equal(t, tc.reason, status.FailureReason)
+		})
+	}
 }

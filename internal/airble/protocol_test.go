@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 type scriptedCharacteristic struct {
@@ -98,4 +100,23 @@ func TestPairingRejectionAndCancellation(t *testing.T) {
 	cancel()
 	_, err := joinWiFi(ctx, nil, nil, nil, nil)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWiFiSetupFailureReasons(t *testing.T) {
+	for _, tc := range []struct {
+		state  byte
+		reason keylight.SetupFailure
+	}{
+		{101, keylight.SetupWiFiCredentialsRejected},
+		{102, keylight.SetupWiFiJoinFailed},
+	} {
+		t.Run(string(tc.reason), func(t *testing.T) {
+			wifi := scriptedCharacteristic{write: func([]byte) {}}
+			state := scriptedCharacteristic{read: func() []byte { return []byte{tc.state} }}
+			address := &scriptedNotifications{}
+			_, err := joinWiFi(t.Context(), wifi, state, address, nil)
+			require.ErrorIs(t, err, tc.reason)
+			require.Nil(t, address.receive)
+		})
+	}
 }

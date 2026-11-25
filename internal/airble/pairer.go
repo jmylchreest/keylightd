@@ -48,11 +48,11 @@ func (p *pairer) Provision(ctx context.Context, material keylight.AirMK2Provisio
 
 	adapter := bluetooth.DefaultAdapter
 	if err := enableAdapter(adapter); err != nil {
-		return "", 0, fmt.Errorf("enable Bluetooth adapter: %w", err)
+		return "", 0, fmt.Errorf("%w: enable adapter: %w", keylight.SetupBluetoothFailed, err)
 	}
 	link, err := Connect(adapter, p.address)
 	if err != nil {
-		return "", 0, err
+		return "", 0, fmt.Errorf("%w: %w", keylight.SetupBluetoothFailed, err)
 	}
 	defer link.Close() //nolint:errcheck // The setup result depends on the protocol, even if the device disconnects first.
 
@@ -61,15 +61,15 @@ func (p *pairer) Provision(ctx context.Context, material keylight.AirMK2Provisio
 		uuid := bluetooth.NewUUID([16]byte{0x0d, 0x27, 0xfb, id, 0xf0, 0xd4, 0x46, 0x9d, 0xaf, 0xd3, 0x60, 0x5a, 0x6e, 0xbb, 0xdb, 0x13})
 		characteristic, err := link.Characteristic(uuid)
 		if err != nil {
-			return "", 0, fmt.Errorf("discover pairing characteristic %s: %w", uuid, err)
+			return "", 0, fmt.Errorf("%w: discover pairing characteristic %s: %w", keylight.SetupBluetoothFailed, uuid, err)
 		}
 		characteristics = append(characteristics, characteristic)
 	}
 	if err := transferCertificates(ctx, characteristics[0], characteristics[1], material.CA, material.ServerCertificate, material.ServerKey); err != nil {
-		return "", 0, err
+		return "", 0, fmt.Errorf("%w: %w", keylight.SetupCertificateInstallFailed, err)
 	}
 	if err := characteristics[5].Write([]byte{0}); err != nil {
-		return "", 0, fmt.Errorf("set default Wi-Fi connection option: %w", err)
+		return "", 0, fmt.Errorf("%w: set Wi-Fi connection option: %w", keylight.SetupBluetoothFailed, err)
 	}
 	host, err := joinWiFi(ctx, characteristics[2], characteristics[3], characteristics[4], p.frame)
 	return host, p.port, err

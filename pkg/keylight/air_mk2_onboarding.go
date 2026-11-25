@@ -149,13 +149,13 @@ func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, e
 	}
 	info, err := device.GetAccessoryInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("verify provisioned Air MK.2: %w", err)
+		return nil, fmt.Errorf("%w: verify provisioned Air MK.2: %w", SetupVerificationFailed, err)
 	}
 	if info.HardwareBoardType != 214 || info.SerialNumber == "" {
-		return nil, errors.New("unexpected identity from provisioned Air MK.2")
+		return nil, fmt.Errorf("%w: unexpected device identity", SetupVerificationFailed)
 	}
 	if _, err := device.GetLightState(ctx); err != nil {
-		return nil, fmt.Errorf("read provisioned Air MK.2 state: %w", err)
+		return nil, fmt.Errorf("%w: read provisioned Air MK.2 state: %w", SetupVerificationFailed, err)
 	}
 	return &AirMK2Identity{ca.pem, client.pem, client.keyPEM, serverName, net.JoinHostPort(host, strconv.Itoa(port)), *info}, nil
 }

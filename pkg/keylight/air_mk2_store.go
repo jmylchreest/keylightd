@@ -131,7 +131,7 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 		return err
 	}
 	if light.SerialNumber != "" && !strings.EqualFold(light.SerialNumber, identity.Info.SerialNumber) {
-		return errors.New("paired Air MK.2 identity does not match the selected light")
+		return fmt.Errorf("%w: paired Air MK.2 identity does not match the selected light", SetupVerificationFailed)
 	}
 	host, portText, err := net.SplitHostPort(identity.Address)
 	if err != nil {
@@ -145,7 +145,7 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 		return err
 	}
 	if err := p.credentials.save(id, identity); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", SetupSaveFailed, err)
 	}
 	client, _, err := p.credentials.load(id, host, port)
 	if err != nil {

@@ -375,10 +375,19 @@ export var LightsPage = GObject.registerClass(
           timed_out: _("Setup timed out"),
           ready: _("Setup complete"),
         };
+        const failures = new Map([
+          ["bluetooth_failed", _("Could not communicate over Bluetooth. Check pairing mode and try again.")],
+          ["certificate_install_failed", _("The light could not install its certificates. Check pairing mode and try again.")],
+          ["wifi_credentials_rejected", _("The light rejected the Wi-Fi credentials. Check the password and security setting.")],
+          ["wifi_join_failed", _("The light could not join Wi-Fi. Check the network name and signal.")],
+          ["verification_failed", _("Could not verify the light over the network. Check that keylightd can reach it.")],
+          ["save_failed", _("Keylightd could not save the light’s credentials.")],
+        ]);
         let requestGeneration = 0;
         const showProgress = async (status, generation) => {
           while (row.get_root() && generation === requestGeneration) {
-            row.subtitle = stages[status.stage] || _("Setup required");
+            row.subtitle = failures.get(status.failureReason) ??
+              (stages[status.stage] || _("Setup required"));
             if (status.stage === "ready") {
               await this._loadLights();
               return;
