@@ -95,7 +95,11 @@ func TestOnboardAirMK2(t *testing.T) {
 		status, ok := manager.DeviceSetupStatus(pending.ID)
 		return ok && status.Stage == "ready"
 	}, time.Second, time.Millisecond)
-	require.ErrorContains(t, manager.ConfigureAirMK2(ctx, pending.ID, pairer), "already has stored credentials")
+	configured, err := manager.GetLight(ctx, pending.ID)
+	require.NoError(t, err)
+	require.Empty(t, configured.NeedsConfiguration)
+	require.True(t, configured.ManagedCredentials)
+	require.ErrorContains(t, manager.ConfigureAirMK2(ctx, pending.ID, pairer), "does not require")
 
 	restarted, err := NewAirMK2Discovery(nil, discardLogger())
 	require.NoError(t, err)

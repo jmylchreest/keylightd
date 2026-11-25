@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/jmylchreest/keylightd/internal/events"
@@ -131,7 +133,38 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 	if light.SerialNumber != "" && !strings.EqualFold(light.SerialNumber, identity.Info.SerialNumber) {
 		return errors.New("paired Air MK.2 identity does not match the selected light")
 	}
-	return p.credentials.save(id, identity)
+	host, portText, err := net.SplitHostPort(identity.Address)
+	if err != nil {
+		return err
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := p.credentials.save(id, identity); err != nil {
+		return err
+	}
+	client, _, err := p.credentials.load(id, host, port)
+	if err != nil {
+		return err
+	}
+	light.IP = net.ParseIP(host)
+	light.Port = port
+	light.NeedsConfiguration = nil
+	light.ManagedCredentials = true
+	light.HardwareBoardType = identity.Info.HardwareBoardType
+	light.SerialNumber = identity.Info.SerialNumber
+	light.FirmwareVersion = identity.Info.FirmwareVersion
+	light.FirmwareBuild = identity.Info.FirmwareBuildNumber
+	light.PowerInfo = identity.Info.PowerInfo
+	if identity.Info.DisplayName != "" {
+		light.Name = UnescapeRFC6763Label(identity.Info.DisplayName)
+	}
+	m.addDevice(ctx, light, client)
+	return nil
 }
 
 // StartAirMK2Setup starts pairing with a context owned by the daemon.
