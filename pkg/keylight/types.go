@@ -20,6 +20,7 @@ type PowerInfo struct {
 
 // Light represents a Key Light device
 type Light struct {
+	ManagedCredentials bool         `json:"managedCredentials,omitempty"`
 	NeedsConfiguration []string     `json:"needsConfiguration,omitempty"`
 	BatteryInfo        *BatteryInfo `json:"battery_info,omitempty"`
 	Manufacturer       string       `json:"manufacturer,omitempty"`

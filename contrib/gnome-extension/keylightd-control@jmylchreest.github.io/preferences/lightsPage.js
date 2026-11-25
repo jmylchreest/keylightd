@@ -370,6 +370,36 @@ export var LightsPage = GObject.registerClass(
         addSetupButton(_("Cancel setup"), "DELETE");
       }
 
+      if (light.managedCredentials === true) {
+        const forget = new Gtk.Button({
+          label: _("Forget setup…"),
+          valign: Gtk.Align.CENTER,
+        });
+        forget.connect("clicked", () => {
+          const dialog = new Adw.AlertDialog({
+            heading: _("Forget this light’s setup?"),
+            body: _("This removes the saved credentials from keylightd. You’ll need to pair the light again to control it."),
+          });
+          dialog.add_response("cancel", _("Cancel"));
+          dialog.add_response("forget", _("Forget setup"));
+          dialog.set_response_appearance("forget", Adw.ResponseAppearance.DESTRUCTIVE);
+          dialog.set_default_response("cancel");
+          dialog.set_close_response("cancel");
+          dialog.connect("response", async (_dialog, response) => {
+            if (response !== "forget") return;
+            try {
+              await fetchAPI(`lights/${encodeURIComponent(light.id)}/credentials`, "DELETE");
+              await this._loadLights();
+            } catch (error) {
+              this._setStatus(_("Could not forget this light’s setup."), true);
+              filteredLog("debug", "Forget setup request failed", error);
+            }
+          });
+          dialog.present(row);
+        });
+        row.add_suffix(forget);
+      }
+
       // Get current visible lights
       const visibleLights = this._settings.get_strv("visible-lights") || [];
       const isVisible = visibleLights.includes(light.id);

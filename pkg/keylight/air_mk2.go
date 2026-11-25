@@ -260,6 +260,7 @@ func (p *AirMK2Discovery) openDiscovered(ctx context.Context, entry *ServiceEntr
 		return Light{}, nil, false
 	}
 	light.NeedsConfiguration = nil
+	light.ManagedCredentials = client.managedIdentity
 	light.HardwareBoardType = info.HardwareBoardType
 	light.SerialNumber = info.SerialNumber
 	light.PowerInfo = info.PowerInfo

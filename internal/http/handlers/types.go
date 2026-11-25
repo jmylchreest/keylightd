@@ -13,6 +13,7 @@ import (
 
 // LightResponse is the API representation of a discovered light.
 type LightResponse struct {
+	ManagedCredentials bool                  `json:"managedCredentials,omitempty" doc:"Whether setup credentials are managed by the daemon"`
 	NeedsConfiguration []string              `json:"needsConfiguration,omitempty" doc:"Configuration steps required before control"`
 	BatteryInfo        *keylight.BatteryInfo `json:"battery_info,omitempty" doc:"Battery telemetry when available"`
 	Manufacturer       string                `json:"manufacturer,omitempty" doc:"Canonical manufacturer identifier"`
@@ -37,6 +38,7 @@ type LightResponse struct {
 // LightFromKeylight converts a keylight.Light to a LightResponse.
 func LightFromKeylight(l *keylight.Light) LightResponse {
 	return LightResponse{
+		ManagedCredentials: l.ManagedCredentials,
 		NeedsConfiguration: l.NeedsConfiguration,
 		BatteryInfo:        l.BatteryInfo,
 		PowerInfo:          l.PowerInfo,

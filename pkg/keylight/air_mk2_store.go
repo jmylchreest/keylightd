@@ -188,6 +188,7 @@ func (m *Manager) ForgetAirMK2(id string) error {
 	if exists {
 		light.NeedsConfiguration = []string{"credentials_missing"}
 		light.State = nil
+		light.ManagedCredentials = false
 		m.lights[id] = light
 	}
 	delete(m.clients, id)
