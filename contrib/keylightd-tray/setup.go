@@ -17,7 +17,7 @@ func (a *App) LightSetup(action, id, confirmationID string, options keylight.Air
 		JoinLightSetup(string, string, keylight.AirMK2WiFiOptions) error
 	})
 	if !ok {
-		return nil, errors.New("Bluetooth setup is unavailable on this connection")
+		return nil, errors.New("light setup is unavailable on this connection")
 	}
 	switch action {
 	case "start":

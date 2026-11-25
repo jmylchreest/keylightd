@@ -85,9 +85,7 @@ func (c *Client) request(req any, resp any) error {
 		return fmt.Errorf("failed to set connection deadline: %w", err)
 	}
 
-	if _, sensitive := req.(socketLightSetupRequest); !sensitive {
-		c.logger.Debug("Encoding request", "request", req)
-	}
+	c.logger.Debug("Encoding socket request")
 	// Encode request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		c.logger.Error("Failed to encode request", "error", err)
