@@ -144,7 +144,7 @@ jobs:
 
       - name: Build keylightd
         env:
-          CGO_ENABLED: 0
+          CGO_ENABLED: ${{ matrix.goos == 'darwin' && '1' || '0' }}
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
