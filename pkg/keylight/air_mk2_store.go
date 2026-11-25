@@ -211,6 +211,11 @@ func (m *Manager) startNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Paire
 	})
 }
 
+// BlinkDeviceSetup requests another blink on the selected peripheral.
+func (m *Manager) BlinkDeviceSetup(id, confirmationID string) bool {
+	return m.setup.Blink(id, confirmationID)
+}
+
 // ConfirmDeviceSetup confirms the light identified itself over BLE.
 func (m *Manager) ConfirmDeviceSetup(id, confirmationID string) bool {
 	return m.setup.Confirm(id, confirmationID)

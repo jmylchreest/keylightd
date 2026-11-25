@@ -159,7 +159,9 @@ keylightctl light setup confirm nearby "<confirmationId>"
 keylightctl light setup status nearby
 ```
 
-Confirm only if the intended light flashed. Once it joins Wi-Fi, the daemon uses
+If you missed the flash, run `keylightctl light setup blink nearby "<confirmationId>"`
+or choose **Blink again** in GNOME. Confirm only if the intended light flashed.
+Once it joins Wi-Fi, the daemon uses
 the IPv4 address reported over BLE to find its mDNS advertisement. It verifies
 the light with mutual TLS and saves its credentials under the discovered device ID,
 which the session reports as `configuredId`. This also works when the light has

@@ -120,3 +120,11 @@ func (h *LightHandler) ConfirmSetup(_ context.Context, input *ConfirmSetupInput)
 	}
 	return nil, nil
 }
+
+func (h *LightHandler) BlinkSetup(_ context.Context, input *ConfirmSetupInput) (*struct{}, error) {
+	manager, ok := h.Lights.(interface{ BlinkDeviceSetup(string, string) bool })
+	if !ok || !manager.BlinkDeviceSetup(input.ID, input.Body.ConfirmationID) {
+		return nil, huma.Error409Conflict("No setup session awaiting confirmation")
+	}
+	return nil, nil
+}

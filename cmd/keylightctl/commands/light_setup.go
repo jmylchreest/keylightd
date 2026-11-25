@@ -13,6 +13,7 @@ import (
 
 type lightSetupClient interface {
 	ConfirmLightSetup(string, string) error
+	BlinkLightSetup(string, string) error
 	GetLightSetup(string) (map[string]any, error)
 	CancelLightSetup(string) (map[string]any, error)
 	ForgetLightCredentials(string) error
@@ -25,17 +26,24 @@ type airMK2SetupClient interface {
 func newLightSetupCommand() *cobra.Command {
 	setup := &cobra.Command{Use: "setup", Short: "Manage a light's setup session over the HTTP API"}
 	setup.AddCommand(newLightSetupStartCommand())
-	setup.AddCommand(&cobra.Command{
-		Use: "confirm nearby <confirmation-id>", Short: "Confirm that the intended Bluetooth light flashed",
-		Args: cobra.ExactArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
-			if !ok {
-				return errors.New("light setup requires an HTTP API connection")
-			}
-			return client.ConfirmLightSetup(args[0], args[1])
-		},
-	})
+	for _, action := range []struct {
+		name, description string
+		call              func(lightSetupClient, string, string) error
+	}{
+		{"confirm", "Confirm that the intended Bluetooth light flashed", lightSetupClient.ConfirmLightSetup},
+		{"blink", "Blink the selected light again", lightSetupClient.BlinkLightSetup},
+	} {
+		setup.AddCommand(&cobra.Command{
+			Use: action.name + " nearby <confirmation-id>", Short: action.description, Args: cobra.ExactArgs(2),
+			RunE: func(cmd *cobra.Command, args []string) error {
+				client, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
+				if !ok {
+					return errors.New("light setup requires an HTTP API connection")
+				}
+				return action.call(client, args[0], args[1])
+			},
+		})
+	}
 	for _, action := range []struct {
 		name        string
 		description string

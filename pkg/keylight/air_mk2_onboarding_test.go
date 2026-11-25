@@ -138,8 +138,9 @@ func TestOnboardAirMK2(t *testing.T) {
 	// A factory-reset unit has no manager record before BLE setup.
 	factory := NewManager(discardLogger())
 	factory.SetAirMK2Discovery(restarted)
+	blinks := make(chan struct{}, 1)
 	confirmedPairer := mockAirPairer(func(ctx context.Context, material AirMK2Provisioning) (string, int, error) {
-		if err := material.Confirm(ctx); err != nil {
+		if err := material.Confirm(ctx, func() error { blinks <- struct{}{}; return nil }); err != nil {
 			return "", 0, err
 		}
 		return pairer.Provision(ctx, material)
@@ -162,6 +163,13 @@ func TestOnboardAirMK2(t *testing.T) {
 	require.Empty(t, factory.GetLights())
 	require.False(t, factory.ConfirmDeviceSetup(discoveredID, status.ConfirmationID))
 	require.False(t, factory.ConfirmDeviceSetup(NearbyAirMK2SetupID, "stale"))
+	require.False(t, factory.BlinkDeviceSetup(NearbyAirMK2SetupID, "stale"))
+	require.True(t, factory.BlinkDeviceSetup(NearbyAirMK2SetupID, status.ConfirmationID))
+	select {
+	case <-blinks:
+	case <-time.After(time.Second):
+		t.Fatal("selected light did not blink again")
+	}
 	require.True(t, factory.ConfirmDeviceSetup(NearbyAirMK2SetupID, status.ConfirmationID))
 	require.Eventually(t, func() bool {
 		status, _ = factory.DeviceSetupStatus(NearbyAirMK2SetupID)

@@ -46,6 +46,7 @@ func Register(api huma.API, h *Handlers) {
 
 	mw.ProtectedGet(api, "/api/v1/lights/{id}/setup", h.Light.SetupStatus, mw.WithTags("Lights"), mw.WithOperationID("getLightSetup"))
 	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup", h.Light.StartSetup, mw.WithTags("Lights"), mw.WithOperationID("startLightSetup"), mw.WithDefaultStatus(202))
+	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup/blink", h.Light.BlinkSetup, mw.WithTags("Lights"), mw.WithOperationID("blinkLightSetup"), mw.WithDefaultStatus(204))
 	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup/confirm", h.Light.ConfirmSetup, mw.WithTags("Lights"), mw.WithOperationID("confirmLightSetup"), mw.WithDefaultStatus(204))
 	mw.ProtectedDelete(api, "/api/v1/lights/{id}/setup", h.Light.CancelSetup, mw.WithTags("Lights"), mw.WithOperationID("cancelLightSetup"))
 	mw.ProtectedDelete(api, "/api/v1/lights/{id}/credentials", h.Light.ForgetSetup, mw.WithTags("Lights"), mw.WithOperationID("forgetLightCredentials"), mw.WithDefaultStatus(204))

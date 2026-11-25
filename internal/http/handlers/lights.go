@@ -129,6 +129,7 @@ type LightHandlers interface {
 	GetLight(ctx context.Context, input *GetLightInput) (*GetLightOutput, error)
 	SetLightState(ctx context.Context, input *SetLightStateInput) (*SetLightStateOutput, error)
 	SetupStatus(context.Context, *GetLightInput) (*SetupOutput, error)
+	BlinkSetup(context.Context, *ConfirmSetupInput) (*struct{}, error)
 	ConfirmSetup(context.Context, *ConfirmSetupInput) (*struct{}, error)
 	StartSetup(context.Context, *StartSetupInput) (*SetupOutput, error)
 	CancelSetup(context.Context, *GetLightInput) (*SetupOutput, error)

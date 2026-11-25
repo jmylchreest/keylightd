@@ -33,7 +33,7 @@ type AirMK2Provisioning struct {
 	ServerCertificate []byte
 	ServerKey         []byte
 	ServerName        string
-	Confirm           func(context.Context) error
+	Confirm           func(context.Context, func() error) error
 }
 
 // AirMK2Pairer provisions one explicitly selected light and returns its
@@ -102,7 +102,7 @@ func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, e
 
 type airMK2Handoff func(context.Context, net.IP, func(context.Context, string, int) error) (string, int, error)
 
-func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, confirm func(context.Context) error, handoff airMK2Handoff) (*AirMK2Identity, error) {
+func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, confirm func(context.Context, func() error) error, handoff airMK2Handoff) (*AirMK2Identity, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

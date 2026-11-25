@@ -50,6 +50,7 @@ type SetupSessions struct {
 	mu           sync.Mutex
 	active       context.CancelFunc
 	confirmation chan struct{}
+	blink        chan struct{}
 	status       SetupStatus
 }
 
@@ -115,7 +116,7 @@ func (s *SetupSessions) Cancel(id string) bool {
 	return true
 }
 
-func (s *SetupSessions) waitForConfirmation(ctx context.Context) error {
+func (s *SetupSessions) waitForConfirmation(ctx context.Context, identify func() error) error {
 	s.mu.Lock()
 	if err := ctx.Err(); err != nil {
 		s.mu.Unlock()
@@ -123,27 +124,60 @@ func (s *SetupSessions) waitForConfirmation(ctx context.Context) error {
 	}
 	confirmed := make(chan struct{})
 	s.confirmation = confirmed
+	blink := make(chan struct{}, 1)
+	s.blink = blink
 	s.status.Stage = "awaiting_confirmation"
 	s.status.ConfirmationID = rand.Text()
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		s.confirmation = nil
+		s.blink = nil
 		s.status.ConfirmationID = ""
 		s.mu.Unlock()
 	}()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-confirmed:
-		return ctx.Err()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-confirmed:
+			return ctx.Err()
+		case <-blink:
+			s.mu.Lock()
+			waiting := s.status.Stage == "awaiting_confirmation"
+			s.mu.Unlock()
+			if waiting && ctx.Err() == nil {
+				if err := identify(); err != nil {
+					return err
+				}
+			}
+		}
 	}
+}
+
+// Blink requests another identification on the connection awaiting confirmation.
+func (s *SetupSessions) Blink(id, confirmationID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.awaitingConfirmation(id, confirmationID) {
+		return false
+	}
+	select {
+	case s.blink <- struct{}{}:
+	default:
+	}
+	return true
+}
+
+func (s *SetupSessions) awaitingConfirmation(id, confirmationID string) bool {
+	return s.status.DeviceID == id && s.status.Stage == "awaiting_confirmation" &&
+		s.confirmation != nil && s.status.ConfirmationID == confirmationID
 }
 
 func (s *SetupSessions) Confirm(id, confirmationID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.status.DeviceID != id || s.status.Stage != "awaiting_confirmation" || s.confirmation == nil || s.status.ConfirmationID != confirmationID {
+	if !s.awaitingConfirmation(id, confirmationID) {
 		return false
 	}
 	s.status.Stage = "configuring"

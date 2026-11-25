@@ -368,7 +368,7 @@ export var LightsPage = GObject.registerClass(
         this._cancelSetupButton.visible = true;
         while (this.get_root()) {
           if (status.stage === "awaiting_confirmation") {
-            const confirmed = await this._confirmNearbyLight();
+            const confirmed = await this._confirmNearbyLight(path, status.confirmationId);
             if (!confirmed) {
               await fetchAPI(path, "DELETE");
               this._setStatus(_("Setup canceled"), false);
@@ -413,12 +413,25 @@ export var LightsPage = GObject.registerClass(
       }
     }
 
-    _confirmNearbyLight() {
+    _confirmNearbyLight(path, confirmationId) {
       return new Promise(resolve => {
         const dialog = new Adw.AlertDialog({
           heading: _("Did the intended light flash?"),
           body: _("Confirm only if the light you want to configure flashed. Setup will then install credentials and join Wi-Fi."),
         });
+        const blink = new Gtk.Button({ label: _("Blink again"), halign: Gtk.Align.CENTER });
+        blink.connect("clicked", async () => {
+          blink.sensitive = false;
+          try {
+            await fetchAPI(`${path}/blink`, "POST", { confirmationId });
+            blink.label = _("Blink again");
+          } catch (_error) {
+            blink.label = _("Could not blink");
+          } finally {
+            blink.sensitive = true;
+          }
+        });
+        dialog.set_extra_child(blink);
         dialog.add_response("cancel", _("Cancel"));
         dialog.add_response("confirm", _("Confirm light"));
         dialog.set_close_response("cancel");

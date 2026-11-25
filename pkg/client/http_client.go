@@ -239,6 +239,11 @@ func (c *HTTPClient) StartAirMK2Setup(id string, options keylight.AirMK2SetupOpt
 	return status, err
 }
 
+// BlinkLightSetup asks the selected Bluetooth light to identify itself again.
+func (c *HTTPClient) BlinkLightSetup(id, confirmationID string) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/blink", map[string]string{"confirmationId": confirmationID}, nil)
+}
+
 // ConfirmLightSetup confirms that the intended Bluetooth light identified itself.
 func (c *HTTPClient) ConfirmLightSetup(id, confirmationID string) error {
 	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/confirm", map[string]string{"confirmationId": confirmationID}, nil)

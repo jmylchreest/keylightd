@@ -64,10 +64,16 @@ func (p *pairer) Provision(ctx context.Context, material keylight.AirMK2Provisio
 	if material.Confirm == nil {
 		return "", 0, errors.New("physical light confirmation is required")
 	}
-	if err := characteristics[6].Write([]byte{1}); err != nil {
-		return "", 0, fmt.Errorf("%w: identify Bluetooth peripheral: %w", keylight.SetupBluetoothFailed, err)
+	identify := func() error {
+		if err := characteristics[6].Write([]byte{1}); err != nil {
+			return fmt.Errorf("%w: identify Bluetooth peripheral: %w", keylight.SetupBluetoothFailed, err)
+		}
+		return nil
 	}
-	if err := material.Confirm(ctx); err != nil {
+	if err := identify(); err != nil {
+		return "", 0, err
+	}
+	if err := material.Confirm(ctx, identify); err != nil {
 		return "", 0, err
 	}
 	if err := transferCertificates(ctx, characteristics[0], characteristics[1], material.CA, material.ServerCertificate, material.ServerKey); err != nil {
