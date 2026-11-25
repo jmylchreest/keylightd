@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // HTTPClient represents an HTTP connection to keylightd
@@ -228,6 +230,13 @@ func (c *HTTPClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (m
 // StartLightSetup asks the daemon to start a setup session.
 func (c *HTTPClient) StartLightSetup(id string) (map[string]any, error) {
 	return c.lightSetupRequest(http.MethodPost, id)
+}
+
+// StartAirMK2Setup sends the pairing inputs to the daemon.
+func (c *HTTPClient) StartAirMK2Setup(id string, options keylight.AirMK2SetupOptions) (map[string]any, error) {
+	var status map[string]any
+	err := c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup", options, &status)
+	return status, err
 }
 
 // GetLightSetup returns the current setup session status.

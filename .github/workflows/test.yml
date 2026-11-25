@@ -124,6 +124,21 @@ jobs:
       # Indicate test completion for debugging
       - name: Test completion status
         run: echo "Tests completed successfully at $(date)"
+  macos-ble:
+    name: Build native macOS Bluetooth support
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+      - name: Build daemon and run pairing protocol tests
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go build ./cmd/keylightd
+          go test ./internal/airble/...
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}

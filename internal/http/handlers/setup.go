@@ -6,8 +6,14 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/jmylchreest/keylightd/internal/airble"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
+
+type StartSetupInput struct {
+	ID   string `path:"id" doc:"Light identifier"`
+	Body *keylight.AirMK2SetupOptions
+}
 
 type SetupOutput struct {
 	Body keylight.SetupStatus
@@ -32,12 +38,23 @@ func (h *LightHandler) SetupStatus(_ context.Context, input *GetLightInput) (*Se
 	return &SetupOutput{Body: status}, nil
 }
 
-func (h *LightHandler) StartSetup(_ context.Context, input *GetLightInput) (*SetupOutput, error) {
+func (h *LightHandler) StartSetup(_ context.Context, input *StartSetupInput) (*SetupOutput, error) {
 	manager, ok := h.Lights.(deviceSetupManager)
-	if !ok || h.PairerForLight == nil || h.SetupContext == nil {
+	if !ok || h.SetupContext == nil {
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable on this daemon")
 	}
-	pairer, err := h.PairerForLight(input.ID)
+	var pairer keylight.AirMK2Pairer
+	var err error
+	if input.Body != nil {
+		pairer, err = airble.NewPairer(*input.Body)
+		if err != nil {
+			return nil, huma.Error400BadRequest(err.Error())
+		}
+	} else if h.PairerForLight != nil {
+		pairer, err = h.PairerForLight(input.ID)
+	} else {
+		return nil, huma.Error400BadRequest("Bluetooth peripheral and Wi-Fi settings are required")
+	}
 	if err != nil || pairer == nil {
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable for this light")
 	}

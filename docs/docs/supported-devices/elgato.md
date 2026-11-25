@@ -141,19 +141,27 @@ the advertised IP address and port. An unconfigured discovery reports
 power, brightness, and white colour temperature over a TLS WebSocket.
 
 For daemon-managed setup, set `KEYLIGHTCTL_API_URL` and `KEYLIGHTCTL_API_KEY`
-to connect the CLI to the daemon's HTTP API. The CLI supports
-`keylightctl light setup start <id>`, `status <id>`, `cancel <id>`, and
-`forget <id>`. The GNOME extension links lights that need setup to its
-Preferences, where you can start setup, check status, or cancel.
-Forgetting removes the daemon's identity. Put the light into pairing mode
-before attempting to configure it again.
+to connect the CLI to the daemon. Use a loopback URL or HTTPS when supplying
+Wi-Fi credentials. Put the light in pairing mode and select its Bluetooth
+address on the machine running keylightd. On Linux, the Bluetooth adapter
+must have discovered the peripheral in BlueZ. On macOS, supply the
+CoreBluetooth peripheral UUID and grant Bluetooth permission.
 
-Starting setup requires a pairing backend on the host running keylightd.
-The experimental build currently supports pre-provisioned lights through
-the TLS configuration above.
+Use the light ID and WebSocket port from its mDNS discovery entry. For a
+WPA2 AES network, read the passphrase from standard input:
 
-The native pairing transport targets BlueZ on Linux and CoreBluetooth on
-macOS. Linux can build the transport with `CGO_ENABLED=0`. The macOS transport
-requires the native macOS toolchain and Bluetooth permission. The transport
-is not yet enabled for setup. The daemon needs a verified pairing sequence
-and a way to select the intended peripheral before it can provision a light.
+```sh
+keylightctl light setup start "<id>" --peripheral "<address>" \
+  --ssid "<network>" --port <port> --password-stdin
+```
+
+Use `keylightctl light setup status <id>` to follow the session,
+`cancel <id>` to stop it, or `forget <id>` to remove the daemon's saved
+identity. Put the light back into pairing mode before reconfiguring it.
+The daemon installs the certificates over BLE and verifies the light
+over mutual TLS before saving its identity.
+
+Linux uses BlueZ with `CGO_ENABLED=0`. macOS uses CoreBluetooth and the
+native macOS toolchain with CGO enabled. The CLI currently requires an
+existing mDNS discovery entry. Supply pairing inputs through the CLI or
+HTTP API. GNOME Preferences can show setup status and remove saved setup.

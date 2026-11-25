@@ -17,6 +17,15 @@ import (
 	"time"
 )
 
+// AirMK2SetupOptions selects a Bluetooth peripheral and supplies its Wi-Fi settings.
+type AirMK2SetupOptions struct {
+	Peripheral string `json:"peripheral" minLength:"1" maxLength:"36"`
+	SSID       string `json:"ssid" minLength:"1" maxLength:"32"`
+	Password   string `json:"password,omitempty" writeOnly:"true"`
+	Security   uint16 `json:"security" doc:"Wi-Fi security code, such as 200 for WPA2 AES"`
+	Port       int    `json:"port" minimum:"1" maximum:"65535" doc:"WebSocket port advertised by the light"`
+}
+
 // AirMK2Provisioning is the material sent to a light in pairing mode.
 // The client's private key stays with the daemon.
 type AirMK2Provisioning struct {

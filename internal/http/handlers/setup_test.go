@@ -51,16 +51,16 @@ func TestSetupHandlers(t *testing.T) {
 	ctx := t.Context()
 	h := &LightHandler{Lights: &setupTestManager{}, SetupContext: ctx}
 	input := &GetLightInput{ID: "desk"}
-	_, err := h.StartSetup(ctx, input)
+	_, err := h.StartSetup(ctx, &StartSetupInput{ID: input.ID})
 	var statusErr huma.StatusError
 	require.ErrorAs(t, err, &statusErr)
-	require.Equal(t, 503, statusErr.GetStatus())
+	require.Equal(t, 400, statusErr.GetStatus())
 
 	h.PairerForLight = func(id string) (keylight.AirMK2Pairer, error) {
 		require.Equal(t, "desk", id)
 		return setupTestPairer{}, nil
 	}
-	out, err := h.StartSetup(ctx, input)
+	out, err := h.StartSetup(ctx, &StartSetupInput{ID: input.ID})
 	require.NoError(t, err)
 	require.Equal(t, "configuring", out.Body.Stage)
 	out, err = h.SetupStatus(ctx, input)
