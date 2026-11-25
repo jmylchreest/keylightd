@@ -43,6 +43,9 @@ func (h *LightHandler) StartSetup(_ context.Context, input *StartSetupInput) (*S
 	if !ok || h.SetupContext == nil {
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable on this daemon")
 	}
+	if input.Body != nil && input.ID != keylight.NearbyAirMK2SetupID {
+		return nil, huma.Error400BadRequest("Use nearby setup to identify and confirm the Bluetooth light")
+	}
 	var pairer keylight.AirMK2Pairer
 	var err error
 	if input.Body != nil {
@@ -58,8 +61,20 @@ func (h *LightHandler) StartSetup(_ context.Context, input *StartSetupInput) (*S
 	if err != nil || pairer == nil {
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable for this light")
 	}
-	//nolint:contextcheck // Setup survives request completion and stops with the daemon.
-	status, err := manager.StartAirMK2Setup(h.SetupContext, input.ID, pairer)
+	var status keylight.SetupStatus
+	if input.Body != nil {
+		nearby, ok := h.Lights.(interface {
+			StartNearbyAirMK2Setup(context.Context, keylight.AirMK2Pairer) (keylight.SetupStatus, error)
+		})
+		if !ok {
+			return nil, huma.Error503ServiceUnavailable("Nearby setup is unavailable")
+		}
+		//nolint:contextcheck // Setup survives request completion and stops with the daemon.
+		status, err = nearby.StartNearbyAirMK2Setup(h.SetupContext, pairer)
+	} else {
+		//nolint:contextcheck // Setup survives request completion and stops with the daemon.
+		status, err = manager.StartAirMK2Setup(h.SetupContext, input.ID, pairer)
+	}
 	if err != nil {
 		return nil, huma.Error409Conflict(err.Error())
 	}
@@ -87,6 +102,21 @@ func (h *LightHandler) ForgetSetup(_ context.Context, input *GetLightInput) (*st
 			return nil, huma.Error404NotFound("No daemon-managed credentials for this light")
 		}
 		return nil, huma.Error409Conflict("Could not remove stored device credentials")
+	}
+	return nil, nil
+}
+
+type ConfirmSetupInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		ConfirmationID string `json:"confirmationId" minLength:"1"`
+	}
+}
+
+func (h *LightHandler) ConfirmSetup(_ context.Context, input *ConfirmSetupInput) (*struct{}, error) {
+	manager, ok := h.Lights.(interface{ ConfirmDeviceSetup(string, string) bool })
+	if !ok || !manager.ConfirmDeviceSetup(input.ID, input.Body.ConfirmationID) {
+		return nil, huma.Error409Conflict("No setup session awaiting confirmation")
 	}
 	return nil, nil
 }

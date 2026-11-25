@@ -213,7 +213,7 @@ func (p elgatoDiscovery) Discover(ctx context.Context, interval time.Duration, f
 					var light Light
 					var client DeviceClient
 					var valid bool
-					if slices.Contains(entry.Text, "tls=CERT_1_VER_EN") {
+					if slices.Contains(entry.Text, airMK2TLSText) {
 						light, client, valid = p.airMK2.openDiscovered(validateCtx, localEntry)
 					} else {
 						light, client, valid = openElgatoLight(validateCtx, localEntry, p.logger)

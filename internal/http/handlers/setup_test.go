@@ -56,6 +56,11 @@ func TestSetupHandlers(t *testing.T) {
 	require.ErrorAs(t, err, &statusErr)
 	require.Equal(t, 400, statusErr.GetStatus())
 
+	_, err = h.StartSetup(ctx, &StartSetupInput{ID: input.ID, Body: &keylight.AirMK2SetupOptions{
+		Peripheral: "00:11:22:33:44:55", SSID: "test",
+	}})
+	require.ErrorContains(t, err, "Use nearby setup")
+
 	h.PairerForLight = func(id string) (keylight.AirMK2Pairer, error) {
 		require.Equal(t, "desk", id)
 		return setupTestPairer{}, nil

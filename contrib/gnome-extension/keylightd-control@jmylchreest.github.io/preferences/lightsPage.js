@@ -48,6 +48,20 @@ export var LightsPage = GObject.registerClass(
       });
       this._refreshButton.connect("clicked", () => this._loadLights());
 
+      const addNearby = new Gtk.Button({ label: _("Add nearby light…"), valign: Gtk.Align.CENTER });
+      addNearby.connect("clicked", () => this._showSetupDialog(this, body => this._runNearbySetup(body)));
+      this._cancelSetupButton = new Gtk.Button({
+        label: _("Cancel setup"), valign: Gtk.Align.CENTER, visible: false,
+      });
+      this._cancelSetupButton.connect("clicked", async () => {
+        try {
+          await fetchAPI("lights/nearby/setup", "DELETE");
+        } catch (_error) {
+          this._setStatus(_("Could not cancel setup."), true);
+        }
+      });
+      headerBox.append(addNearby);
+      headerBox.append(this._cancelSetupButton);
       headerBox.append(this._refreshButton);
 
       this._lightsGroup.set_header_suffix(headerBox);
@@ -284,7 +298,7 @@ export var LightsPage = GObject.registerClass(
       }
     }
 
-    _showSetupDialog(parent, light, submit) {
+    _showSetupDialog(parent, submit) {
       const fields = new Adw.PreferencesGroup();
       const peripheral = new Adw.EntryRow({ title: _("Bluetooth address or UUID") });
       const ssid = new Adw.EntryRow({ title: _("Wi-Fi network name") });
@@ -318,8 +332,7 @@ export var LightsPage = GObject.registerClass(
         dialog.set_response_enabled("start",
           hasAddress &&
           ssidLength > 0 && ssidLength <= 32 &&
-          (!secured || (passwordLength > 0 && passwordLength <= 64)) &&
-          Number.isInteger(light.port) && light.port > 0 && light.port <= 65535);
+          (!secured || (passwordLength > 0 && passwordLength <= 64)));
       };
       for (const entry of [peripheral, ssid, password])
         entry.connect("changed", update);
@@ -337,13 +350,82 @@ export var LightsPage = GObject.registerClass(
           ssid: ssid.text,
           password: secured ? password.text : "",
           security: secured ? 200 : 0,
-          port: light.port,
         };
         password.text = "";
         submit(options);
       });
       dialog.present(parent);
       return dialog;
+    }
+
+    async _runNearbySetup(body) {
+      if (this._nearbySetupRunning) return;
+      this._nearbySetupRunning = true;
+      const path = "lights/nearby/setup";
+      this._clearStatus();
+      try {
+        let status = await fetchAPI(path, "POST", body);
+        this._cancelSetupButton.visible = true;
+        while (this.get_root()) {
+          if (status.stage === "awaiting_confirmation") {
+            const confirmed = await this._confirmNearbyLight();
+            if (!confirmed) {
+              await fetchAPI(path, "DELETE");
+              this._setStatus(_("Setup canceled"), false);
+              return;
+            }
+            await fetchAPI(`${path}/confirm`, "POST", { confirmationId: status.confirmationId });
+          } else if (status.stage === "ready") {
+            await this._loadLights();
+            this._setStatus(_("Setup complete"), false);
+            return;
+          } else if (status.stage !== "configuring" && status.stage !== "canceling") {
+            const failures = new Map([
+              ["bluetooth_failed", _("Could not communicate over Bluetooth. Check pairing mode and try again.")],
+              ["certificate_install_failed", _("The light could not install its certificates.")],
+              ["wifi_credentials_rejected", _("The light rejected the Wi-Fi credentials. Check the password and security setting.")],
+              ["wifi_join_failed", _("The light could not join Wi-Fi. Check the network name and signal.")],
+              ["discovery_failed", _("The light joined Wi-Fi but could not be found on the network.")],
+              ["verification_failed", _("Could not verify the light over the network.")],
+              ["save_failed", _("Keylightd could not save the light’s credentials.")],
+            ]);
+            const message = failures.get(status.failureReason) ??
+              (status.stage === "timed_out" ? _("Setup timed out") :
+                status.stage === "canceled" ? _("Setup canceled") : _("Setup failed"));
+            this._setStatus(message, status.stage !== "canceled");
+            return;
+          }
+          this._setStatus(_("Configuring light…"), false);
+          await new Promise(resolve => {
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+              resolve();
+              return GLib.SOURCE_REMOVE;
+            });
+          });
+          status = await fetchAPI(path);
+        }
+      } catch (error) {
+        this._setStatus(_("Could not complete the setup request."), true);
+        filteredLog("debug", "Nearby light setup request failed", error);
+      } finally {
+        this._nearbySetupRunning = false;
+        this._cancelSetupButton.visible = false;
+      }
+    }
+
+    _confirmNearbyLight() {
+      return new Promise(resolve => {
+        const dialog = new Adw.AlertDialog({
+          heading: _("Did the intended light flash?"),
+          body: _("Confirm only if the light you want to configure flashed. Setup will then install credentials and join Wi-Fi."),
+        });
+        dialog.add_response("cancel", _("Cancel"));
+        dialog.add_response("confirm", _("Confirm light"));
+        dialog.set_close_response("cancel");
+        dialog.set_response_appearance("confirm", Adw.ResponseAppearance.SUGGESTED);
+        dialog.connect("response", (_dialog, response) => resolve(response === "confirm"));
+        dialog.present(this);
+      });
     }
 
     _createLightRow(light) {
@@ -354,97 +436,9 @@ export var LightsPage = GObject.registerClass(
 
       if (light.needsConfiguration?.length) {
         row.subtitle = _("Setup required");
-        const path = `lights/${encodeURIComponent(light.id)}/setup`;
-        const popover = new Gtk.Popover();
-        const menu = new Gtk.Box({
-          orientation: Gtk.Orientation.VERTICAL,
-          spacing: 6,
-        });
-        popover.set_child(menu);
-        row.add_suffix(new Gtk.MenuButton({
-          label: _("Setup…"),
-          valign: Gtk.Align.CENTER,
-          popover,
-        }));
-        const buttons = [];
-        const stages = {
-          configuring: _("Configuring…"),
-          canceling: _("Canceling…"),
-          canceled: _("Setup canceled"),
-          failed: _("Setup failed"),
-          timed_out: _("Setup timed out"),
-          ready: _("Setup complete"),
-        };
-        const failures = new Map([
-          ["bluetooth_failed", _("Could not communicate over Bluetooth. Check pairing mode and try again.")],
-          ["certificate_install_failed", _("The light could not install its certificates. Check pairing mode and try again.")],
-          ["wifi_credentials_rejected", _("The light rejected the Wi-Fi credentials. Check the password and security setting.")],
-          ["wifi_join_failed", _("The light could not join Wi-Fi. Check the network name and signal.")],
-          ["verification_failed", _("Could not verify the light over the network. Check that keylightd can reach it.")],
-          ["save_failed", _("Keylightd could not save the light’s credentials.")],
-        ]);
-        let requestGeneration = 0;
-        const showProgress = async (status, generation) => {
-          while (row.get_root() && generation === requestGeneration) {
-            row.subtitle = failures.get(status.failureReason) ??
-              (stages[status.stage] || _("Setup required"));
-            if (status.stage === "ready") {
-              await this._loadLights();
-              return;
-            }
-            if (status.stage !== "configuring" && status.stage !== "canceling")
-              return;
-            await new Promise(resolve => {
-              GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-                resolve();
-                return GLib.SOURCE_REMOVE;
-              });
-            });
-            if (!row.get_root() || generation !== requestGeneration) return;
-            status = await fetchAPI(path);
-          }
-        };
-        const addSetupButton = (label, method) => {
-          const button = new Gtk.Button({ label, valign: Gtk.Align.CENTER });
-          buttons.push(button);
-          const request = async (body = null) => {
-            for (const control of buttons) control.sensitive = false;
-            this._clearStatus();
-            const generation = ++requestGeneration;
-            try {
-              const status = await fetchAPI(path, method, body);
-              for (const control of buttons) control.sensitive = true;
-              await showProgress(status, generation);
-            } catch (error) {
-              if (generation !== requestGeneration || !row.get_root()) return;
-              if (method === "GET" && error.statusCode === 404) {
-                row.subtitle = _("Setup hasn’t started");
-                return;
-              }
-              this._setStatus(
-                method === "POST"
-                  ? _("Could not start setup. Check Bluetooth support on the keylightd host.")
-                  : _("Could not retrieve or change the setup session."),
-                true,
-              );
-              filteredLog("debug", "Light setup request failed", error);
-            } finally {
-              if (generation === requestGeneration)
-                for (const control of buttons) control.sensitive = true;
-            }
-          };
-          button.connect("clicked", () => {
-            popover.popdown();
-            if (method === "POST")
-              this._showSetupDialog(row, light, request);
-            else
-              request();
-          });
-          menu.append(button);
-        };
-        addSetupButton(_("Configure…"), "POST");
-        addSetupButton(_("Check status"), "GET");
-        addSetupButton(_("Cancel setup"), "DELETE");
+        const setup = new Gtk.Button({ label: _("Configure…"), valign: Gtk.Align.CENTER });
+        setup.connect("clicked", () => this._showSetupDialog(row, body => this._runNearbySetup(body)));
+        row.add_suffix(setup);
       }
 
       if (light.managedCredentials === true) {

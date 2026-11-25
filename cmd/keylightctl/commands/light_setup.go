@@ -12,7 +12,7 @@ import (
 )
 
 type lightSetupClient interface {
-	StartLightSetup(string) (map[string]any, error)
+	ConfirmLightSetup(string, string) error
 	GetLightSetup(string) (map[string]any, error)
 	CancelLightSetup(string) (map[string]any, error)
 	ForgetLightCredentials(string) error
@@ -25,6 +25,17 @@ type airMK2SetupClient interface {
 func newLightSetupCommand() *cobra.Command {
 	setup := &cobra.Command{Use: "setup", Short: "Manage a light's setup session over the HTTP API"}
 	setup.AddCommand(newLightSetupStartCommand())
+	setup.AddCommand(&cobra.Command{
+		Use: "confirm nearby <confirmation-id>", Short: "Confirm that the intended Bluetooth light flashed",
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
+			if !ok {
+				return errors.New("light setup requires an HTTP API connection")
+			}
+			return client.ConfirmLightSetup(args[0], args[1])
+		},
+	})
 	for _, action := range []struct {
 		name        string
 		description string
@@ -58,23 +69,15 @@ func newLightSetupStartCommand() *cobra.Command {
 		Use: "start <id>", Short: "Start Air MK.2 setup", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := keylight.UnescapeRFC6763Label(args[0])
-			if options.Peripheral == "" && options.SSID == "" && options.Port == 0 && !passwordStdin {
-				c, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
-				if !ok {
-					return errors.New("light setup requires an HTTP API connection")
-				}
-				status, err := c.StartLightSetup(id)
-				if err != nil {
-					return err
-				}
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(status)
+			if id != keylight.NearbyAirMK2SetupID {
+				return errors.New("use setup start nearby to pair a Bluetooth light")
 			}
 			c, ok := cmd.Context().Value(clientContextKey).(airMK2SetupClient)
 			if !ok {
 				return errors.New("light setup requires an HTTP API connection")
 			}
-			if options.Peripheral == "" || options.SSID == "" || options.Port < 1 || options.Port > 65535 {
-				return errors.New("--peripheral, --ssid, and a valid --port are required")
+			if options.Peripheral == "" || options.SSID == "" {
+				return errors.New("--peripheral and --ssid are required")
 			}
 			if options.Security != 0 && !passwordStdin {
 				return errors.New("use --password-stdin for a secured Wi-Fi network")
@@ -98,7 +101,6 @@ func newLightSetupStartCommand() *cobra.Command {
 	start.Flags().StringVar(&options.Peripheral, "peripheral", "", "Bluetooth MAC address on Linux or peripheral UUID on macOS")
 	start.Flags().StringVar(&options.SSID, "ssid", "", "Wi-Fi network name")
 	start.Flags().Uint16Var(&options.Security, "security", 200, "Wi-Fi security code (200 for WPA2 AES, 0 for open)")
-	start.Flags().IntVar(&options.Port, "port", 0, "WebSocket port advertised by the light")
 	start.Flags().BoolVar(&passwordStdin, "password-stdin", false, "Read Wi-Fi password from standard input")
 	return start
 }

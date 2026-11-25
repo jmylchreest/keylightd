@@ -147,24 +147,29 @@ address on the machine running keylightd. On Linux, the Bluetooth adapter
 must have discovered the peripheral in BlueZ. On macOS, supply the
 CoreBluetooth peripheral UUID and grant Bluetooth permission.
 
-Use the light ID and WebSocket port from its mDNS discovery entry. For a
-WPA2 AES network, read the passphrase from standard input:
+Start setup with the selected Bluetooth peripheral. The daemon flashes the light
+and waits for confirmation before installing certificates or sending Wi-Fi
+credentials:
 
 ```sh
-keylightctl light setup start "<id>" --peripheral "<address>" \
-  --ssid "<network>" --port <port> --password-stdin
+keylightctl light setup start nearby --peripheral "<address>" \
+  --ssid "<network>" --password-stdin
+keylightctl light setup status nearby
+keylightctl light setup confirm nearby "<confirmationId>"
+keylightctl light setup status nearby
 ```
 
-Use `keylightctl light setup status <id>` to follow the session,
-`cancel <id>` to stop it, or `forget <id>` to remove the daemon's saved
-identity. Put the light back into pairing mode before reconfiguring it.
-The daemon installs the certificates over BLE and verifies the light
-over mutual TLS before saving its identity.
+Confirm only if the intended light flashed. Once it joins Wi-Fi, the daemon uses
+the IPv4 address reported over BLE to find its mDNS advertisement. It verifies
+the light with mutual TLS and saves its credentials under the discovered device ID,
+which the session reports as `configuredId`. This also works when the light has
+no mDNS entry before setup. Use `cancel nearby` to cancel or
+`forget <configuredId>` to remove saved credentials before re-pairing.
 
-Linux uses BlueZ with `CGO_ENABLED=0`. macOS uses CoreBluetooth and the
-native macOS toolchain with CGO enabled. The CLI currently requires an
-existing mDNS discovery entry. In GNOME Preferences, open **Lights**, then
-**Setup → Configure** on the light. Enter its Bluetooth address, Wi-Fi network
-name, and password. The form uses the WebSocket port from discovery and
-supports WPA2 Personal (AES) and open networks. Use a loopback API URL or
-HTTPS. The Setup menu also shows session status and lets you cancel setup.
+In GNOME Preferences, choose **Lights → Add nearby light**. Enter the Bluetooth
+address manually, provide Wi-Fi settings and confirm that the intended light
+flashed. GNOME supports WPA2 Personal (AES) and open networks. Use a loopback API
+URL or HTTPS when supplying credentials.
+
+Linux uses BlueZ with `CGO_ENABLED=0`. macOS uses CoreBluetooth and the native
+macOS toolchain with CGO enabled.

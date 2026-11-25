@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/grandcat/zeroconf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -133,4 +134,41 @@ func TestOnboardAirMK2(t *testing.T) {
 	_, client, ok = restarted.openDiscovered(ctx, entry)
 	require.True(t, ok)
 	require.Nil(t, client)
+
+	// A factory-reset unit has no manager record before BLE setup.
+	factory := NewManager(discardLogger())
+	factory.SetAirMK2Discovery(restarted)
+	confirmedPairer := mockAirPairer(func(ctx context.Context, material AirMK2Provisioning) (string, int, error) {
+		if err := material.Confirm(ctx); err != nil {
+			return "", 0, err
+		}
+		return pairer.Provision(ctx, material)
+	})
+	const instance = "Factory Air"
+	const discoveredID = instance + "._elg._tcp.local."
+	handoff := func(ctx context.Context, ip net.IP, verify func(context.Context, string, int) error) (string, int, error) {
+		port := server.Listener.Addr().(*net.TCPAddr).Port
+		entries := make(chan *zeroconf.ServiceEntry, 2)
+		entries <- &zeroconf.ServiceEntry{ServiceRecord: zeroconf.ServiceRecord{Instance: "Wrong IP", Service: "_elg._tcp", Domain: "local."}, AddrIPv4: []net.IP{net.IPv4(192, 0, 2, 1)}, Port: port, Text: []string{airMK2TLSText}}
+		entries <- &zeroconf.ServiceEntry{ServiceRecord: zeroconf.ServiceRecord{Instance: instance, Service: "_elg._tcp", Domain: "local."}, AddrIPv4: []net.IP{ip}, Port: port, Text: []string{airMK2TLSText}}
+		return findProvisionedAirMK2(ctx, ip, entries, verify)
+	}
+	_, err = factory.startNearbyAirMK2Setup(t.Context(), confirmedPairer, handoff)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		status, _ = factory.DeviceSetupStatus(NearbyAirMK2SetupID)
+		return status.Stage == "awaiting_confirmation"
+	}, time.Second, time.Millisecond)
+	require.Empty(t, factory.GetLights())
+	require.False(t, factory.ConfirmDeviceSetup(discoveredID, status.ConfirmationID))
+	require.False(t, factory.ConfirmDeviceSetup(NearbyAirMK2SetupID, "stale"))
+	require.True(t, factory.ConfirmDeviceSetup(NearbyAirMK2SetupID, status.ConfirmationID))
+	require.Eventually(t, func() bool {
+		status, _ = factory.DeviceSetupStatus(NearbyAirMK2SetupID)
+		return status.Stage == "ready"
+	}, 4*time.Second, time.Millisecond)
+	require.Equal(t, discoveredID, status.ConfiguredID)
+	require.Contains(t, factory.GetLights(), discoveredID)
+	require.NotContains(t, factory.GetLights(), NearbyAirMK2SetupID)
+
 }

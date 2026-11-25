@@ -239,6 +239,11 @@ func (c *HTTPClient) StartAirMK2Setup(id string, options keylight.AirMK2SetupOpt
 	return status, err
 }
 
+// ConfirmLightSetup confirms that the intended Bluetooth light identified itself.
+func (c *HTTPClient) ConfirmLightSetup(id, confirmationID string) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/confirm", map[string]string{"confirmationId": confirmationID}, nil)
+}
+
 // GetLightSetup returns the current setup session status.
 func (c *HTTPClient) GetLightSetup(id string) (map[string]any, error) {
 	return c.lightSetupRequest(http.MethodGet, id)

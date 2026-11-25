@@ -84,13 +84,13 @@ app.connect('activate', () => {
         window.set_visible_page(lights);
         const pending = {id: 'air', name: 'Air MK.2', port: 9123, needsConfiguration: ['credentials_missing']};
         const row = lights._createLightRow(pending);
-        const menu = descendants(row).find(widget => widget instanceof Gtk.MenuButton);
+        const menu = descendants(row).find(widget => widget instanceof Gtk.Button && widget.label === 'Configure…');
         if (!menu)
             throw new Error('Setup menu not found');
-        const dialog = lights._showSetupDialog(lights, pending, options => {
+        const dialog = lights._showSetupDialog(lights, options => {
             if (JSON.stringify(options) !== JSON.stringify({
                 peripheral: '00:11:22:33:44:55', ssid: 'Test Wi-Fi',
-                password: 'fixture-password', security: 200, port: 9123,
+                password: 'fixture-password', security: 200,
             }))
                 throw new Error('Unexpected pairing settings');
             submitted = true;

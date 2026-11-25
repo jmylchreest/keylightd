@@ -23,7 +23,7 @@ type AirMK2SetupOptions struct {
 	SSID       string `json:"ssid" minLength:"1" maxLength:"32"`
 	Password   string `json:"password,omitempty" writeOnly:"true"`
 	Security   uint16 `json:"security" doc:"Wi-Fi security code, such as 200 for WPA2 AES"`
-	Port       int    `json:"port" minimum:"1" maximum:"65535" doc:"WebSocket port advertised by the light"`
+	Port       int    `json:"port,omitempty" doc:"Deprecated. The light port is discovered via mDNS."`
 }
 
 // AirMK2Provisioning is the material sent to a light in pairing mode.
@@ -33,6 +33,7 @@ type AirMK2Provisioning struct {
 	ServerCertificate []byte
 	ServerKey         []byte
 	ServerName        string
+	Confirm           func(context.Context) error
 }
 
 // AirMK2Pairer provisions one explicitly selected light and returns its
@@ -43,6 +44,7 @@ type AirMK2Pairer interface {
 
 // AirMK2Identity contains the verified credentials the daemon can persist.
 type AirMK2Identity struct {
+	DeviceID          string
 	CA                []byte
 	ClientCertificate []byte
 	ClientKey         []byte
@@ -95,6 +97,12 @@ func airCertificateTemplate(name string, now time.Time) (*x509.Certificate, erro
 // OnboardAirMK2 generates a private identity for a light, provisions it using
 // the supplied pairing transport, and verifies it before returning credentials.
 func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, error) {
+	return onboardAirMK2(ctx, pairer, nil, nil)
+}
+
+type airMK2Handoff func(context.Context, net.IP, func(context.Context, string, int) error) (string, int, error)
+
+func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, confirm func(context.Context) error, handoff airMK2Handoff) (*AirMK2Identity, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -139,23 +147,43 @@ func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, e
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(ca.cert)
-	host, port, err := pairer.Provision(ctx, AirMK2Provisioning{ca.pem, server.pem, server.keyPEM, serverName})
+	host, port, err := pairer.Provision(ctx, AirMK2Provisioning{CA: ca.pem, ServerCertificate: server.pem, ServerKey: server.keyPEM, ServerName: serverName, Confirm: confirm})
 	if err != nil {
 		return nil, fmt.Errorf("provision Air MK.2: %w", err)
 	}
-	device, err := NewAirMK2Client(host, port, &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, ServerName: serverName, Certificates: []tls.Certificate{pair}})
-	if err != nil {
+	var info *AccessoryInfo
+	verify := func(ctx context.Context, host string, port int) error {
+		device, err := NewAirMK2Client(host, port, &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, ServerName: serverName, Certificates: []tls.Certificate{pair}})
+		if err != nil {
+			return err
+		}
+		accessory, err := device.GetAccessoryInfo(ctx)
+		if err != nil {
+			return fmt.Errorf("verify provisioned Air MK.2: %w", err)
+		}
+		if accessory.HardwareBoardType != 214 || accessory.SerialNumber == "" {
+			return errors.New("unexpected device identity")
+		}
+		if _, err := device.GetLightState(ctx); err != nil {
+			return fmt.Errorf("read provisioned Air MK.2 state: %w", err)
+		}
+		info = accessory
+		return nil
+	}
+	var deviceID string
+	if handoff != nil {
+		deviceID, port, err = handoff(ctx, net.ParseIP(host), verify)
+	} else {
+		err = verify(ctx, host, port)
+	}
+	if errors.Is(err, SetupDiscoveryFailed) {
 		return nil, err
 	}
-	info, err := device.GetAccessoryInfo(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("%w: verify provisioned Air MK.2: %w", SetupVerificationFailed, err)
+		return nil, fmt.Errorf("%w: %w", SetupVerificationFailed, err)
 	}
-	if info.HardwareBoardType != 214 || info.SerialNumber == "" {
-		return nil, fmt.Errorf("%w: unexpected device identity", SetupVerificationFailed)
-	}
-	if _, err := device.GetLightState(ctx); err != nil {
-		return nil, fmt.Errorf("%w: read provisioned Air MK.2 state: %w", SetupVerificationFailed, err)
-	}
-	return &AirMK2Identity{ca.pem, client.pem, client.keyPEM, serverName, net.JoinHostPort(host, strconv.Itoa(port)), *info}, nil
+	return &AirMK2Identity{
+		DeviceID: deviceID, CA: ca.pem, ClientCertificate: client.pem, ClientKey: client.keyPEM,
+		ServerName: serverName, Address: net.JoinHostPort(host, strconv.Itoa(port)), Info: *info,
+	}, nil
 }

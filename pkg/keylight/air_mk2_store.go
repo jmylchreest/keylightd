@@ -130,6 +130,11 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 	if err != nil {
 		return err
 	}
+	return m.publishAirMK2(ctx, light, identity)
+}
+
+func (m *Manager) publishAirMK2(ctx context.Context, light Light, identity *AirMK2Identity) error {
+	p := m.airMK2
 	if light.SerialNumber != "" && !strings.EqualFold(light.SerialNumber, identity.Info.SerialNumber) {
 		return fmt.Errorf("%w: paired Air MK.2 identity does not match the selected light", SetupVerificationFailed)
 	}
@@ -144,10 +149,10 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := p.credentials.save(id, identity); err != nil {
+	if err := p.credentials.save(light.ID, identity); err != nil {
 		return fmt.Errorf("%w: %w", SetupSaveFailed, err)
 	}
-	client, _, err := p.credentials.load(id, host, port)
+	client, _, err := p.credentials.load(light.ID, host, port)
 	if err != nil {
 		return err
 	}
@@ -165,6 +170,50 @@ func (m *Manager) ConfigureAirMK2(ctx context.Context, id string, pairer AirMK2P
 	}
 	m.addDevice(ctx, light, client)
 	return nil
+}
+
+// NearbyAirMK2SetupID identifies a setup session before the light has a LAN identity.
+const NearbyAirMK2SetupID = "nearby"
+
+// StartNearbyAirMK2Setup binds the session to a confirmed BLE peripheral and
+// saves the result under the verified mDNS instance.
+func (m *Manager) StartNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Pairer) (SetupStatus, error) {
+	return m.startNearbyAirMK2Setup(ctx, pairer, discoverProvisionedAirMK2)
+}
+
+func (m *Manager) startNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Pairer, handoff airMK2Handoff) (SetupStatus, error) {
+	p := m.airMK2
+	if p == nil || p.credentials == nil || pairer == nil {
+		return SetupStatus{}, errors.New("air MK.2 pairing or credential storage is unavailable")
+	}
+	return m.setup.start(ctx, NearbyAirMK2SetupID, func(ctx context.Context) (string, error) {
+		if !p.pairing.TryLock() {
+			return "", errors.New("air MK.2 setup is in progress")
+		}
+		defer p.pairing.Unlock()
+		identity, err := onboardAirMK2(ctx, pairer, m.setup.waitForConfirmation, handoff)
+		if err != nil {
+			return "", err
+		}
+		m.mu.RLock()
+		light, exists := m.lights[identity.DeviceID]
+		m.mu.RUnlock()
+		if exists && (light.Model != "Elgato Key Light Air MK.2" || (light.SerialNumber != "" && !strings.EqualFold(light.SerialNumber, identity.Info.SerialNumber))) {
+			return "", SetupVerificationFailed
+		}
+		if !exists {
+			light = Light{ID: identity.DeviceID, Name: identity.DeviceID, Manufacturer: "elgato"}
+		}
+		if err := m.publishAirMK2(ctx, light, identity); err != nil {
+			return "", err
+		}
+		return light.ID, nil
+	})
+}
+
+// ConfirmDeviceSetup confirms the light identified itself over BLE.
+func (m *Manager) ConfirmDeviceSetup(id, confirmationID string) bool {
+	return m.setup.Confirm(id, confirmationID)
 }
 
 // StartAirMK2Setup starts pairing with a context owned by the daemon.

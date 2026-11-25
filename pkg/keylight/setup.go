@@ -2,6 +2,7 @@ package keylight
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"sync"
 	"time"
@@ -19,12 +20,13 @@ const (
 	SetupWiFiJoinFailed           SetupFailure = "wifi_join_failed"
 	SetupVerificationFailed       SetupFailure = "verification_failed"
 	SetupSaveFailed               SetupFailure = "save_failed"
+	SetupDiscoveryFailed          SetupFailure = "discovery_failed"
 )
 
 func setupFailureReason(err error) string {
 	for _, reason := range []SetupFailure{
 		SetupBluetoothFailed, SetupCertificateInstallFailed, SetupWiFiCredentialsRejected,
-		SetupWiFiJoinFailed, SetupVerificationFailed, SetupSaveFailed,
+		SetupWiFiJoinFailed, SetupVerificationFailed, SetupSaveFailed, SetupDiscoveryFailed,
 	} {
 		if errors.Is(err, reason) {
 			return string(reason)
@@ -36,20 +38,30 @@ func setupFailureReason(err error) string {
 // SetupStatus is safe to return to a frontend. Credentials and transport
 // errors remain on the daemon.
 type SetupStatus struct {
-	DeviceID      string `json:"deviceId"`
-	Stage         string `json:"stage"`
-	FailureReason string `json:"failureReason,omitempty"`
+	DeviceID       string `json:"deviceId"`
+	Stage          string `json:"stage"`
+	ConfirmationID string `json:"confirmationId,omitempty"`
+	ConfiguredID   string `json:"configuredId,omitempty"`
+	FailureReason  string `json:"failureReason,omitempty"`
 }
 
 // SetupSessions owns the lifetime of an explicitly started device setup.
 type SetupSessions struct {
-	mu     sync.Mutex
-	active context.CancelFunc
-	status SetupStatus
+	mu           sync.Mutex
+	active       context.CancelFunc
+	confirmation chan struct{}
+	status       SetupStatus
 }
 
 func (s *SetupSessions) Start(ctx context.Context, id string, run func(context.Context) error) (SetupStatus, error) {
-	if id == "" || run == nil {
+	if run == nil {
+		return SetupStatus{}, errors.New("setup operation is required")
+	}
+	return s.start(ctx, id, func(ctx context.Context) (string, error) { return "", run(ctx) })
+}
+
+func (s *SetupSessions) start(ctx context.Context, id string, run func(context.Context) (string, error)) (SetupStatus, error) {
+	if id == "" {
 		return SetupStatus{}, errors.New("device and setup operation are required")
 	}
 	if err := ctx.Err(); err != nil {
@@ -65,12 +77,13 @@ func (s *SetupSessions) Start(ctx context.Context, id string, run func(context.C
 	s.status = SetupStatus{DeviceID: id, Stage: "configuring"}
 	go func() {
 		defer cancel()
-		err := run(setupCtx)
+		configuredID, err := run(setupCtx)
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		switch {
 		case err == nil:
 			s.status.Stage = "ready"
+			s.status.ConfiguredID = configuredID
 		case setupCtx.Err() == context.Canceled:
 			s.status.Stage = "canceled"
 		case setupCtx.Err() == context.DeadlineExceeded || errors.Is(err, context.DeadlineExceeded):
@@ -99,5 +112,41 @@ func (s *SetupSessions) Cancel(id string) bool {
 	}
 	s.status.Stage = "canceling"
 	s.active()
+	return true
+}
+
+func (s *SetupSessions) waitForConfirmation(ctx context.Context) error {
+	s.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	confirmed := make(chan struct{})
+	s.confirmation = confirmed
+	s.status.Stage = "awaiting_confirmation"
+	s.status.ConfirmationID = rand.Text()
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.confirmation = nil
+		s.status.ConfirmationID = ""
+		s.mu.Unlock()
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-confirmed:
+		return ctx.Err()
+	}
+}
+
+func (s *SetupSessions) Confirm(id, confirmationID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.status.DeviceID != id || s.status.Stage != "awaiting_confirmation" || s.confirmation == nil || s.status.ConfirmationID != confirmationID {
+		return false
+	}
+	s.status.Stage = "configuring"
+	close(s.confirmation)
 	return true
 }
