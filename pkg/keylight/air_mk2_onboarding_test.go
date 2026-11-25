@@ -143,6 +143,13 @@ func TestOnboardAirMK2(t *testing.T) {
 		if err := material.Confirm(ctx, func() error { blinks <- struct{}{}; return nil }); err != nil {
 			return "", 0, err
 		}
+		network, err := material.WaitWiFi(ctx)
+		if err != nil {
+			return "", 0, err
+		}
+		if network.SSID != "fixture" {
+			return "", 0, SetupWiFiJoinFailed
+		}
 		return pairer.Provision(ctx, material)
 	})
 	const instance = "Factory Air"
@@ -171,6 +178,13 @@ func TestOnboardAirMK2(t *testing.T) {
 		t.Fatal("selected light did not blink again")
 	}
 	require.True(t, factory.ConfirmDeviceSetup(NearbyAirMK2SetupID, status.ConfirmationID))
+	require.Eventually(t, func() bool {
+		status, _ = factory.DeviceSetupStatus(NearbyAirMK2SetupID)
+		return status.Stage == "awaiting_wifi"
+	}, time.Second, time.Millisecond)
+	network := AirMK2WiFiOptions{SSID: "fixture"}
+	require.False(t, factory.JoinDeviceSetupWiFi(NearbyAirMK2SetupID, "stale", network))
+	require.True(t, factory.JoinDeviceSetupWiFi(NearbyAirMK2SetupID, status.WiFiID, network))
 	require.Eventually(t, func() bool {
 		status, _ = factory.DeviceSetupStatus(NearbyAirMK2SetupID)
 		return status.Stage == "ready"

@@ -24,7 +24,7 @@ type airMK2SetupClient interface {
 }
 
 func newLightSetupCommand() *cobra.Command {
-	setup := &cobra.Command{Use: "setup", Short: "Manage a light's setup session over the HTTP API"}
+	setup := &cobra.Command{Use: "setup", Short: "Manage a light's setup session through keylightd"}
 	setup.AddCommand(newLightSetupStartCommand())
 	for _, action := range []struct {
 		name, description string
@@ -38,7 +38,7 @@ func newLightSetupCommand() *cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				client, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
 				if !ok {
-					return errors.New("light setup requires an HTTP API connection")
+					return errors.New("light setup is unavailable on this connection")
 				}
 				return action.call(client, args[0], args[1])
 			},
@@ -58,7 +58,7 @@ func newLightSetupCommand() *cobra.Command {
 		setup.AddCommand(&cobra.Command{Use: action.name + " <id>", Short: action.description, Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 			c, ok := cmd.Context().Value(clientContextKey).(lightSetupClient)
 			if !ok {
-				return errors.New("light setup requires an HTTP API connection")
+				return errors.New("light setup is unavailable on this connection")
 			}
 			status, err := action.call(c, keylight.UnescapeRFC6763Label(args[0]))
 			if err != nil {
@@ -82,7 +82,7 @@ func newLightSetupStartCommand() *cobra.Command {
 			}
 			c, ok := cmd.Context().Value(clientContextKey).(airMK2SetupClient)
 			if !ok {
-				return errors.New("light setup requires an HTTP API connection")
+				return errors.New("light setup is unavailable on this connection")
 			}
 			if options.Peripheral == "" || options.SSID == "" {
 				return errors.New("--peripheral and --ssid are required")

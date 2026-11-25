@@ -43,9 +43,6 @@ func (h *LightHandler) StartSetup(_ context.Context, input *StartSetupInput) (*S
 	if !ok || h.SetupContext == nil {
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable on this daemon")
 	}
-	if input.Body != nil && input.ID != keylight.NearbyAirMK2SetupID {
-		return nil, huma.Error400BadRequest("Use nearby setup to identify and confirm the Bluetooth light")
-	}
 	var pairer keylight.AirMK2Pairer
 	var err error
 	if input.Body != nil {
@@ -62,7 +59,16 @@ func (h *LightHandler) StartSetup(_ context.Context, input *StartSetupInput) (*S
 		return nil, huma.Error503ServiceUnavailable("Bluetooth pairing is unavailable for this light")
 	}
 	var status keylight.SetupStatus
-	if input.Body != nil {
+	if input.Body != nil && input.ID != keylight.NearbyAirMK2SetupID {
+		named, ok := h.Lights.(interface {
+			StartNamedAirMK2Setup(context.Context, string, keylight.AirMK2Pairer) (keylight.SetupStatus, error)
+		})
+		if !ok {
+			return nil, huma.Error503ServiceUnavailable("Named Bluetooth setup is unavailable")
+		}
+		//nolint:contextcheck // Setup survives request completion and stops with the daemon.
+		status, err = named.StartNamedAirMK2Setup(h.SetupContext, input.ID, pairer)
+	} else if input.Body != nil {
 		nearby, ok := h.Lights.(interface {
 			StartNearbyAirMK2Setup(context.Context, keylight.AirMK2Pairer) (keylight.SetupStatus, error)
 		})
@@ -125,6 +131,29 @@ func (h *LightHandler) BlinkSetup(_ context.Context, input *ConfirmSetupInput) (
 	manager, ok := h.Lights.(interface{ BlinkDeviceSetup(string, string) bool })
 	if !ok || !manager.BlinkDeviceSetup(input.ID, input.Body.ConfirmationID) {
 		return nil, huma.Error409Conflict("No setup session awaiting confirmation")
+	}
+	return nil, nil
+}
+
+type JoinSetupInput struct {
+	ID   string `path:"id"`
+	Body struct {
+		WiFiID  string                     `json:"wifiId" minLength:"1"`
+		Network keylight.AirMK2WiFiOptions `json:"network"`
+	}
+}
+
+func (h *LightHandler) JoinSetup(_ context.Context, input *JoinSetupInput) (*struct{}, error) {
+	options := input.Body.Network
+	if len(options.SSID) == 0 || len(options.SSID) > 32 || len(options.Password) > 64 ||
+		(options.Security == 0 && options.Password != "") || (options.Security != 0 && options.Password == "") {
+		return nil, huma.Error400BadRequest("Invalid Wi-Fi settings")
+	}
+	manager, ok := h.Lights.(interface {
+		JoinDeviceSetupWiFi(string, string, keylight.AirMK2WiFiOptions) bool
+	})
+	if !ok || !manager.JoinDeviceSetupWiFi(input.ID, input.Body.WiFiID, options) {
+		return nil, huma.Error409Conflict("No setup session awaiting Wi-Fi settings")
 	}
 	return nil, nil
 }

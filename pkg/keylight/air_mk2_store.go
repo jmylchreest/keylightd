@@ -181,19 +181,38 @@ func (m *Manager) StartNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Paire
 	return m.startNearbyAirMK2Setup(ctx, pairer, discoverProvisionedAirMK2)
 }
 
+// StartNamedAirMK2Setup requires the BLE peripheral to report the network
+// identity of the selected, pending mDNS light.
+func (m *Manager) StartNamedAirMK2Setup(ctx context.Context, id string, pairer AirMK2Pairer) (SetupStatus, error) {
+	m.mu.RLock()
+	light, exists := m.lights[id]
+	m.mu.RUnlock()
+	if !exists || light.setupMAC == "" || len(light.NeedsConfiguration) == 0 {
+		return SetupStatus{}, errors.New("the selected light has no matching Bluetooth setup identity")
+	}
+	return m.startAirMK2Handoff(ctx, id, light.setupMAC, pairer, discoverProvisionedAirMK2)
+}
+
 func (m *Manager) startNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Pairer, handoff airMK2Handoff) (SetupStatus, error) {
+	return m.startAirMK2Handoff(ctx, NearbyAirMK2SetupID, "", pairer, handoff)
+}
+
+func (m *Manager) startAirMK2Handoff(ctx context.Context, id, expectedMAC string, pairer AirMK2Pairer, handoff airMK2Handoff) (SetupStatus, error) {
 	p := m.airMK2
 	if p == nil || p.credentials == nil || pairer == nil {
 		return SetupStatus{}, errors.New("air MK.2 pairing or credential storage is unavailable")
 	}
-	return m.setup.start(ctx, NearbyAirMK2SetupID, func(ctx context.Context) (string, error) {
+	return m.setup.start(ctx, id, func(ctx context.Context) (string, error) {
 		if !p.pairing.TryLock() {
 			return "", errors.New("air MK.2 setup is in progress")
 		}
 		defer p.pairing.Unlock()
-		identity, err := onboardAirMK2(ctx, pairer, m.setup.waitForConfirmation, handoff)
+		identity, err := onboardAirMK2(ctx, pairer, expectedMAC, m.setup.waitForConfirmation, m.setup.waitForWiFi, handoff)
 		if err != nil {
 			return "", err
+		}
+		if expectedMAC != "" && identity.DeviceID != id {
+			return "", SetupIdentityMismatch
 		}
 		m.mu.RLock()
 		light, exists := m.lights[identity.DeviceID]
@@ -209,6 +228,11 @@ func (m *Manager) startNearbyAirMK2Setup(ctx context.Context, pairer AirMK2Paire
 		}
 		return light.ID, nil
 	})
+}
+
+// JoinDeviceSetupWiFi submits network settings after physical confirmation.
+func (m *Manager) JoinDeviceSetupWiFi(id, wifiID string, options AirMK2WiFiOptions) bool {
+	return m.setup.JoinWiFi(id, wifiID, options)
 }
 
 // BlinkDeviceSetup requests another blink on the selected peripheral.

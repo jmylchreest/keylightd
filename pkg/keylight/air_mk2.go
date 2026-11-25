@@ -221,7 +221,7 @@ func (p *AirMK2Discovery) openDiscovered(ctx context.Context, entry *ServiceEntr
 	const model = "Elgato Key Light Air MK.2"
 	light := Light{ID: UnescapeRFC6763Label(entry.Name), Name: UnescapeRFC6763Label(entry.Name),
 		IP: entry.AddrV4, Port: entry.Port, Manufacturer: "elgato", Model: model, Experimental: true,
-		ProductName: model}
+		ProductName: model, setupMAC: airMK2AdvertisedMAC(entry.Text)}
 	light.NeedsConfiguration = []string{"credentials_missing"}
 	if p == nil {
 		return light, nil, true

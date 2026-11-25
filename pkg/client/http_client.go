@@ -269,3 +269,8 @@ func (c *HTTPClient) lightSetupRequest(method, id string) (map[string]any, error
 func (c *HTTPClient) ForgetLightCredentials(id string) error {
 	return c.request(http.MethodDelete, "/api/v1/lights/"+url.PathEscape(id)+"/credentials", nil, nil)
 }
+
+// JoinLightSetup submits network settings for a confirmed peripheral.
+func (c *HTTPClient) JoinLightSetup(id, wifiID string, options keylight.AirMK2WiFiOptions) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/wifi", map[string]any{"wifiId": wifiID, "network": options}, nil)
+}

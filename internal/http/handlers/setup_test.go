@@ -59,7 +59,7 @@ func TestSetupHandlers(t *testing.T) {
 	_, err = h.StartSetup(ctx, &StartSetupInput{ID: input.ID, Body: &keylight.AirMK2SetupOptions{
 		Peripheral: "00:11:22:33:44:55", SSID: "test",
 	}})
-	require.ErrorContains(t, err, "Use nearby setup")
+	require.ErrorContains(t, err, "Named Bluetooth setup is unavailable")
 
 	h.PairerForLight = func(id string) (keylight.AirMK2Pairer, error) {
 		require.Equal(t, "desk", id)

@@ -300,6 +300,7 @@ type socketActionHandler func(s *Server, r socketRequest) socketActionResult
 // socketActions maps action names to their handler functions.
 var socketActions = map[string]socketActionHandler{
 	"ping":                       (*Server).handlePing,
+	"light_setup":                (*Server).handleLightSetup,
 	"list_lights":                (*Server).handleListLights,
 	"get_light":                  (*Server).handleGetLight,
 	"set_light_state":            (*Server).handleSetLightState,
@@ -372,7 +373,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		var req map[string]any
 		if err := json.Unmarshal(line, &req); err != nil {
-			s.logger.Error("Failed to unmarshal request", "error", err, "request", string(line))
+			s.logger.Error("Failed to unmarshal request", "error", err)
 			s.sendError(conn, "", fmt.Sprintf("invalid JSON request: %s", err))
 			continue
 		}
@@ -381,7 +382,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 		id, _ := req["id"].(string)             // Optional request ID for client tracking
 		data, _ := req["data"].(map[string]any) // Data payload
 
-		s.logger.Debug("Received request", "action", action, "id", id, "data", data)
+		if action == "light_setup" {
+			s.logger.Debug("Received setup request", "id", id)
+		} else {
+			s.logger.Debug("Received request", "action", action, "id", id, "data", data)
+		}
 
 		r := socketRequest{conn: conn, ctx: ctx, id: id, data: data, action: action}
 

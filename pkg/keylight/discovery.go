@@ -66,6 +66,7 @@ type ServiceEntry struct {
 	AddrV4 net.IP
 	Port   int
 	Info   string
+	Text   []string
 }
 
 // DiscoverLights discovers Key Light devices on the network periodically.
@@ -203,6 +204,7 @@ func (p elgatoDiscovery) Discover(ctx context.Context, interval time.Duration, f
 						AddrV4: ipv4,
 						Port:   entry.Port,
 						Info:   fmt.Sprint(entry.Text),
+						Text:   entry.Text,
 					}
 
 					// Use the parent ctx for validation, NOT discoverCtx.

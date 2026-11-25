@@ -191,7 +191,7 @@ export async function fetchAPI(
   let url = `${endpoint}/api/v1/${path}`;
   let session = new Soup.Session();
   let message = Soup.Message.new(method, url);
-  const pairingRequest = method === "POST" && path.endsWith("/setup");
+  const pairingRequest = method === "POST" && (path.endsWith("/setup") || path.endsWith("/setup/wifi"));
   if (pairingRequest) message.add_flags(Soup.MessageFlags.NO_REDIRECT);
   message.get_request_headers().append("X-API-Key", apiKey);
 

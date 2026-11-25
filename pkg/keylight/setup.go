@@ -21,12 +21,13 @@ const (
 	SetupVerificationFailed       SetupFailure = "verification_failed"
 	SetupSaveFailed               SetupFailure = "save_failed"
 	SetupDiscoveryFailed          SetupFailure = "discovery_failed"
+	SetupIdentityMismatch         SetupFailure = "identity_mismatch"
 )
 
 func setupFailureReason(err error) string {
 	for _, reason := range []SetupFailure{
 		SetupBluetoothFailed, SetupCertificateInstallFailed, SetupWiFiCredentialsRejected,
-		SetupWiFiJoinFailed, SetupVerificationFailed, SetupSaveFailed, SetupDiscoveryFailed,
+		SetupWiFiJoinFailed, SetupVerificationFailed, SetupSaveFailed, SetupDiscoveryFailed, SetupIdentityMismatch,
 	} {
 		if errors.Is(err, reason) {
 			return string(reason)
@@ -40,6 +41,7 @@ func setupFailureReason(err error) string {
 type SetupStatus struct {
 	DeviceID       string `json:"deviceId"`
 	Stage          string `json:"stage"`
+	WiFiID         string `json:"wifiId,omitempty"`
 	ConfirmationID string `json:"confirmationId,omitempty"`
 	ConfiguredID   string `json:"configuredId,omitempty"`
 	FailureReason  string `json:"failureReason,omitempty"`
@@ -51,6 +53,7 @@ type SetupSessions struct {
 	active       context.CancelFunc
 	confirmation chan struct{}
 	blink        chan struct{}
+	wifi         chan AirMK2WiFiOptions
 	status       SetupStatus
 }
 
@@ -182,5 +185,41 @@ func (s *SetupSessions) Confirm(id, confirmationID string) bool {
 	}
 	s.status.Stage = "configuring"
 	close(s.confirmation)
+	return true
+}
+
+func (s *SetupSessions) waitForWiFi(ctx context.Context) (AirMK2WiFiOptions, error) {
+	s.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return AirMK2WiFiOptions{}, err
+	}
+	network := make(chan AirMK2WiFiOptions, 1)
+	s.wifi = network
+	s.status.Stage = "awaiting_wifi"
+	s.status.WiFiID = rand.Text()
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.wifi = nil
+		s.status.WiFiID = ""
+		s.mu.Unlock()
+	}()
+	select {
+	case <-ctx.Done():
+		return AirMK2WiFiOptions{}, ctx.Err()
+	case options := <-network:
+		return options, ctx.Err()
+	}
+}
+
+func (s *SetupSessions) JoinWiFi(id, wifiID string, options AirMK2WiFiOptions) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.status.DeviceID != id || s.status.Stage != "awaiting_wifi" || s.wifi == nil || s.status.WiFiID != wifiID {
+		return false
+	}
+	s.status.Stage = "configuring"
+	s.wifi <- options
 	return true
 }

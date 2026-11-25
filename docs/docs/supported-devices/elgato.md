@@ -168,10 +168,19 @@ which the session reports as `configuredId`. This also works when the light has
 no mDNS entry before setup. Use `cancel nearby` to cancel or
 `forget <configuredId>` to remove saved credentials before re-pairing.
 
-In GNOME Preferences, choose **Lights → Add nearby light**. Enter the Bluetooth
+In GNOME Preferences, choose **Lights → Add light via Bluetooth (BLE)**. Enter the Bluetooth
 address manually, provide Wi-Fi settings and confirm that the intended light
 flashed. GNOME supports WPA2 Personal (AES) and open networks. Use a loopback API
 URL or HTTPS when supplying credentials.
 
 Linux uses BlueZ with `CGO_ENABLED=0`. macOS uses CoreBluetooth and the native
 macOS toolchain with CGO enabled.
+
+
+In the tray, use **Settings → Add light via Bluetooth (BLE)**. A light that
+already appears with **Setup required** has a setup button in place of its
+power button. GNOME Preferences also has a setup button on the light’s row.
+When you start from a row, keylightd checks that the selected Bluetooth
+peripheral reports the same network identity as that light. Enter the Bluetooth address manually, confirm the blink, and then enter the
+Wi-Fi settings. The tray can use either
+the local socket or its configured HTTP connection.

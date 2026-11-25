@@ -155,6 +155,9 @@
                         </div>
                     </section>
 
+                    <section class="settings-section">
+                        <button class="btn btn-secondary" id="add-bluetooth-light" type="button">Add light via Bluetooth (BLE)</button>
+                    </section>
                     <!-- Display Tab -->
                     <section class="settings-section">
                         <h3>Display</h3>
@@ -241,6 +244,22 @@
 
             <!-- version shown in Settings > About -->
         </div>
+        <dialog id="light-setup-dialog" aria-labelledby="light-setup-title">
+            <h2 id="light-setup-title"></h2>
+            <p id="light-setup-message" role="status"></p>
+            <form id="light-setup-form">
+                <label>Bluetooth address or UUID<input name="peripheral" required maxlength="36"></label>
+                <label>Wi-Fi network<input name="ssid" required maxlength="32"></label>
+                <label>Wi-Fi security<select name="security"><option value="200">WPA2 Personal (AES)</option><option value="0">Open network</option></select></label>
+                <label>Wi-Fi password<input name="password" type="password" maxlength="64" autocomplete="off" required></label>
+            </form>
+            <footer>
+                <button class="btn btn-secondary" id="light-setup-cancel" type="button">Cancel</button>
+                <button class="btn btn-secondary" id="light-setup-blink" type="button" hidden>Blink again</button>
+                <button class="btn btn-secondary" id="light-setup-confirm" type="button" hidden>That’s my light</button>
+                <button class="btn btn-secondary" id="light-setup-next" type="submit" form="light-setup-form">Next</button>
+            </footer>
+        </dialog>
         <script type="module" src="/src/main.js"></script>
     </body>
 </html>

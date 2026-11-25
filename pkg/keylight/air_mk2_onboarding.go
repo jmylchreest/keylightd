@@ -20,10 +20,17 @@ import (
 // AirMK2SetupOptions selects a Bluetooth peripheral and supplies its Wi-Fi settings.
 type AirMK2SetupOptions struct {
 	Peripheral string `json:"peripheral" minLength:"1" maxLength:"36"`
-	SSID       string `json:"ssid" minLength:"1" maxLength:"32"`
+	SSID       string `json:"ssid,omitempty" maxLength:"32"`
 	Password   string `json:"password,omitempty" writeOnly:"true"`
 	Security   uint16 `json:"security" doc:"Wi-Fi security code, such as 200 for WPA2 AES"`
 	Port       int    `json:"port,omitempty" doc:"Deprecated. The light port is discovered via mDNS."`
+}
+
+// AirMK2WiFiOptions carries the network settings for a confirmed light.
+type AirMK2WiFiOptions struct {
+	SSID     string `json:"ssid" minLength:"1" maxLength:"32"`
+	Password string `json:"password,omitempty" writeOnly:"true"`
+	Security uint16 `json:"security"`
 }
 
 // AirMK2Provisioning is the material sent to a light in pairing mode.
@@ -34,6 +41,8 @@ type AirMK2Provisioning struct {
 	ServerKey         []byte
 	ServerName        string
 	Confirm           func(context.Context, func() error) error
+	ExpectedMAC       string
+	WaitWiFi          func(context.Context) (AirMK2WiFiOptions, error)
 }
 
 // AirMK2Pairer provisions one explicitly selected light and returns its
@@ -97,12 +106,12 @@ func airCertificateTemplate(name string, now time.Time) (*x509.Certificate, erro
 // OnboardAirMK2 generates a private identity for a light, provisions it using
 // the supplied pairing transport, and verifies it before returning credentials.
 func OnboardAirMK2(ctx context.Context, pairer AirMK2Pairer) (*AirMK2Identity, error) {
-	return onboardAirMK2(ctx, pairer, nil, nil)
+	return onboardAirMK2(ctx, pairer, "", nil, nil, nil)
 }
 
 type airMK2Handoff func(context.Context, net.IP, func(context.Context, string, int) error) (string, int, error)
 
-func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, confirm func(context.Context, func() error) error, handoff airMK2Handoff) (*AirMK2Identity, error) {
+func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, expectedMAC string, confirm func(context.Context, func() error) error, waitWiFi func(context.Context) (AirMK2WiFiOptions, error), handoff airMK2Handoff) (*AirMK2Identity, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -147,7 +156,7 @@ func onboardAirMK2(ctx context.Context, pairer AirMK2Pairer, confirm func(contex
 	}
 	roots := x509.NewCertPool()
 	roots.AddCert(ca.cert)
-	host, port, err := pairer.Provision(ctx, AirMK2Provisioning{CA: ca.pem, ServerCertificate: server.pem, ServerKey: server.keyPEM, ServerName: serverName, Confirm: confirm})
+	host, port, err := pairer.Provision(ctx, AirMK2Provisioning{CA: ca.pem, ServerCertificate: server.pem, ServerKey: server.keyPEM, ServerName: serverName, Confirm: confirm, ExpectedMAC: expectedMAC, WaitWiFi: waitWiFi})
 	if err != nil {
 		return nil, fmt.Errorf("provision Air MK.2: %w", err)
 	}

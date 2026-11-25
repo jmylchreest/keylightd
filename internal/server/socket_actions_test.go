@@ -495,3 +495,12 @@ func TestSocketAction_ClientWatch(t *testing.T) {
 		t.Fatal("timed out waiting for channel close")
 	}
 }
+
+func TestSocketActionLightSetupRequiresSetupManager(t *testing.T) {
+	_, socketPath := setupSocketTest(t)
+	resp := sendSocketRequest(t, socketPath, map[string]any{
+		"action": "light_setup",
+		"data":   map[string]any{"operation": "status", "lightId": "missing"},
+	})
+	assert.Contains(t, resp["error"], "Device setup is unavailable")
+}

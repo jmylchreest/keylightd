@@ -48,14 +48,14 @@ export var LightsPage = GObject.registerClass(
       });
       this._refreshButton.connect("clicked", () => this._loadLights());
 
-      const addNearby = new Gtk.Button({ label: _("Add nearby light…"), valign: Gtk.Align.CENTER });
-      addNearby.connect("clicked", () => this._showSetupDialog(this, body => this._runNearbySetup(body)));
+      const addNearby = new Gtk.Button({ label: _("Add light via Bluetooth (BLE)"), valign: Gtk.Align.CENTER });
+      addNearby.connect("clicked", () => this._showSetupDialog(this, body => this._runNearbySetup(body), null, "address"));
       this._cancelSetupButton = new Gtk.Button({
         label: _("Cancel setup"), valign: Gtk.Align.CENTER, visible: false,
       });
       this._cancelSetupButton.connect("clicked", async () => {
         try {
-          await fetchAPI("lights/nearby/setup", "DELETE");
+          if (this._activeSetupPath) await fetchAPI(this._activeSetupPath, "DELETE");
         } catch (_error) {
           this._setStatus(_("Could not cancel setup."), true);
         }
@@ -298,7 +298,7 @@ export var LightsPage = GObject.registerClass(
       }
     }
 
-    _showSetupDialog(parent, submit) {
+    _showSetupDialog(parent, submit, lightName = null, phase = "all") {
       const fields = new Adw.PreferencesGroup();
       const peripheral = new Adw.EntryRow({ title: _("Bluetooth address or UUID") });
       const ssid = new Adw.EntryRow({ title: _("Wi-Fi network name") });
@@ -309,30 +309,33 @@ export var LightsPage = GObject.registerClass(
       const password = new Adw.PasswordEntryRow({ title: _("Wi-Fi password") });
       for (const field of [peripheral, ssid, security, password])
         fields.add(field);
+      peripheral.visible = phase !== "wifi";
+      ssid.visible = security.visible = phase !== "address";
 
       const dialog = new Adw.AlertDialog({
-        heading: _("Configure light"),
-        body: _("Put the light in pairing mode and enter its Bluetooth address on the keylightd host."),
+        heading: phase === "wifi" ? _("Join Wi-Fi") : lightName ? _("Set up %s").format(lightName) : _("Configure light"),
+        body: phase === "wifi" ? _("Enter the network settings for the confirmed light.") :
+          _("Put the light in pairing mode and enter its Bluetooth address on the keylightd host."),
         extra_child: fields,
       });
       dialog.add_response("cancel", _("Cancel"));
-      dialog.add_response("start", _("Start setup"));
+      dialog.add_response("start", phase === "address" ? _("Next") : phase === "wifi" ? _("Join Wi-Fi") : _("Start setup"));
       dialog.set_response_appearance("start", Adw.ResponseAppearance.SUGGESTED);
       dialog.set_close_response("cancel");
 
       const encoder = new TextEncoder();
       const update = () => {
         const secured = security.selected === 0;
-        password.visible = secured;
+        password.visible = secured && phase !== "address";
         const address = peripheral.text.trim();
         const hasAddress = /^(?:[0-9a-f]{2}:){5}[0-9a-f]{2}$/i.test(address) ||
           /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(address);
         const ssidLength = encoder.encode(ssid.text).length;
         const passwordLength = encoder.encode(password.text).length;
         dialog.set_response_enabled("start",
-          hasAddress &&
-          ssidLength > 0 && ssidLength <= 32 &&
-          (!secured || (passwordLength > 0 && passwordLength <= 64)));
+          (phase === "wifi" || hasAddress) &&
+          (phase === "address" || (ssidLength > 0 && ssidLength <= 32 &&
+            (!secured || (passwordLength > 0 && passwordLength <= 64)))));
       };
       for (const entry of [peripheral, ssid, password])
         entry.connect("changed", update);
@@ -342,6 +345,11 @@ export var LightsPage = GObject.registerClass(
       dialog.connect("response", (_dialog, response) => {
         if (response !== "start") {
           password.text = "";
+          if (phase === "wifi") submit(null);
+          return;
+        }
+        if (phase === "address") {
+          submit({ peripheral: peripheral.text.trim() });
           return;
         }
         const secured = security.selected === 0;
@@ -352,19 +360,21 @@ export var LightsPage = GObject.registerClass(
           security: secured ? 200 : 0,
         };
         password.text = "";
+        if (phase === "wifi") delete options.peripheral;
         submit(options);
       });
       dialog.present(parent);
       return dialog;
     }
 
-    async _runNearbySetup(body) {
+    async _runNearbySetup(body, lightID = "nearby") {
       if (this._nearbySetupRunning) return;
       this._nearbySetupRunning = true;
-      const path = "lights/nearby/setup";
+      const path = `lights/${encodeURIComponent(lightID)}/setup`;
       this._clearStatus();
       try {
         let status = await fetchAPI(path, "POST", body);
+        this._activeSetupPath = path;
         this._cancelSetupButton.visible = true;
         while (this.get_root()) {
           if (status.stage === "awaiting_confirmation") {
@@ -375,12 +385,21 @@ export var LightsPage = GObject.registerClass(
               return;
             }
             await fetchAPI(`${path}/confirm`, "POST", { confirmationId: status.confirmationId });
+          } else if (status.stage === "awaiting_wifi") {
+            const network = await new Promise(resolve => this._showSetupDialog(this, resolve, null, "wifi"));
+            if (!network) {
+              await fetchAPI(path, "DELETE");
+              this._setStatus(_("Setup canceled"), false);
+              return;
+            }
+            await fetchAPI(`${path}/wifi`, "POST", { wifiId: status.wifiId, network });
           } else if (status.stage === "ready") {
             await this._loadLights();
             this._setStatus(_("Setup complete"), false);
             return;
           } else if (status.stage !== "configuring" && status.stage !== "canceling") {
             const failures = new Map([
+              ["identity_mismatch", _("The Bluetooth light did not match the selected light.")],
               ["bluetooth_failed", _("Could not communicate over Bluetooth. Check pairing mode and try again.")],
               ["certificate_install_failed", _("The light could not install its certificates.")],
               ["wifi_credentials_rejected", _("The light rejected the Wi-Fi credentials. Check the password and security setting.")],
@@ -409,6 +428,7 @@ export var LightsPage = GObject.registerClass(
         filteredLog("debug", "Nearby light setup request failed", error);
       } finally {
         this._nearbySetupRunning = false;
+        this._activeSetupPath = null;
         this._cancelSetupButton.visible = false;
       }
     }
@@ -417,7 +437,7 @@ export var LightsPage = GObject.registerClass(
       return new Promise(resolve => {
         const dialog = new Adw.AlertDialog({
           heading: _("Did the intended light flash?"),
-          body: _("Confirm only if the light you want to configure flashed. Setup will then install credentials and join Wi-Fi."),
+          body: _("Confirm only if the light you want to configure flashed. You’ll enter Wi-Fi settings after confirming."),
         });
         const blink = new Gtk.Button({ label: _("Blink again"), halign: Gtk.Align.CENTER });
         blink.connect("clicked", async () => {
@@ -450,7 +470,7 @@ export var LightsPage = GObject.registerClass(
       if (light.needsConfiguration?.length) {
         row.subtitle = _("Setup required");
         const setup = new Gtk.Button({ label: _("Configure…"), valign: Gtk.Align.CENTER });
-        setup.connect("clicked", () => this._showSetupDialog(row, body => this._runNearbySetup(body)));
+        setup.connect("clicked", () => this._showSetupDialog(row, body => this._runNearbySetup(body, light.id), light.name, "address"));
         row.add_suffix(setup);
       }
 
