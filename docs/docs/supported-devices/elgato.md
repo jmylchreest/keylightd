@@ -151,3 +151,9 @@ before attempting to configure it again.
 Starting setup requires a pairing backend on the host running keylightd.
 The experimental build currently supports pre-provisioned lights through
 the TLS configuration above.
+
+The native pairing transport targets BlueZ on Linux and CoreBluetooth on
+macOS. Linux can build the transport with `CGO_ENABLED=0`. The macOS transport
+requires the native macOS toolchain and Bluetooth permission. The transport
+is not yet enabled for setup. The daemon needs a verified pairing sequence
+and a way to select the intended peripheral before it can provision a light.
