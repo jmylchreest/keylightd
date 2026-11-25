@@ -3,6 +3,7 @@
 import Adw from "gi://Adw";
 import Gtk from "gi://Gtk";
 import GObject from "gi://GObject";
+import GLib from "gi://GLib";
 
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
@@ -158,6 +159,17 @@ export var LightsPage = GObject.registerClass(
       let child = this._lightsList.get_first_child();
       while (child) {
         // Find all buttons within each row
+        const popover = new Gtk.Popover();
+        const menu = new Gtk.Box({
+          orientation: Gtk.Orientation.VERTICAL,
+          spacing: 6,
+        });
+        popover.set_child(menu);
+        row.add_suffix(new Gtk.MenuButton({
+          label: _("Setup…"),
+          valign: Gtk.Align.CENTER,
+          popover,
+        }));
         const buttons = [];
         if (child instanceof Adw.ActionRow) {
           // Get all suffixes (which should include our buttons)
@@ -281,25 +293,64 @@ export var LightsPage = GObject.registerClass(
       if (light.needsConfiguration?.length) {
         row.subtitle = _("Setup required");
         const path = `lights/${encodeURIComponent(light.id)}/setup`;
+        const popover = new Gtk.Popover();
+        const menu = new Gtk.Box({
+          orientation: Gtk.Orientation.VERTICAL,
+          spacing: 6,
+        });
+        popover.set_child(menu);
+        row.add_suffix(new Gtk.MenuButton({
+          label: _("Setup…"),
+          valign: Gtk.Align.CENTER,
+          popover,
+        }));
         const buttons = [];
+        const stages = {
+          configuring: _("Configuring…"),
+          canceling: _("Canceling…"),
+          canceled: _("Setup canceled"),
+          failed: _("Setup failed"),
+          timed_out: _("Setup timed out"),
+          ready: _("Setup complete"),
+        };
+        let requestGeneration = 0;
+        const showProgress = async (status, generation) => {
+          while (row.get_root() && generation === requestGeneration) {
+            row.subtitle = stages[status.stage] || _("Setup required");
+            if (status.stage === "ready") {
+              await this._loadLights();
+              return;
+            }
+            if (status.stage !== "configuring" && status.stage !== "canceling")
+              return;
+            await new Promise(resolve => {
+              GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                resolve();
+                return GLib.SOURCE_REMOVE;
+              });
+            });
+            if (!row.get_root() || generation !== requestGeneration) return;
+            status = await fetchAPI(path);
+          }
+        };
         const addSetupButton = (label, method) => {
           const button = new Gtk.Button({ label, valign: Gtk.Align.CENTER });
           buttons.push(button);
           button.connect("clicked", async () => {
+            popover.popdown();
             for (const control of buttons) control.sensitive = false;
+            this._clearStatus();
+            const generation = ++requestGeneration;
             try {
               const status = await fetchAPI(path, method);
-              const stages = {
-                configuring: _("Configuring…"),
-                canceling: _("Canceling…"),
-                canceled: _("Setup canceled"),
-                failed: _("Setup failed"),
-                timed_out: _("Setup timed out"),
-                ready: _("Setup complete"),
-              };
-              row.subtitle = stages[status.stage] || _("Setup required");
-              if (status.stage === "ready") await this._loadLights();
+              for (const control of buttons) control.sensitive = true;
+              await showProgress(status, generation);
             } catch (error) {
+              if (generation !== requestGeneration || !row.get_root()) return;
+              if (method === "GET" && error.statusCode === 404) {
+                row.subtitle = _("Setup hasn’t started");
+                return;
+              }
               this._setStatus(
                 method === "POST"
                   ? _("Could not start setup. Check Bluetooth support on the keylightd host.")
@@ -308,10 +359,11 @@ export var LightsPage = GObject.registerClass(
               );
               filteredLog("debug", "Light setup request failed", error);
             } finally {
-              for (const control of buttons) control.sensitive = true;
+              if (generation === requestGeneration)
+                for (const control of buttons) control.sensitive = true;
             }
           });
-          row.add_suffix(button);
+          menu.append(button);
         };
         addSetupButton(_("Configure…"), "POST");
         addSetupButton(_("Check status"), "GET");

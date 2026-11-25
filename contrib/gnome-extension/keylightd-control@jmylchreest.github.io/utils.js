@@ -180,7 +180,7 @@ export async function fetchAPI(
     if (
       method === "GET" &&
       ["groups", "lights"].some(
-        (base) => path === base || path.startsWith(`${base}/`),
+        (base) => path === base || (path.startsWith(`${base}/`) && !path.endsWith("/setup")),
       )
     ) {
       _erroring = true;
@@ -249,7 +249,7 @@ export async function fetchAPI(
               if (
                 method === "GET" &&
                 ["groups", "lights"].some(
-                  (base) => path === base || path.startsWith(`${base}/`),
+                  (base) => path === base || (path.startsWith(`${base}/`) && !path.endsWith("/setup")),
                 )
               ) {
                 _erroring = false;
@@ -308,13 +308,15 @@ export async function fetchAPI(
               if (
                 method === "GET" &&
                 ["groups", "lights"].some(
-                  (base) => path === base || path.startsWith(`${base}/`),
+                  (base) => path === base || (path.startsWith(`${base}/`) && !path.endsWith("/setup")),
                 )
               ) {
                 _erroring = true;
               }
 
-              reject(new Error(`HTTP error ${statusCode}: ${errorBody}`));
+              const error = new Error(`HTTP error ${statusCode}: ${errorBody}`);
+              error.statusCode = statusCode;
+              reject(error);
             }
           } catch (e) {
             filteredLog(
