@@ -3,12 +3,15 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	logfilter "github.com/jmylchreest/slog-logfilter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,14 +19,16 @@ import (
 	"github.com/jmylchreest/keylightd/internal/events"
 	"github.com/jmylchreest/keylightd/pkg/client"
 	"github.com/jmylchreest/keylightd/pkg/keylight"
-
-	"log/slog"
 )
 
 // setupSocketTest creates a server with lights and returns the socket path and cleanup.
 func setupSocketTest(t *testing.T) (*Server, string) {
 	t.Helper()
+	return setupSocketTestWithLogger(t, slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+}
 
+func setupSocketTestWithLogger(t *testing.T, logger *slog.Logger) (*Server, string) {
+	t.Helper()
 	tempDir, err := os.MkdirTemp("", "keylight-socket-test")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(tempDir) })
@@ -59,7 +64,6 @@ func setupSocketTest(t *testing.T) (*Server, string) {
 		},
 	}
 
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	server := New(logger, cfg, lightManager, VersionInfo{Version: "test", Commit: "abc1234", BuildDate: "2026-01-01T00:00:00Z"})
 
 	err = server.Start()
@@ -493,5 +497,28 @@ func TestSocketAction_ClientWatch(t *testing.T) {
 		assert.False(t, ok, "channel should close after cancel")
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for channel close")
+	}
+}
+
+func TestSocketRuntimeLogging(t *testing.T) {
+	logger := logfilter.New(logfilter.WithOutput(io.Discard))
+	_, socketPath := setupSocketTestWithLogger(t, logger)
+	request := func(action string, data map[string]any) map[string]any {
+		return sendSocketRequest(t, socketPath, map[string]any{"action": action, "data": data})
+	}
+
+	require.Equal(t, "debug", request("set_level", map[string]any{"level": "debug"})["level"])
+	filters := []any{map[string]any{"type": "component", "pattern": "discovery", "level": "warn", "enabled": true}}
+	require.Equal(t, filters, request("set_filters", map[string]any{"filters": filters})["filters"])
+	current := request("list_filters", nil)
+	require.Equal(t, "debug", current["level"])
+	require.Equal(t, filters, current["filters"])
+}
+
+func TestSocketRuntimeLoggingUnavailable(t *testing.T) {
+	_, socketPath := setupSocketTest(t)
+	for _, action := range []string{"list_filters", "set_filters", "set_level"} {
+		response := sendSocketRequest(t, socketPath, map[string]any{"action": action})
+		require.Equal(t, "runtime logging controls are unavailable", response["error"])
 	}
 }

@@ -74,9 +74,7 @@ func main() {
 				}
 			}
 
-			// Set up logging backed by slog-logfilter.
-			// Using SetDefault so the package-level hot-reload functions
-			// (logfilter.SetLevel, logfilter.SetFilters, etc.) work.
+			// Use the same logger for daemon output and runtime logging updates.
 			logger := utils.SetupLoggerWithFilters(level, format, filters)
 			utils.SetAsDefaultLogger(logger)
 
@@ -151,10 +149,16 @@ func main() {
 // the config file changes.  It validates filters before applying them; invalid
 // filters are rejected and the existing configuration is kept.
 func reloadLoggingConfig(logger *slog.Logger, v *viper.Viper) {
+	filterHandler, ok := logger.Handler().(*logfilter.Handler)
+	if !ok {
+		logger.Warn("Runtime logging controls are unavailable")
+		return
+	}
+
 	// Re-read level
 	newLevel := utils.ValidateLogLevel(v.GetString("config.logging.level"))
 	slogLevel := utils.GetLogLevel(newLevel)
-	logfilter.SetLevel(slogLevel)
+	filterHandler.SetLevel(slogLevel)
 	logger.Info("Log level updated", "level", newLevel)
 
 	// Re-read filters from the raw config
@@ -170,6 +174,6 @@ func reloadLoggingConfig(logger *slog.Logger, v *viper.Viper) {
 		return
 	}
 
-	logfilter.SetFilters(loggingCfg.Filters)
+	filterHandler.SetFilters(loggingCfg.Filters)
 	logger.Info("Log filters reloaded", "count", len(loggingCfg.Filters))
 }
