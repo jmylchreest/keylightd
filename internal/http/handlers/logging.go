@@ -78,8 +78,12 @@ type LoggingHandler struct {
 
 // ListFilters returns the current log level and active filters.
 func (h *LoggingHandler) ListFilters(_ context.Context, _ *ListFiltersInput) (*ListFiltersOutput, error) {
-	filters := logfilter.GetFilters()
-	level := logfilter.GetLevel()
+	filterHandler, ok := h.Logger.Handler().(*logfilter.Handler)
+	if !ok {
+		return nil, huma.Error503ServiceUnavailable("Runtime logging controls are unavailable")
+	}
+	filters := filterHandler.GetFilters()
+	level := filterHandler.GetLevel()
 
 	out := &ListFiltersOutput{}
 	out.Body.Level = LevelToString(level)
@@ -89,6 +93,10 @@ func (h *LoggingHandler) ListFilters(_ context.Context, _ *ListFiltersInput) (*L
 
 // SetFilters validates and replaces all active log filters.
 func (h *LoggingHandler) SetFilters(_ context.Context, input *SetFiltersInput) (*SetFiltersOutput, error) {
+	filterHandler, ok := h.Logger.Handler().(*logfilter.Handler)
+	if !ok {
+		return nil, huma.Error503ServiceUnavailable("Runtime logging controls are unavailable")
+	}
 	newFilters := responseToFilters(input.Body.Filters)
 
 	// Validate before applying
@@ -97,17 +105,21 @@ func (h *LoggingHandler) SetFilters(_ context.Context, input *SetFiltersInput) (
 			"Invalid filters: " + logging.FormatErrors(errs))
 	}
 
-	logfilter.SetFilters(newFilters)
+	filterHandler.SetFilters(newFilters)
 	h.Logger.Info("Log filters updated via API", "count", len(newFilters))
 
 	out := &SetFiltersOutput{}
-	out.Body.Level = LevelToString(logfilter.GetLevel())
-	out.Body.Filters = filtersToResponse(logfilter.GetFilters())
+	out.Body.Level = LevelToString(filterHandler.GetLevel())
+	out.Body.Filters = filtersToResponse(filterHandler.GetFilters())
 	return out, nil
 }
 
 // SetLevel validates and changes the global log level at runtime.
 func (h *LoggingHandler) SetLevel(_ context.Context, input *SetLevelInput) (*SetLevelOutput, error) {
+	filterHandler, ok := h.Logger.Handler().(*logfilter.Handler)
+	if !ok {
+		return nil, huma.Error503ServiceUnavailable("Runtime logging controls are unavailable")
+	}
 	validated := utils.ValidateLogLevel(input.Body.Level)
 	if validated != input.Body.Level {
 		return nil, huma.Error400BadRequest(
@@ -115,7 +127,7 @@ func (h *LoggingHandler) SetLevel(_ context.Context, input *SetLevelInput) (*Set
 	}
 
 	newLevel := utils.GetLogLevel(validated)
-	logfilter.SetLevel(newLevel)
+	filterHandler.SetLevel(newLevel)
 	h.Logger.Info("Log level changed via API", "level", validated)
 
 	out := &SetLevelOutput{}

@@ -177,7 +177,7 @@ jobs:
             contrib/systemd/keylightd.service
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: dist/*.tar.gz
@@ -309,7 +309,7 @@ jobs:
           Compress-Archive -Path "LICENSE","README.md" -DestinationPath "dist/$zipName" -Update
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd-tray_${{ needs.prepare.outputs.version }}_${{ matrix.goos }}_${{ matrix.goarch }}
           path: |
@@ -339,7 +339,7 @@ jobs:
           make zip
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd-gnome-extension_${{ needs.prepare.outputs.version }}
           path: dist/gnome-extension/*.zip
@@ -364,7 +364,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           path: artifacts
           merge-multiple: false
@@ -515,7 +515,7 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Save checksums for publishing jobs
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: keylightd_${{ needs.prepare.outputs.version }}_checksums
           path: release/keylightd_${{ needs.prepare.outputs.version }}_checksums.txt
@@ -531,7 +531,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Download checksums
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
@@ -632,7 +632,7 @@ jobs:
         uses: actions/checkout@v7.0.1
 
       - name: Download checksums
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: keylightd_${{ needs.create-release.outputs.version }}_checksums
           path: checksums
@@ -766,7 +766,7 @@ jobs:
 
       - name: Download the packaged release extension
         if: steps.check-changes.outputs.changed == 'true' || inputs.publish_extension == true
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: keylightd-gnome-extension_${{ needs.create-release.outputs.version }}
           path: dist/gnome-extension
