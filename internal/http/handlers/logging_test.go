@@ -30,3 +30,13 @@ func TestRuntimeLoggingUpdatesOnlyTheDaemonLogger(t *testing.T) {
 	require.Equal(t, slog.LevelInfo, independent.GetLevel())
 	require.Empty(t, independent.GetFilters())
 }
+
+func TestRuntimeLoggingUnavailable(t *testing.T) {
+	handler := &LoggingHandler{Logger: slog.New(slog.DiscardHandler)}
+	_, err := handler.ListFilters(t.Context(), &ListFiltersInput{})
+	require.ErrorContains(t, err, "Runtime logging controls are unavailable")
+	_, err = handler.SetFilters(t.Context(), &SetFiltersInput{})
+	require.ErrorContains(t, err, "Runtime logging controls are unavailable")
+	_, err = handler.SetLevel(t.Context(), &SetLevelInput{})
+	require.ErrorContains(t, err, "Runtime logging controls are unavailable")
+}
