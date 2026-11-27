@@ -26,17 +26,13 @@ case "$GNOME_VERSION" in
     *) echo 'Supported GNOME_VERSION values: 48, 49, 50, 51, latest' >&2; exit 2 ;;
 esac
 BUILD_FLAGS=()
-if [[ $GNOME_VERSION == latest && ( ${1:-} == --build-base || -z ${GNOME_TEST_IMAGE:-} ) ]]; then
-    "$RUNTIME" pull "$ARCH_IMAGE"
-    BUILD_FLAGS+=(--no-cache)
-fi
 if [[ ${1:-} == --build-base ]]; then
-    TAG=$GNOME_VERSION
-    if [[ -n $ARCH_SNAPSHOT ]]; then
-        TAG+="-${ARCH_SNAPSHOT//\//}"
+    if [[ $GNOME_VERSION == latest ]]; then
+        echo 'Run test-gnome with GNOME_VERSION=latest to test a fresh upstream Arch image.' >&2
+        exit 2
     fi
-    IMAGE="ghcr.io/jmylchreest/keylightd-gnome-test:$TAG"
-    "$RUNTIME" build "${BUILD_FLAGS[@]}" --target test-base -t "$IMAGE" \
+    IMAGE="ghcr.io/jmylchreest/keylightd-gnome-test:${GNOME_VERSION}-${ARCH_SNAPSHOT//\//}"
+    "$RUNTIME" build --target test-base -t "$IMAGE" \
         --label org.opencontainers.image.source=https://github.com/jmylchreest/keylightd \
         --build-arg "GNOME_VERSION=$GNOME_VERSION" --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" \
         --build-arg "ARCH_IMAGE=$ARCH_IMAGE" -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"
@@ -59,6 +55,10 @@ if [[ -n ${GNOME_TEST_IMAGE:-} ]]; then
         --volume "$ROOT:/opt/keylightd-extension:ro" "$GNOME_TEST_IMAGE" \
         bash /opt/keylightd-extension/tests/gnome-shell/session.sh "$@" >/dev/null
 else
+    if [[ $GNOME_VERSION == latest ]]; then
+        "$RUNTIME" pull "$ARCH_IMAGE"
+        BUILD_FLAGS+=(--no-cache)
+    fi
     "$RUNTIME" build "${BUILD_FLAGS[@]}" -t "$IMAGE" --build-arg "GNOME_VERSION=$GNOME_VERSION" \
         --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" --build-arg "ARCH_IMAGE=$ARCH_IMAGE" \
         -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"

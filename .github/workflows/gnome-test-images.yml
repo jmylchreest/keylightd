@@ -2,8 +2,6 @@ name: Publish GNOME test images
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '23 4 * * *'
   push:
     branches: [main, ci/gnome-test-images]
     paths:
@@ -23,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gnome: ${{ fromJSON(github.event_name == 'schedule' && '["latest"]' || '[48,49,50,51,"latest"]') }}
+        gnome: [48, 49, 50, 51]
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Sign in to GHCR

@@ -65,7 +65,6 @@ jobs:
           - gnome: 51
             image: '@sha256:49af1f108ed05eb5b0470b9a58ec26c5bc62b4c92291a828218ddd2533f23ebe'
           - gnome: latest
-            image: ':latest'
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Run extension checks
@@ -74,7 +73,7 @@ jobs:
         env:
           CONTAINER_RUNTIME: docker
           GNOME_VERSION: ${{ matrix.gnome }}
-          GNOME_TEST_IMAGE: ghcr.io/jmylchreest/keylightd-gnome-test${{ matrix.image }}
+          GNOME_TEST_IMAGE: ${{ matrix.image && format('ghcr.io/jmylchreest/keylightd-gnome-test{0}', matrix.image) || '' }}
         run: make -C contrib/gnome-extension test-gnome
       - name: Upload screenshots and session logs
         if: always()
@@ -135,6 +134,21 @@ jobs:
       # Indicate test completion for debugging
       - name: Test completion status
         run: echo "Tests completed successfully at $(date)"
+  macos-ble:
+    name: Build native macOS Bluetooth support
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: true
+      - name: Build daemon and run pairing protocol tests
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          go build ./cmd/keylightd
+          go test ./internal/airble/...
 concurrency:
   group: checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}

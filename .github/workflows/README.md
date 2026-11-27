@@ -27,7 +27,6 @@ Make the GHCR package public on first publication so PR jobs can pull it
 without publishing credentials. Run the Wayland suite against each new image
 before adopting it in the test workflow.
 
-The `latest` job follows Arch's live repositories. Its publisher pulls a
-fresh Arch base and refreshes the image daily on the default branch. PR tests
-pull the most recently published `:latest` image. Numbered jobs pull their
-pinned image digests. Both run the checkout against the image offline.
+The `latest` test job pulls the upstream Arch image and installs GNOME
+from Arch's live repositories on each run. Numbered jobs pull their pinned
+GHCR image digests. The test session runs offline in both cases.
