@@ -44,6 +44,14 @@ func Register(api huma.API, h *Handlers) {
 		mw.WithDescription("Set one or more properties (on, brightness, temperature) on a light."),
 		mw.WithOperationID("setLightState"))
 
+	mw.ProtectedGet(api, "/api/v1/lights/{id}/setup", h.Light.SetupStatus, mw.WithTags("Lights"), mw.WithOperationID("getLightSetup"))
+	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup", h.Light.StartSetup, mw.WithTags("Lights"), mw.WithOperationID("startLightSetup"), mw.WithDefaultStatus(202))
+	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup/wifi", h.Light.JoinSetup, mw.WithTags("Lights"), mw.WithOperationID("submitLightSetupWiFi"), mw.WithDefaultStatus(204))
+	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup/blink", h.Light.BlinkSetup, mw.WithTags("Lights"), mw.WithOperationID("blinkLightSetup"), mw.WithDefaultStatus(204))
+	mw.ProtectedPost(api, "/api/v1/lights/{id}/setup/confirm", h.Light.ConfirmSetup, mw.WithTags("Lights"), mw.WithOperationID("confirmLightSetup"), mw.WithDefaultStatus(204))
+	mw.ProtectedDelete(api, "/api/v1/lights/{id}/setup", h.Light.CancelSetup, mw.WithTags("Lights"), mw.WithOperationID("cancelLightSetup"))
+	mw.ProtectedDelete(api, "/api/v1/lights/{id}/credentials", h.Light.ForgetSetup, mw.WithTags("Lights"), mw.WithOperationID("forgetLightCredentials"), mw.WithDefaultStatus(204))
+
 	// --- Groups ---
 	mw.ProtectedGet(api, "/api/v1/groups", h.Group.ListGroups,
 		mw.WithTags("Groups"),

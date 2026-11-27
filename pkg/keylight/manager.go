@@ -15,6 +15,8 @@ package keylight
 import (
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -25,6 +27,8 @@ import (
 
 // Manager manages Key Light devices
 type Manager struct {
+	setup                 SetupSessions
+	airMK2                *AirMK2Discovery
 	httpProbeOnDisconnect map[string]bool
 	lights                map[string]Light
 	clients               map[string]DeviceClient
@@ -47,6 +51,20 @@ func NewManager(logger *slog.Logger, lightConfig ...config.LightConfig) *Manager
 		clients:               make(map[string]DeviceClient),
 		logger:                logger,
 	}
+}
+
+// SetAirMK2Discovery installs device profiles before discovery starts.
+func (m *Manager) SetAirMK2Discovery(provider *AirMK2Discovery) {
+	m.airMK2 = provider
+}
+
+func (m *Manager) addPendingDevice(light Light) {
+	light.LastSeen = time.Now()
+	m.mu.Lock()
+	m.lights[light.ID] = light
+	delete(m.clients, light.ID)
+	m.mu.Unlock()
+	m.emit(events.LightDiscovered, &light)
 }
 
 // SetEventBus sets the event bus for publishing state change events.
@@ -79,6 +97,9 @@ func (m *Manager) GetDiscoveredLights() []*Light {
 func (m *Manager) GetLight(ctx context.Context, id string) (*Light, error) {
 	// Get client and light information
 	client, light, err := m.deviceClient(id)
+	if light != nil && len(light.NeedsConfiguration) > 0 {
+		return light, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -286,6 +307,16 @@ func (m *Manager) addDevice(ctx context.Context, light Light, client DeviceClien
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// A concurrent forget can invalidate the identity after discovery loaded it.
+	if air, ok := client.(*AirMK2Client); ok && air.managedIdentity {
+		if m.airMK2 == nil || m.airMK2.credentials == nil {
+			return
+		}
+		if _, err := os.Stat(filepath.Join(m.airMK2.credentials.Directory, airMK2CredentialFile(light.ID))); err != nil {
+			return
+		}
+	}
+
 	// Check if light already exists
 	if existingLight, exists := m.lights[light.ID]; exists {
 		m.logger.Debug("light already exists, updating", slog.String("id", light.ID))
@@ -360,7 +391,7 @@ func (m *Manager) cleanupStaleLights(ctx context.Context, timeout time.Duration)
 		}
 		var state *LightState
 		enabled, configured := m.httpProbeOnDisconnect[candidate.SerialNumber]
-		if !configured || enabled {
+		if len(candidate.NeedsConfiguration) == 0 && (!configured || enabled) {
 			client, _, err := m.deviceClient(candidate.ID)
 			if err != nil {
 				continue

@@ -184,6 +184,15 @@ func (t *TrayManager) rebuildMenuStructure(status *Status) {
 
 		for _, light := range status.Lights {
 			title := formatMenuTitle(light.Name, light.On)
+			if light.SetupRequired {
+				title = light.Name + " · Setup required"
+				item := systray.AddMenuItem(title, "Open Keylight Control to set up this light")
+				item.Disable()
+				t.lightMenus[light.ID] = item
+				t.lastLightTitles[light.ID] = title
+				go t.handleLightMenuItem(light.ID, item)
+				continue
+			}
 			item := systray.AddMenuItem(title, "Toggle light")
 			t.lightMenus[light.ID] = item
 			t.lastLightTitles[light.ID] = title
@@ -267,7 +276,7 @@ func (t *TrayManager) toggleLight(lightID string) {
 	}
 
 	for _, light := range status.Lights {
-		if light.ID == lightID {
+		if light.ID == lightID && !light.SetupRequired {
 			if err := t.app.SetLightState(lightID, "on", !light.On); err == nil {
 				// GetStatus above painted the pre-toggle state; repaint
 				// rather than wait for the window to be reopened.
@@ -290,7 +299,18 @@ func (t *TrayManager) updateMenuTitles(status *Status) {
 
 	for _, light := range status.Lights {
 		if item, exists := t.lightMenus[light.ID]; exists {
-			diffEmitMap(t.lastLightTitles, light.ID, formatMenuTitle(light.Name, light.On), item.SetTitle)
+			title := formatMenuTitle(light.Name, light.On)
+			if light.SetupRequired {
+				title = light.Name + " · Setup required"
+			}
+			diffEmitMap(t.lastLightTitles, light.ID, title, func(title string) {
+				item.SetTitle(title)
+				if light.SetupRequired {
+					item.Disable()
+				} else {
+					item.Enable()
+				}
+			})
 		}
 	}
 }

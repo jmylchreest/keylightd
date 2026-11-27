@@ -750,3 +750,21 @@ body {
 .btn-primary:hover {
     opacity: 0.8;
 }
+
+#light-setup-dialog {
+  width: min(340px, calc(100vw - 32px));
+  margin: auto;
+  padding: 16px;
+  color: var(--text-primary, #cdd6f4);
+  background: var(--bg-secondary, #252638);
+  border: 1px solid var(--border-color, #565b74);
+  border-radius: 10px;
+}
+
+#light-setup-dialog::backdrop { background: #10121caa; }
+#light-setup-dialog h2 { margin: 0 0 10px; font-size: 16px; }
+#light-setup-dialog p { margin-bottom: 10px; }
+#light-setup-dialog label { display: block; margin-bottom: 8px; }
+#light-setup-dialog input, #light-setup-dialog select { display: block; width: 100%; }
+#light-setup-dialog footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+#light-setup-dialog [hidden] { display: none; }

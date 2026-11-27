@@ -41,6 +41,8 @@ func TestClient_AllMethods(t *testing.T) {
 	c := New(logger, "/tmp/fake.sock")
 
 	t.Run("AddAPIKey", func(t *testing.T) {
+		var logs bytes.Buffer
+		c := New(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})), "/tmp/fake.sock")
 		resp := map[string]any{
 			"key": map[string]any{
 				"name":         "test-key",
@@ -64,6 +66,9 @@ func TestClient_AllMethods(t *testing.T) {
 		}
 		if key["name"] != "test-key" || key["key"] != "abcd1234" {
 			t.Fatalf("unexpected result: %v", key)
+		}
+		if bytes.Contains(logs.Bytes(), []byte("abcd1234")) {
+			t.Fatal("API key was written to the debug log")
 		}
 	})
 

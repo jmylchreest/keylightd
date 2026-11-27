@@ -1,3 +1,4 @@
+import { installLightSetup } from "./light-setup.js";
 // Wails runtime bindings
 let GetStatus, GetVersion, GetDaemonVersion, SetLightState, SetGroupState;
 let WatchAlive;
@@ -159,7 +160,7 @@ const lastRenderedShape = { light: null, group: null };
 
 function shapeHashFor(items) {
   return items
-    .map((i) => i.id)
+    .map((i) => `${i.id}:${i.setupRequired === true}`)
     .sort()
     .join(",");
 }
@@ -743,7 +744,7 @@ function setupMasterToggle() {
       const status = await GetStatus();
       // If any light is on, turn all off. Otherwise turn all on.
       const targetState = status.onCount === 0;
-      const promises = status.lights.map((light) =>
+      const promises = status.lights.filter((light) => !light.setupRequired).map((light) =>
         SetLightState(light.id, "on", targetState),
       );
       await Promise.all(promises);
@@ -928,6 +929,7 @@ function renderLights(lights) {
 // Update slider values without full re-render
 function updateSliderValues(items, type) {
   items.forEach((item) => {
+    if (item.setupRequired) return;
     const card = document.querySelector(
       `.control-card[data-id="${item.id}"][data-type="${type}"]`,
     );
@@ -987,6 +989,16 @@ function lightDetailsText(item) {
 
 // Create a control card HTML
 function createControlCard(item, type) {
+  if (type === "light" && item.setupRequired) {
+    const card = document.createElement("div");
+    card.className = "control-card";
+    card.dataset.id = item.id;
+    card.dataset.type = type;
+    card.innerHTML = '<div class="control-header"><button class="power-button light-setup-button" type="button">⚙</button><div class="control-info"><div class="control-name"></div><div class="control-details">Setup required</div></div></div>';
+    card.querySelector("button").setAttribute("aria-label", `Set up ${item.name}`);
+    card.querySelector(".control-name").textContent = item.name;
+    return card.outerHTML;
+  }
   const id = item.id;
   const name = item.name;
   const on = item.on;
@@ -1145,3 +1157,5 @@ function escapeHtml(text) {
   div.textContent = text;
   return div.innerHTML;
 }
+
+installLightSetup();

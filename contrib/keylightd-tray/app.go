@@ -109,14 +109,15 @@ type Settings struct {
 
 // Light represents a light for the frontend
 type Light struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	On           bool   `json:"on"`
-	Brightness   int    `json:"brightness"`
-	Temperature  int    `json:"temperature"`
-	ProductName  string `json:"productName"`
-	Experimental bool   `json:"experimental"`
-	SerialNumber string `json:"serialNumber"`
+	SetupRequired bool   `json:"setupRequired"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	On            bool   `json:"on"`
+	Brightness    int    `json:"brightness"`
+	Temperature   int    `json:"temperature"`
+	ProductName   string `json:"productName"`
+	Experimental  bool   `json:"experimental"`
+	SerialNumber  string `json:"serialNumber"`
 }
 
 // Group represents a group for the frontend
@@ -569,13 +570,16 @@ func (a *App) GetStatus() (*Status, error) {
 		lightMap[id] = light
 		status.Lights = append(status.Lights, light)
 
+		if light.SetupRequired {
+			continue
+		}
 		if light.On {
 			status.OnCount++
 		} else {
 			status.OffCount++
 		}
 	}
-	status.Total = len(status.Lights)
+	status.Total = status.OnCount + status.OffCount
 
 	// Sort lights by name (case-insensitive)
 	sort.Slice(status.Lights, func(i, j int) bool {
@@ -728,15 +732,23 @@ func (a *App) convertLight(id string, data map[string]any) Light {
 		serialNumber = v
 	}
 
+	var setupRequired bool
+	switch reasons := data["needsConfiguration"].(type) {
+	case []any:
+		setupRequired = len(reasons) != 0
+	case []string:
+		setupRequired = len(reasons) != 0
+	}
 	return Light{
-		ID:           id,
-		Name:         name,
-		On:           on,
-		Brightness:   brightness,
-		Temperature:  tempKelvin,
-		ProductName:  productName,
-		Experimental: experimental,
-		SerialNumber: serialNumber,
+		SetupRequired: setupRequired,
+		ID:            id,
+		Name:          name,
+		On:            on,
+		Brightness:    brightness,
+		Temperature:   tempKelvin,
+		ProductName:   productName,
+		Experimental:  experimental,
+		SerialNumber:  serialNumber,
 	}
 }
 

@@ -88,6 +88,11 @@ func main() {
 			}
 
 			manager := keylight.NewManager(logger, cfg.Config.Lights...)
+			airDiscovery, err := keylight.NewAirMK2Discovery(cfg.Config.AirMK2, logger)
+			if err != nil {
+				return err
+			}
+			airDiscovery.SetAirMK2CredentialDirectory(cfg.Viper().ConfigFileUsed())
 			srv := server.New(logger, cfg, manager, server.VersionInfo{
 				Version:   version,
 				Commit:    commit,
@@ -96,6 +101,7 @@ func main() {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			manager.SetAirMK2Discovery(airDiscovery)
 
 			go func() {
 				// Convert interval from seconds to duration

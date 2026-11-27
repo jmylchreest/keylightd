@@ -85,6 +85,7 @@ type State struct {
 
 // ConfigBlock holds operational/configuration settings
 type ConfigBlock struct {
+	AirMK2    []AirMK2Config  `mapstructure:"air_mk2" yaml:"air_mk2,omitempty"`
 	Lights    []LightConfig   `mapstructure:"lights" yaml:"lights,omitempty"`
 	Server    ServerConfig    `yaml:"server"`
 	Discovery DiscoveryConfig `yaml:"discovery"`
@@ -128,6 +129,15 @@ type DiscoveryConfig struct {
 	Interval        int `mapstructure:"interval" yaml:"interval"`
 	CleanupInterval int `mapstructure:"cleanup_interval" yaml:"cleanup_interval"`
 	CleanupTimeout  int `mapstructure:"cleanup_timeout" yaml:"cleanup_timeout"`
+}
+
+// AirMK2Config identifies a provisioned device and its TLS files.
+type AirMK2Config struct {
+	Address    string `mapstructure:"address" yaml:"address"`
+	ServerName string `mapstructure:"server_name" yaml:"server_name,omitempty"`
+	CAFile     string `mapstructure:"ca_file" yaml:"ca_file"`
+	CertFile   string `mapstructure:"cert_file" yaml:"cert_file"`
+	KeyFile    string `mapstructure:"key_file" yaml:"key_file"`
 }
 
 // LightConfig holds config-file overrides matched by the device serial number.
@@ -263,6 +273,9 @@ func (c *Config) Save() error {
 
 	// Only write config if any sub-block is non-default
 	configMap := map[string]any{}
+	if len(c.Config.AirMK2) > 0 {
+		configMap["air_mk2"] = c.Config.AirMK2
+	}
 	if len(c.Config.Lights) > 0 {
 		configMap["lights"] = c.Config.Lights
 	}

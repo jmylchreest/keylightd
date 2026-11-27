@@ -19,7 +19,7 @@ func (m *Manager) deviceClient(id string) (DeviceClient, *Light, error) {
 	}
 	client, exists := m.clients[id]
 	if !exists {
-		return nil, nil, errors.DeviceUnavailablef("light %s has no registered client", id)
+		return nil, &light, errors.DeviceUnavailablef("light %s has no registered client", id)
 	}
 	return client, &light, nil
 }

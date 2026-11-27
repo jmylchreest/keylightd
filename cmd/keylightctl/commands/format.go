@@ -197,8 +197,11 @@ func FormatWaybarOutput(lights map[string]any) string {
 func LightTableData(id string, light map[string]any) pterm.TableData {
 	id = keylight.UnescapeRFC6763Label(id)
 	tempDevice := 0
-	if v, ok := light["temperature"].(int); ok {
-		tempDevice = v
+	switch value := light["temperature"].(type) {
+	case int:
+		tempDevice = value
+	case float64:
+		tempDevice = int(value)
 	}
 	tempKelvin := keylight.ConvertDeviceToTemperature(tempDevice)
 	table := pterm.TableData{
@@ -254,6 +257,9 @@ func appendMetadataRows(table pterm.TableData, path string, value any) pterm.Tab
 
 // formatLastSeen formats the LastSeen time for display
 func formatLastSeen(lastSeen any) string {
+	if raw, ok := lastSeen.(string); ok {
+		lastSeen, _ = time.Parse(time.RFC3339, raw)
+	}
 	if t, ok := lastSeen.(time.Time); ok && !t.IsZero() {
 		// Format the time in a human-readable format, e.g., RFC1123Z
 		return t.Format(time.RFC1123Z)
@@ -269,8 +275,11 @@ func LightParseable(id string, light map[string]any) string {
 		lastSeenUnix = strconv.FormatInt(t.Unix(), 10)
 	}
 	tempDevice := 0
-	if v, ok := light["temperature"].(int); ok {
-		tempDevice = v
+	switch value := light["temperature"].(type) {
+	case int:
+		tempDevice = value
+	case float64:
+		tempDevice = int(value)
 	}
 	tempKelvin := keylight.ConvertDeviceToTemperature(tempDevice)
 	return fmt.Sprintf(

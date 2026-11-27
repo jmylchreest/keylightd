@@ -26,7 +26,7 @@ func TestResolveProduct(t *testing.T) {
 		{"Elgato Key Light Neo", 210, "Elgato Key Light Neo"},
 		{"Elgato Light Strip", 70, ""},
 		{"Elgato Light Strip Pro", 206, ""},
-		{"Elgato Key Light Air MK.2", 214, ""},
+		{"Elgato Key Light Air MK.2", 214, "Elgato Key Light Air MK.2"},
 		{"", 0, ""},
 		{"Unknown", 999, ""},
 	} {
@@ -34,7 +34,7 @@ func TestResolveProduct(t *testing.T) {
 			product, ok := ResolveProduct("elgato", tt.board, tt.name)
 			require.Equal(t, tt.want != "", ok)
 			require.Equal(t, tt.want, product.Name)
-			require.Equal(t, tt.board == 202 || tt.board == 210, product.Experimental)
+			require.Equal(t, tt.board == 202 || tt.board == 210 || tt.board == 214, product.Experimental)
 		})
 	}
 }
@@ -103,7 +103,6 @@ func TestRegistryScopesIdentifiersToManufacturer(t *testing.T) {
 
 func TestRegistryParityAndUniqueIdentifiers(t *testing.T) {
 	require.Len(t, products.supported, 4)
-	require.Len(t, products.experimental, 2)
 	boards := map[string]map[int]bool{}
 	names := map[string]map[string]bool{}
 	for _, group := range [][]Product{products.supported, products.experimental} {

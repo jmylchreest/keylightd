@@ -500,6 +500,15 @@ func TestSocketAction_ClientWatch(t *testing.T) {
 	}
 }
 
+func TestSocketActionLightSetupRequiresSetupManager(t *testing.T) {
+	_, socketPath := setupSocketTest(t)
+	resp := sendSocketRequest(t, socketPath, map[string]any{
+		"action": "light_setup",
+		"data":   map[string]any{"operation": "status", "lightId": "missing"},
+	})
+	assert.Contains(t, resp["error"], "Device setup is unavailable")
+}
+
 func TestSocketRuntimeLogging(t *testing.T) {
 	logger := logfilter.New(logfilter.WithOutput(io.Discard))
 	_, socketPath := setupSocketTestWithLogger(t, logger)

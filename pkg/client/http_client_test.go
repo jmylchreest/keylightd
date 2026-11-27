@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 func testLogger() *slog.Logger {
@@ -345,4 +347,51 @@ func TestNewHTTP_TrimsTrailingSlash(t *testing.T) {
 func TestNewHTTP_NoTrailingSlash(t *testing.T) {
 	c := NewHTTP(testLogger(), "http://example.com", "key")
 	assert.Equal(t, "http://example.com", c.baseURL)
+}
+
+func TestHTTPClientLightSetup(t *testing.T) {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "test-api-key", r.Header.Get("X-API-Key"))
+		jsonHandler(http.StatusOK, map[string]any{"stage": r.Method})(w, r)
+	}
+	_, client := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /api/v1/lights/{id}/setup":   handler,
+		"GET /api/v1/lights/{id}/setup":    handler,
+		"DELETE /api/v1/lights/{id}/setup": handler,
+		"DELETE /api/v1/lights/{id}/credentials": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "desk light", r.PathValue("id"))
+			w.WriteHeader(http.StatusNoContent)
+		},
+	})
+	for method, call := range map[string]func(string) (map[string]any, error){
+		http.MethodPost:   client.StartLightSetup,
+		http.MethodGet:    client.GetLightSetup,
+		http.MethodDelete: client.CancelLightSetup,
+	} {
+		status, err := call("desk light")
+		require.NoError(t, err)
+		assert.Equal(t, method, status["stage"])
+	}
+	require.NoError(t, client.ForgetLightCredentials("desk light"))
+}
+
+func TestHTTPClientAirMK2Setup(t *testing.T) {
+	options := keylight.AirMK2SetupOptions{
+		Peripheral: "00:11:22:33:44:55", SSID: "fixture-network", Password: "fixture-passphrase",
+		Security: 200, Port: 9123,
+	}
+	_, client := newTestServer(t, map[string]http.HandlerFunc{
+		"POST /api/v1/lights/{id}/setup": func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "desk light", r.PathValue("id"))
+			assert.Equal(t, "test-api-key", r.Header.Get("X-API-Key"))
+			var received keylight.AirMK2SetupOptions
+			if assert.NoError(t, json.NewDecoder(r.Body).Decode(&received)) {
+				assert.Equal(t, options, received)
+			}
+			jsonHandler(http.StatusAccepted, map[string]any{"stage": "configuring"})(w, r)
+		},
+	})
+	status, err := client.StartAirMK2Setup("desk light", options)
+	require.NoError(t, err)
+	assert.Equal(t, "configuring", status["stage"])
 }

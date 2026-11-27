@@ -8,8 +8,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/jmylchreest/keylightd/pkg/keylight"
 )
 
 // HTTPClient represents an HTTP connection to keylightd
@@ -222,4 +225,52 @@ func (c *HTTPClient) SetAPIKeyDisabledStatus(keyOrName string, disabled bool) (m
 		return nil, err
 	}
 	return resp, nil
+}
+
+// StartLightSetup asks the daemon to start a setup session.
+func (c *HTTPClient) StartLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodPost, id)
+}
+
+// StartAirMK2Setup sends the pairing inputs to the daemon.
+func (c *HTTPClient) StartAirMK2Setup(id string, options keylight.AirMK2SetupOptions) (map[string]any, error) {
+	var status map[string]any
+	err := c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup", options, &status)
+	return status, err
+}
+
+// BlinkLightSetup asks the selected Bluetooth light to identify itself again.
+func (c *HTTPClient) BlinkLightSetup(id, confirmationID string) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/blink", map[string]string{"confirmationId": confirmationID}, nil)
+}
+
+// ConfirmLightSetup confirms that the intended Bluetooth light identified itself.
+func (c *HTTPClient) ConfirmLightSetup(id, confirmationID string) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/confirm", map[string]string{"confirmationId": confirmationID}, nil)
+}
+
+// GetLightSetup returns the current setup session status.
+func (c *HTTPClient) GetLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodGet, id)
+}
+
+// CancelLightSetup cancels an active setup session.
+func (c *HTTPClient) CancelLightSetup(id string) (map[string]any, error) {
+	return c.lightSetupRequest(http.MethodDelete, id)
+}
+
+func (c *HTTPClient) lightSetupRequest(method, id string) (map[string]any, error) {
+	var status map[string]any
+	err := c.request(method, "/api/v1/lights/"+url.PathEscape(id)+"/setup", nil, &status)
+	return status, err
+}
+
+// ForgetLightCredentials removes the daemon-managed identity of a light.
+func (c *HTTPClient) ForgetLightCredentials(id string) error {
+	return c.request(http.MethodDelete, "/api/v1/lights/"+url.PathEscape(id)+"/credentials", nil, nil)
+}
+
+// JoinLightSetup submits network settings for a confirmed peripheral.
+func (c *HTTPClient) JoinLightSetup(id, wifiID string, options keylight.AirMK2WiFiOptions) error {
+	return c.request(http.MethodPost, "/api/v1/lights/"+url.PathEscape(id)+"/setup/wifi", map[string]any{"wifiId": wifiID, "network": options}, nil)
 }
