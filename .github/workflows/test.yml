@@ -55,7 +55,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gnome: [48, 49, 50, 51]
+        include:
+          - gnome: 48
+            image: '@sha256:b87c9d2729beb8f97ada2f1d750f49432af85ce748b1c86ec2bfca43564de887'
+          - gnome: 49
+            image: '@sha256:c9a377a628d4b1e9f8648c6ee4a7d09e648067af0b75a81f8d5eac32a26c419f'
+          - gnome: 50
+            image: '@sha256:86b3a82f92778ee568b4674f74643e9f5c3e6222baaaf085260854b16d4de07b'
+          - gnome: 51
+            image: '@sha256:49af1f108ed05eb5b0470b9a58ec26c5bc62b4c92291a828218ddd2533f23ebe'
+          - gnome: latest
     steps:
       - uses: actions/checkout@v7.0.1
       - name: Run extension checks
@@ -64,10 +73,11 @@ jobs:
         env:
           CONTAINER_RUNTIME: docker
           GNOME_VERSION: ${{ matrix.gnome }}
+          GNOME_TEST_IMAGE: ${{ matrix.image && format('ghcr.io/jmylchreest/keylightd-gnome-test{0}', matrix.image) || '' }}
         run: make -C contrib/gnome-extension test-gnome
       - name: Upload screenshots and session logs
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: gnome${{ matrix.gnome }}-ui-${{ github.run_attempt }}
           path: dist/gnome${{ matrix.gnome }}-*/

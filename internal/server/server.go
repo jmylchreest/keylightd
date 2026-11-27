@@ -766,8 +766,13 @@ func (s *Server) handleHealth(r socketRequest) socketActionResult {
 }
 
 func (s *Server) handleListFilters(r socketRequest) socketActionResult {
-	filters := logfilter.GetFilters()
-	level := logfilter.GetLevel()
+	filterHandler, ok := s.logger.Handler().(*logfilter.Handler)
+	if !ok {
+		s.sendError(r.conn, r.id, "runtime logging controls are unavailable")
+		return socketContinue
+	}
+	filters := filterHandler.GetFilters()
+	level := filterHandler.GetLevel()
 
 	filterList := make([]map[string]any, len(filters))
 	for i, f := range filters {
@@ -794,6 +799,11 @@ func (s *Server) handleListFilters(r socketRequest) socketActionResult {
 }
 
 func (s *Server) handleSetFilters(r socketRequest) socketActionResult {
+	filterHandler, ok := s.logger.Handler().(*logfilter.Handler)
+	if !ok {
+		s.sendError(r.conn, r.id, "runtime logging controls are unavailable")
+		return socketContinue
+	}
 	filtersRaw, _ := r.data["filters"].([]any)
 	var newFilters []logfilter.LogFilter
 	for _, raw := range filtersRaw {
@@ -821,11 +831,11 @@ func (s *Server) handleSetFilters(r socketRequest) socketActionResult {
 		return socketContinue
 	}
 
-	logfilter.SetFilters(newFilters)
+	filterHandler.SetFilters(newFilters)
 	s.logger.Info("Log filters updated via socket", "count", len(newFilters))
 
 	// Return updated state
-	updatedFilters := logfilter.GetFilters()
+	updatedFilters := filterHandler.GetFilters()
 	resultFilters := make([]map[string]any, len(updatedFilters))
 	for i, f := range updatedFilters {
 		fm := map[string]any{
@@ -843,13 +853,18 @@ func (s *Server) handleSetFilters(r socketRequest) socketActionResult {
 		resultFilters[i] = fm
 	}
 	s.sendResponse(r.conn, r.id, map[string]any{
-		"level":   handlers.LevelToString(logfilter.GetLevel()),
+		"level":   handlers.LevelToString(filterHandler.GetLevel()),
 		"filters": resultFilters,
 	})
 	return socketContinue
 }
 
 func (s *Server) handleSetLevel(r socketRequest) socketActionResult {
+	filterHandler, ok := s.logger.Handler().(*logfilter.Handler)
+	if !ok {
+		s.sendError(r.conn, r.id, "runtime logging controls are unavailable")
+		return socketContinue
+	}
 	level, _ := r.data["level"].(string)
 	if level == "" {
 		s.sendError(r.conn, r.id, "missing level for set_level")
@@ -861,7 +876,7 @@ func (s *Server) handleSetLevel(r socketRequest) socketActionResult {
 		return socketContinue
 	}
 	newLevel := utils.GetLogLevel(validated)
-	logfilter.SetLevel(newLevel)
+	filterHandler.SetLevel(newLevel)
 	s.logger.Info("Log level changed via socket", "level", validated)
 	s.sendResponse(r.conn, r.id, map[string]any{"level": validated})
 	return socketContinue

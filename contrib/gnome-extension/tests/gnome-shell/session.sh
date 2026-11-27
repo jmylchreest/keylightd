@@ -23,6 +23,14 @@ export XDG_CONFIG_HOME=$HOME/config
 export XDG_DATA_HOME=$HOME/data
 export XDG_CACHE_HOME=$HOME/cache
 export KEYLIGHTD_TEST_ARTIFACTS=$HOME/artifacts
+if [[ $GNOME_VERSION == latest ]]; then
+    shell_version=$(gnome-shell --version)
+    if [[ ! $shell_version =~ ^GNOME\ Shell\ ([0-9]+)\. ]]; then
+        echo "Could not identify GNOME Shell major from: $shell_version" >&2
+        exit 1
+    fi
+    GNOME_VERSION=${BASH_REMATCH[1]}
+fi
 mkdir -p "$KEYLIGHTD_TEST_ARTIFACTS"
 trap 'cp "$HOME/"*.log "$KEYLIGHTD_TEST_ARTIFACTS/" 2>/dev/null || true' EXIT
 mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME/gnome-shell/extensions"

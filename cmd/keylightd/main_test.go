@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	logfilter "github.com/jmylchreest/slog-logfilter"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -122,4 +123,27 @@ func TestSignalHandling(t *testing.T) {
 		// If we get here, there's a problem with the test
 		t.Fatal("Timed out waiting for signal handling simulation")
 	}
+}
+
+func TestReloadLoggingConfig(t *testing.T) {
+	v := viper.New()
+	v.Set("config.logging.level", "debug")
+	v.Set("config.logging.filters", []map[string]any{
+		{"type": "component", "pattern": "discovery", "level": "warn", "enabled": true},
+	})
+	logger := logfilter.New(logfilter.WithOutput(io.Discard))
+	reloadLoggingConfig(logger, v)
+	handler := logger.Handler().(*logfilter.Handler)
+	require.Equal(t, slog.LevelDebug, handler.GetLevel())
+	filters := handler.GetFilters()
+	require.Len(t, filters, 1)
+	require.Equal(t, "component", filters[0].Type)
+	require.Equal(t, "discovery", filters[0].Pattern)
+	require.Equal(t, "warn", filters[0].Level)
+	require.True(t, filters[0].Enabled)
+
+	v.Set("config.logging.filters", []map[string]any{{"type": "component", "level": "invalid"}})
+	reloadLoggingConfig(logger, v)
+	require.Len(t, handler.GetFilters(), 1)
+	reloadLoggingConfig(slog.New(slog.DiscardHandler), v)
 }

@@ -19,19 +19,51 @@ case "$GNOME_VERSION" in
         ;;
     50) ARCH_SNAPSHOT=2026/08/01 ;;
     51) ARCH_SNAPSHOT=2026/10/28 ;;
-    *) echo 'Supported GNOME_VERSION values: 48, 49, 50, 51' >&2; exit 2 ;;
+    latest)
+        ARCH_SNAPSHOT=
+        ARCH_IMAGE=docker.io/library/archlinux:latest
+        ;;
+    *) echo 'Supported GNOME_VERSION values: 48, 49, 50, 51, latest' >&2; exit 2 ;;
 esac
+BUILD_FLAGS=()
+if [[ ${1:-} == --build-base ]]; then
+    if [[ $GNOME_VERSION == latest ]]; then
+        echo 'Run test-gnome with GNOME_VERSION=latest to test a fresh upstream Arch image.' >&2
+        exit 2
+    fi
+    IMAGE="ghcr.io/jmylchreest/keylightd-gnome-test:${GNOME_VERSION}-${ARCH_SNAPSHOT//\//}"
+    "$RUNTIME" build --target test-base -t "$IMAGE" \
+        --label org.opencontainers.image.source=https://github.com/jmylchreest/keylightd \
+        --build-arg "GNOME_VERSION=$GNOME_VERSION" --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" \
+        --build-arg "ARCH_IMAGE=$ARCH_IMAGE" -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"
+    "$RUNTIME" run --rm --network=none "$IMAGE" gnome-shell --version
+    if [[ ${2:-} == --push ]]; then
+        "$RUNTIME" push "$IMAGE"
+    fi
+    exit
+fi
 IMAGE=localhost/keylightd-gnome${GNOME_VERSION}-test
 mkdir -p "$ROOT/../../dist"
 ARTIFACTS=$(mktemp -d "$ROOT/../../dist/gnome${GNOME_VERSION}-XXXXXXXX")
 CID_FILE=$(mktemp)
 rm "$CID_FILE"
 trap 'if [[ -s "$CID_FILE" ]]; then "$RUNTIME" rm -f "$(cat "$CID_FILE")" >/dev/null; fi; rm -f "$CID_FILE"' EXIT
-"$RUNTIME" build -t "$IMAGE" --build-arg "GNOME_VERSION=$GNOME_VERSION" \
-    --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" --build-arg "ARCH_IMAGE=$ARCH_IMAGE" \
-    -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"
 # No host display, D-Bus, GPU, home directory or network is exposed to the test.
-"$RUNTIME" create --cidfile "$CID_FILE" --network=none "$IMAGE" "$@" >/dev/null
+if [[ -n ${GNOME_TEST_IMAGE:-} ]]; then
+    "$RUNTIME" pull "$GNOME_TEST_IMAGE"
+    "$RUNTIME" create --cidfile "$CID_FILE" --network=none \
+        --volume "$ROOT:/opt/keylightd-extension:ro" "$GNOME_TEST_IMAGE" \
+        bash /opt/keylightd-extension/tests/gnome-shell/session.sh "$@" >/dev/null
+else
+    if [[ $GNOME_VERSION == latest ]]; then
+        "$RUNTIME" pull "$ARCH_IMAGE"
+        BUILD_FLAGS+=(--no-cache)
+    fi
+    "$RUNTIME" build "${BUILD_FLAGS[@]}" -t "$IMAGE" --build-arg "GNOME_VERSION=$GNOME_VERSION" \
+        --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" --build-arg "ARCH_IMAGE=$ARCH_IMAGE" \
+        -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"
+    "$RUNTIME" create --cidfile "$CID_FILE" --network=none "$IMAGE" "$@" >/dev/null
+fi
 status=0
 "$RUNTIME" start -a "$(cat "$CID_FILE")" || status=$?
 "$RUNTIME" cp "$(cat "$CID_FILE"):/tmp/keylightd-test/artifacts/." "$ARTIFACTS/" || status=1
