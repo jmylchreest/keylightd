@@ -96,10 +96,10 @@ func (c *Client) request(req any, resp any) error {
 	// Decode response only if resp is not nil
 	if resp != nil {
 		if err := json.NewDecoder(conn).Decode(resp); err != nil {
-			c.logger.Error("Failed to decode response", "error", err)
+			c.logger.Error("Failed to decode response")
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
-		c.logger.Debug("Received response", "response", resp)
+		c.logger.Debug("Received response")
 
 		// Check for error in response.
 		// resp may be *map[string]any (pointer) or map[string]any (value);
@@ -107,13 +107,13 @@ func (c *Client) request(req any, resp any) error {
 		respMap := extractMap(resp)
 		if respMap != nil {
 			if errMsg, ok := respMap["error"].(string); ok {
-				c.logger.Error("Server returned error", "error", errMsg)
+				c.logger.Error("Server returned error")
 				return fmt.Errorf("server error: %s", errMsg)
 			}
 			// Check for partial-success responses (e.g. multi-group set operations)
 			if status, _ := respMap["status"].(string); status == "partial" {
 				if errs, ok := respMap["errors"].([]any); ok && len(errs) > 0 {
-					c.logger.Error("Server returned partial errors", "errors", errs)
+					c.logger.Error("Server returned partial errors")
 					return fmt.Errorf("server error (partial): %v", errs)
 				}
 			}
@@ -123,14 +123,14 @@ func (c *Client) request(req any, resp any) error {
 		// When resp is nil, we still need to read and check for errors
 		var tempResp map[string]any
 		if err := json.NewDecoder(conn).Decode(&tempResp); err != nil {
-			c.logger.Error("Failed to decode response", "error", err)
+			c.logger.Error("Failed to decode response")
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
-		c.logger.Debug("Received response (nil target)", "response", tempResp)
+		c.logger.Debug("Received response (nil target)")
 
 		// Check for error in response
 		if errMsg, ok := tempResp["error"].(string); ok {
-			c.logger.Error("Server returned error", "error", errMsg)
+			c.logger.Error("Server returned error")
 			return fmt.Errorf("server error: %s", errMsg)
 		}
 		c.logger.Debug("Response processed successfully (nil target)")
@@ -245,7 +245,7 @@ func (c *Client) CreateGroup(name string) error {
 	}
 
 	// Log success
-	c.logger.Debug("Group created successfully", "name", name, "response", resp)
+	c.logger.Debug("Group created successfully")
 	return nil
 }
 
@@ -374,8 +374,8 @@ func (c *Client) AddAPIKey(name string, expiresInSeconds float64) (map[string]an
 		// This case implies the server response was successful at a transport level,
 		// but the expected "key" field containing the APIKey details is missing.
 		// This indicates an unexpected response structure from the server for a successful apikey_add operation.
-		c.logger.Error("apikey_add response missing 'key' field", "response", serverResponse)
-		return nil, fmt.Errorf("server response for apikey_add missing 'key' field: %+v", serverResponse)
+		c.logger.Error("apikey_add response missing 'key' field")
+		return nil, fmt.Errorf("server response for apikey_add missing 'key' field")
 	}
 
 	// Parse time strings in the returned key data, similar to ListAPIKeys
@@ -392,7 +392,7 @@ func (c *Client) AddAPIKey(name string, expiresInSeconds float64) (map[string]an
 			} else if t, err := time.Parse(time.RFC3339, valStr); err == nil {
 				apiKeyData[field] = t
 			} else if valStr != "" { // Only warn if it's not an empty string that failed parsing
-				c.logger.Warn("Failed to parse time string in AddAPIKey response", "field", field, "value", valStr, "error", err)
+				c.logger.Warn("Failed to parse time string in AddAPIKey response", "field", field)
 				// If parsing fails for a non-empty string, keep the original string
 				apiKeyData[field] = valStr
 			}
@@ -445,7 +445,7 @@ func (c *Client) ListAPIKeys() ([]map[string]any, error) {
 				} else if t, err := time.Parse(time.RFC3339, valStr); err == nil {
 					keyData[field] = t
 				} else if valStr != "" { // Only warn if it's not an empty string that failed parsing
-					c.logger.Warn("Failed to parse time string for API key", "field", field, "value", valStr, "error", err)
+					c.logger.Warn("Failed to parse time string for API key", "field", field)
 					// If parsing fails for a non-empty string, keep the original string
 					keyData[field] = valStr
 				}

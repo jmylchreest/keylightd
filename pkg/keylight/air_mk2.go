@@ -253,7 +253,7 @@ func (p *AirMK2Discovery) openDiscovered(ctx context.Context, entry *ServiceEntr
 			light.NeedsConfiguration = []string{"server_untrusted"}
 			return light, nil, true
 		}
-		p.logger.Debug("Air MK.2 identity unavailable", "id", light.ID, "error", err)
+		p.logger.Debug("Air MK.2 accessory info request failed")
 		return Light{}, nil, false
 	}
 	if info.HardwareBoardType != 214 || info.SerialNumber == "" || (serial != "" && info.SerialNumber != serial) {
