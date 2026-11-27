@@ -21,6 +21,18 @@ case "$GNOME_VERSION" in
     51) ARCH_SNAPSHOT=2026/10/28 ;;
     *) echo 'Supported GNOME_VERSION values: 48, 49, 50, 51' >&2; exit 2 ;;
 esac
+if [[ ${1:-} == --build-base ]]; then
+    IMAGE="ghcr.io/jmylchreest/keylightd-gnome-test:${GNOME_VERSION}-${ARCH_SNAPSHOT//\//}"
+    "$RUNTIME" build --target test-base -t "$IMAGE" \
+        --label org.opencontainers.image.source=https://github.com/jmylchreest/keylightd \
+        --build-arg "GNOME_VERSION=$GNOME_VERSION" --build-arg "ARCH_SNAPSHOT=$ARCH_SNAPSHOT" \
+        --build-arg "ARCH_IMAGE=$ARCH_IMAGE" -f "$ROOT/tests/gnome-shell/Containerfile" "$ROOT"
+    "$RUNTIME" run --rm --network=none "$IMAGE" gnome-shell --version
+    if [[ ${2:-} == --push ]]; then
+        "$RUNTIME" push "$IMAGE"
+    fi
+    exit
+fi
 IMAGE=localhost/keylightd-gnome${GNOME_VERSION}-test
 mkdir -p "$ROOT/../../dist"
 ARTIFACTS=$(mktemp -d "$ROOT/../../dist/gnome${GNOME_VERSION}-XXXXXXXX")

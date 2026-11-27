@@ -17,7 +17,8 @@ RUN printf 'Server = https://archive.archlinux.org/repos/%s/$repo/os/$arch\n' "$
     && gnome-shell --version | grep -E "^GNOME Shell ${GNOME_VERSION}\."
 
 ENV LIBGL_ALWAYS_SOFTWARE=1 GSETTINGS_BACKEND=keyfile GNOME_VERSION=${GNOME_VERSION}
-FROM runtime AS test
+FROM runtime AS test-base
 RUN pacman -S --disable-download-timeout --noconfirm make zip
+FROM test-base AS test
 COPY . /opt/keylightd-extension
 ENTRYPOINT ["bash", "/opt/keylightd-extension/tests/gnome-shell/session.sh"]

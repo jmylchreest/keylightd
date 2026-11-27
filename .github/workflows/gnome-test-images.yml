@@ -1,0 +1,35 @@
+name: Publish GNOME test images
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, ci/gnome-test-images]
+    paths:
+      - .github/workflows/gnome-test-images.yml
+      - contrib/gnome-extension/tests/test-gnome-shell.sh
+      - contrib/gnome-extension/tests/gnome-shell/Containerfile
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    if: github.repository == 'jmylchreest/keylightd'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        gnome: [48, 49, 50, 51]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Sign in to GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish the test base
+        env:
+          CONTAINER_RUNTIME: docker
+          GNOME_VERSION: ${{ matrix.gnome }}
+        run: bash contrib/gnome-extension/tests/test-gnome-shell.sh --build-base --push
