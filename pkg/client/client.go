@@ -375,7 +375,7 @@ func (c *Client) AddAPIKey(name string, expiresInSeconds float64) (map[string]an
 		// but the expected "key" field containing the APIKey details is missing.
 		// This indicates an unexpected response structure from the server for a successful apikey_add operation.
 		c.logger.Error("apikey_add response missing 'key' field")
-		return nil, fmt.Errorf("server response for apikey_add missing 'key' field")
+		return nil, errors.New("server response for apikey_add missing 'key' field")
 	}
 
 	// Parse time strings in the returned key data, similar to ListAPIKeys
