@@ -59,7 +59,7 @@ export default class KeylightdControlPreferences extends ExtensionPreferences {
       // Clear the global settings instance when the preferences window is closed
       setSettings(null);
 
-      window.destroy();
+      return false;
     });
   }
 }
