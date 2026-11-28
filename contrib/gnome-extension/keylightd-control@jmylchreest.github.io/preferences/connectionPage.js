@@ -22,9 +22,10 @@ function confirm(window, title, body, label) {
 
 export function connectionPage(window, settings) {
   let manualSession = new Soup.Session({timeout: 10});
-  window.connect("unrealize", () => {
+  window.connect("close-request", () => {
     manualSession?.abort();
     manualSession = null;
+    return false;
   });
   const page = new Adw.PreferencesPage({title:_("Connection"), icon_name:"network-wired-symbolic"});
   const methods = new Adw.PreferencesGroup();
