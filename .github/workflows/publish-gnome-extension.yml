@@ -1,0 +1,42 @@
+name: Publish GNOME extension
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    with:
+      gnome_only: true
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Package the extension with its existing keylightd release version
+        run: |
+          release_tag=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*')
+          KEYLIGHTD_RELEASE_TAG="$release_tag" make -C contrib/gnome-extension zip
+
+      - name: Save the submission ZIP
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: keylightd-gnome-extension-${{ github.sha }}-${{ github.run_attempt }}
+          path: dist/gnome-extension/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Submit to GNOME Extensions for review
+        env:
+          CONTAINER_RUNTIME: docker
+          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
+          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+        run: bash contrib/gnome-extension/publish.sh dist/gnome-extension/keylightd-control@jmylchreest.github.io.shell-extension.zip

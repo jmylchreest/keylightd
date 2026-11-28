@@ -30,6 +30,11 @@ PREFS_FILES=(
 
 ERRORS=0
 
+if grep -rnE --include='*.js' "['\"]gi://(Gdk|Soup)\?version=" "$EXT_DIR"; then
+    echo "Import Gdk and Soup at the version selected by GNOME."
+    exit 1
+fi
+
 # Check shell files for forbidden imports
 echo "Checking shell process files (should not import Gtk/Gdk)..."
 for pattern in "${SHELL_FILES[@]}"; do

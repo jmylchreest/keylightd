@@ -109,6 +109,14 @@ if ! grep -q "1.0.0-test" "$VERSION_FILE"; then
 fi
 echo "✓ Environment variables processed correctly"
 
+# A manual dispatch identifies the branch, while the About page identifies
+# the existing release and the precise commit submitted for review.
+KEYLIGHTD_RELEASE_TAG=v0.2.2 GITHUB_REF=refs/heads/main GITHUB_REF_NAME=main \
+    GITHUB_SHA=0123456789abcdef0123456789abcdef01234567 make version-info >/dev/null
+grep -Fq '"version": "0.2.2"' "$VERSION_FILE"
+grep -Fq '"commit": "0123456"' "$VERSION_FILE"
+echo "✓ Extension-only submission retains the release version and records the selected commit"
+
 echo ""
 echo "🎉 All integration tests passed!"
 echo ""
