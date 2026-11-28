@@ -271,7 +271,8 @@ export default class KeylightdControlExtension extends Extension {
       try {
         await this._groupsController.getGroups(true);
       } catch (groupError) {
-        console.error(
+        filteredLog(
+          "error",
           "Error refreshing groups during background refresh:",
           groupError,
         );
@@ -282,7 +283,8 @@ export default class KeylightdControlExtension extends Extension {
       try {
         await this._lightsController.getLights(true);
       } catch (lightError) {
-        console.error(
+        filteredLog(
+          "error",
           "Error refreshing lights during background refresh:",
           lightError,
         );
@@ -333,7 +335,8 @@ export default class KeylightdControlExtension extends Extension {
               toggle._updateToggleState();
             }
           } catch (toggleError) {
-            console.error(
+            filteredLog(
+              "error",
               "Error updating toggle state during background refresh:",
               toggleError,
             );
@@ -343,7 +346,8 @@ export default class KeylightdControlExtension extends Extension {
           try {
             this._keylightdIndicator._updateIndicatorVisibility();
           } catch (indicatorError) {
-            console.error(
+            filteredLog(
+              "error",
               "Error updating indicator visibility during background refresh:",
               indicatorError,
             );
@@ -351,7 +355,7 @@ export default class KeylightdControlExtension extends Extension {
         }
       }
     } catch (error) {
-      console.error("Error during background refresh:", error);
+      filteredLog("error", "Error during background refresh:", error);
     }
   }
 
@@ -375,7 +379,7 @@ export default class KeylightdControlExtension extends Extension {
         QuickSettingsMenu.menu.close();
       }
     } catch (error) {
-      console.error(`Error opening preferences: ${error}`);
+      filteredLog("error", `Error opening preferences: ${error}`);
     }
   }
 
@@ -390,7 +394,7 @@ export default class KeylightdControlExtension extends Extension {
         this._performInitialRefreshDelayed();
       }, 1000);
     } catch (error) {
-      console.error("Error during initial refresh:", error);
+      filteredLog("error", "Error during initial refresh:", error);
     }
   }
 
@@ -403,14 +407,14 @@ export default class KeylightdControlExtension extends Extension {
       try {
         await this._groupsController.getGroups(true);
       } catch (groupError) {
-        console.error("Error refreshing groups:", groupError);
+        filteredLog("error", "Error refreshing groups:", groupError);
       }
 
       // Then refresh lights
       try {
         await this._lightsController.getLights(true);
       } catch (lightError) {
-        console.error("Error refreshing lights:", lightError);
+        filteredLog("error", "Error refreshing lights:", lightError);
       }
 
       // Update the indicator state - make sure all components exist
@@ -418,7 +422,7 @@ export default class KeylightdControlExtension extends Extension {
         try {
           this._keylightdIndicator._updateIndicatorVisibility();
         } catch (indicatorError) {
-          console.error("Error updating indicator visibility:", indicatorError);
+          filteredLog("error", "Error updating indicator visibility:", indicatorError);
         }
 
         // Update toggle state too, but only if it exists and is properly initialized
@@ -430,7 +434,7 @@ export default class KeylightdControlExtension extends Extension {
               toggle._updateToggleState();
             }
           } catch (toggleError) {
-            console.error("Error updating toggle state:", toggleError);
+            filteredLog("error", "Error updating toggle state:", toggleError);
           }
         }
       }
@@ -445,11 +449,11 @@ export default class KeylightdControlExtension extends Extension {
             this._keylightdIndicator._keylightdToggle._updateToggleState();
           }
         } catch (error) {
-          console.error("Error in delayed toggle update:", error);
+          filteredLog("error", "Error in delayed toggle update:", error);
         }
       }, 2000);
     } catch (error) {
-      console.error("Error during initial refresh:", error);
+      filteredLog("error", "Error during initial refresh:", error);
     }
   }
 
@@ -468,7 +472,7 @@ export default class KeylightdControlExtension extends Extension {
         }
       }
     } catch (error) {
-      console.error("Error syncing visibility state:", error);
+      filteredLog("error", "Error syncing visibility state:", error);
     }
   }
 }

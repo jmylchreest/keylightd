@@ -1,5 +1,6 @@
 'use strict';
 
+import {filteredLog} from "../utils.js";
 import {action, subpage} from "./navigation.js";
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
@@ -138,7 +139,7 @@ export const AboutPage = GObject.registerClass(
                     }
                 }
             } catch (error) {
-                console.error('Failed to load version info:', error);
+                filteredLog('error', 'Failed to load version info:', error);
             }
 
             // Fallback values

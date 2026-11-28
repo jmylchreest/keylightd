@@ -38,6 +38,14 @@ chmod 700 "$XDG_RUNTIME_DIR"
 cp -r "$ROOT/$UUID" "$XDG_DATA_HOME/gnome-shell/extensions/$UUID"
 glib-compile-schemas "$XDG_DATA_HOME/gnome-shell/extensions/$UUID/schemas"
 export GSETTINGS_SCHEMA_DIR="$XDG_DATA_HOME/gnome-shell/extensions/$UUID/schemas"
+GSETTINGS_BACKEND=memory gjs -m "$ROOT/tests/gnome-shell/test-logging.js" > "$HOME/diagnostics.log" 2>&1
+if [[ $(grep -Fc '[keylightd-control (' "$HOME/diagnostics.log") != 1 ]] ||
+    ! grep -Fq '[keylightd-control (ERROR)] refresh failed daemon unavailable' "$HOME/diagnostics.log"; then
+    cat "$HOME/diagnostics.log"
+    exit 1
+fi
+# Capture diagnostic errors for the journal check at the end of the test.
+gsettings set org.gnome.shell.extensions.keylightd-control enable-logging true
 gsettings set org.gnome.shell.extensions.keylightd-control api-url http://127.0.0.1:9999
 gsettings set org.gnome.shell.extensions.keylightd-control api-key container-test-key
 gsettings set org.gnome.shell.extensions.keylightd-control visible-lights "['key', 'fill']"
