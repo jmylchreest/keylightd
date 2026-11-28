@@ -1,6 +1,6 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import Soup from "gi://Soup?version=3.0";
+import Soup from "gi://Soup";
 
 export const profilePath = GLib.build_filenamev([GLib.get_user_config_dir(), "keylightd", "gnome-pairing.json"]);
 
@@ -29,13 +29,12 @@ export async function request(settings, path, method = "GET", body = null) {
   return JSON.parse(await runClient([...args, "request", method, path], body ? JSON.stringify(body) : ""));
 }
 
-export async function testManual(address, key) {
+export async function testManual(session, address, key) {
   if (!/^https?:\/\//i.test(address) || !key) throw new Error("Enter an HTTP or HTTPS address and an API key.");
   const message = Soup.Message.new("GET", address + "/api/v1/lights");
   if (!message) throw new Error("Invalid API address.");
   message.add_flags(Soup.MessageFlags.NO_REDIRECT);
   message.get_request_headers().append("X-API-Key", key);
-  const session = new Soup.Session({timeout: 10});
   await new Promise((resolve, reject) => session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null, (s, res) => {
     try {
       const bytes = s.send_and_read_finish(res);

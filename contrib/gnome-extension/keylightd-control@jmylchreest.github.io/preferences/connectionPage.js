@@ -1,7 +1,8 @@
 import Adw from "gi://Adw";
-import Gdk from "gi://Gdk?version=4.0";
+import Gdk from "gi://Gdk";
 import GLib from "gi://GLib";
 import Gtk from "gi://Gtk";
+import Soup from "gi://Soup";
 import {gettext as _} from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 import {profilePath, runClient, testManual} from "../transport.js";
 
@@ -20,6 +21,11 @@ function confirm(window, title, body, label) {
 }
 
 export function connectionPage(window, settings) {
+  let manualSession = new Soup.Session({timeout: 10});
+  window.connect("unrealize", () => {
+    manualSession?.abort();
+    manualSession = null;
+  });
   const page = new Adw.PreferencesPage({title:_("Connection"), icon_name:"network-wired-symbolic"});
   const methods = new Adw.PreferencesGroup();
   page.add(methods);
@@ -28,8 +34,13 @@ export function connectionPage(window, settings) {
   const toast = text => window.add_toast(new Adw.Toast({title:String(text), use_markup:false}));
   const guard = fn => async row => {
     row.sensitive = false;
-    try { await fn(); } catch (error) { toast(error.message); }
-    finally { row.sensitive = true; }
+    try {
+      await fn();
+    } catch (error) {
+      if (manualSession) toast(error.message);
+    } finally {
+      if (manualSession) row.sensitive = true;
+    }
   };
   const select = method => {
     settings.set_string("connection-method", method);
@@ -59,7 +70,8 @@ export function connectionPage(window, settings) {
     group.add(key);
     action(group, _("Test and use"), "", null, guard(async () => {
       const endpoint = url.text.trim().replace(/\/+$/, "");
-      await testManual(endpoint, key.text);
+      await testManual(manualSession, endpoint, key.text);
+      if (!manualSession) return;
       settings.set_string("api-url", endpoint);
       settings.set_string("api-key", key.text);
       select("manual");

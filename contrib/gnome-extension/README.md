@@ -127,20 +127,30 @@ The extension includes automatic version embedding via the build system:
 - Version info is extracted from git tags, branch names, or environment variables
 - The `build` target depends on `version-info`, ensuring it's always up-to-date
 
-## Import Best Practices
+## GNOME extension review guidelines
 
-The extension follows GNOME Shell best practices for imports:
+GNOME publishes the rules reviewers apply to extensions.gnome.org submissions
+and a companion guide with coding examples. See the
+[GNOME Shell Extensions Review Guidelines](https://gjs.guide/extensions/review-guidelines/review-guidelines.html)
+and [GNOME Extension Best Practices](https://gjs.guide/extensions/review-guidelines/best-practices.html).
 
-- **Shell Process Files** (extension.js, ui/, controllers/, managers/, utils.js):
-  - Should NOT import `Gtk` or `Gdk`
-  - Use `St` (Shell Toolkit) for UI components
-  - Use `Gio`, `GLib`, `GObject`, etc. as needed
+- **Use the libraries selected by the host.** In shipped extension code, import
+  `gi://Gdk` and `gi://Soup` without a `?version=` suffix. The Shell and its
+  preferences service select the library versions for their processes. Our
+  import check covers both paths. [Keylightd Control review 9](https://extensions.gnome.org/review/79155)
+- **Keep the two UI toolkits in their own processes.** Use `St` for Shell UI
+  and `Gtk`, `Gdk` and `Adw` for preferences. A shared module such as
+  `transport.js` must be safe to import from both entry points.
+- **Give each asynchronous resource an owner.** Keep the `Soup.Session` where
+  the extension can call `abort()` on disable, or the preferences window can
+  call it on teardown. This cancels pending requests and closes idle
+  connections. Completion handlers must also tolerate the window closing before
+  they run. Apply the same ownership rule to timers and signal handlers.
+  [Soup.Session.abort()](https://libsoup.gnome.org/libsoup-3.0/method.Session.abort.html)
 
-- **Preferences Files** (prefs.js, preferences/):
-  - CAN import `Gtk`, `Gdk`, and `Adw` for preferences UI
-  - Run in a separate GTK process, not the Shell
-
-Use `make test` or `cd tests && ./run-tests.sh` to verify all imports follow these rules.
+Run `make test` from this directory to check imports. When changing asynchronous
+code, start a request and close Preferences or disable the extension while it
+is pending. Reopen or re-enable it and check that the next request succeeds.
 
 ## Contributing
 - Please follow the structure and conventions in this repository. PRs are welcome!
@@ -284,14 +294,28 @@ contrib/gnome-extension/publish.sh dist/gnome-extension/keylightd-control@jmylch
 unset EGO_PASSWORD
 ```
 
-The script accepts the EGO upload terms, as the previous publishing action did.
-An upload submits a version to EGO; publication remains subject to GNOME's review
-process. Automatic uploads run only for stable releases. To test an upload from
-the current branch, manually run the **Build Release** workflow with
-`publish_extension=true` and `release=false`. This still requires the full GNOME
-test matrix and packaging to succeed, but does not create a stable release tag.
-Publishing errors retain the existing non-blocking release behavior, so inspect
-the **Publish to EGO** job to confirm the upload succeeded.
+#### Republish an extension-only fix
+
+After the workflow is merged into `main`, open **Actions → Publish GNOME
+extension → Run workflow**. Select the branch containing the fix and click
+**Run workflow**. To submit the current commit on `main`, run
+
+```sh
+gh workflow run publish-gnome-extension.yml --ref main
+```
+
+The workflow tests the selected commit on the GNOME Shell matrix, packages
+the extension, saves the ZIP as a workflow artifact and submits it for review
+using the same EGO credentials as a stable release. A failed upload fails the
+run. The About page records the existing keylightd release version from the
+nearest stable tag and the commit containing the fix. This path creates no
+Git tag or GitHub release. The **Build Release** workflow also offers an
+extension upload, but a manual snapshot run creates a GitHub prerelease.
+
+Keep the extension UUID. EGO assigns each upload a new submission number, so
+a correction to version 9 gets a new review under the same listing. There is
+no version field to bump by hand. The upload script accepts the EGO submission
+terms. [GNOME extension version metadata](https://gjs.guide/extensions/overview/anatomy.html#version)
 
 ### Testing in a Nested Wayland Session (Recommended)
 

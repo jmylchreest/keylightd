@@ -7,6 +7,7 @@ import GObject from "gi://GObject";
 
 // Global settings instance - set by the extension
 let _settingsInstance = null;
+let _session = null;
 let _erroring = true;
 
 // Signal emitter helper for keylightd-state-update
@@ -26,6 +27,10 @@ const KeylightdStateUpdateEmitter = GObject.registerClass(
  * @param {Gio.Settings} settings The extension settings instance
  */
 export function setSettings(settings) {
+  if (_settingsInstance !== settings) {
+    _session?.abort();
+    _session = null;
+  }
   _settingsInstance = settings;
 }
 
@@ -202,7 +207,7 @@ export async function fetchAPI(
   }
 
   let url = `${endpoint}/api/v1/${path}`;
-  let session = new Soup.Session();
+  const session = _session ??= new Soup.Session();
   let message = Soup.Message.new(method, url);
   message.add_flags(Soup.MessageFlags.NO_REDIRECT);
   message.get_request_headers().append("X-API-Key", apiKey);

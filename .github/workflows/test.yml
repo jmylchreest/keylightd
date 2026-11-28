@@ -16,6 +16,11 @@ on:
   # This ensures tests also run when directly triggered by workflow_dispatch
   workflow_dispatch:
   workflow_call:
+    inputs:
+      gnome_only:
+        description: Run only the GNOME extension checks
+        type: boolean
+        default: false
     secrets:
       CODECOV_TOKEN:
         required: false
@@ -88,6 +93,7 @@ jobs:
     if: needs.changes.outputs.gnome == 'true'
   test:
     name: Run tests with coverage
+    if: ${{ !inputs.gnome_only }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

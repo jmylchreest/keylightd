@@ -17,7 +17,9 @@ VERSION="development"
 COMMIT="unknown"
 
 # Try to get version from git tag or environment
-if [ -n "$GITHUB_REF" ] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
+if [ -n "${KEYLIGHTD_RELEASE_TAG:-}" ]; then
+    VERSION="$KEYLIGHTD_RELEASE_TAG"
+elif [ -n "$GITHUB_REF" ] && [[ "$GITHUB_REF" == refs/tags/* ]]; then
     # Extract version from git tag (remove 'refs/tags/' prefix and any 'v' prefix)
     VERSION="${GITHUB_REF#refs/tags/}"
     VERSION="${VERSION#v}"
