@@ -43,64 +43,26 @@ export function getErroring() {
   return _erroring;
 }
 
+const LOG_LEVELS = Object.freeze({debug: 0, info: 1, warn: 2, warning: 2, error: 3});
+
 /**
- * Centralized logging function
+ * Write diagnostics at or above the level selected in preferences.
  * @param {string} level - Log level (log, debug, info, warn, error)
  * @param {string} message - Message to log
  * @param {...any} args - Additional arguments to log
  */
 export function filteredLog(level, message, ...args) {
-  // Normalize level to lowercase
+  if (!_settingsInstance?.get_boolean("enable-logging")) {
+    return;
+  }
   level = level.toLowerCase();
-
-  // Define log level hierarchy
-  const LOG_LEVELS = Object.freeze({
-    debug: 0,
-    info: 1,
-    warn: 2,
-    warning: 2,
-    error: 3,
-  });
-
-  // Always log errors regardless of settings
-  if (level === "error") {
-    console.error(
-      `[keylightd-control (${level.toUpperCase()})] ${message}`,
-      ...args,
-    );
+  const minimum = _settingsInstance.get_string("log-level").toLowerCase();
+  if ((LOG_LEVELS[level] ?? LOG_LEVELS.info) < (LOG_LEVELS[minimum] ?? LOG_LEVELS.warning)) {
     return;
   }
-
-  // For other levels, check if logging is enabled and level is high enough
-  if (!_settingsInstance || !_settingsInstance.get_boolean("enable-logging")) {
-    return;
-  }
-
-  // Get configured log level
-  const configuredLevel = _settingsInstance
-    .get_string("log-level")
-    .toLowerCase();
-  const configuredLevelValue =
-    configuredLevel in LOG_LEVELS
-      ? LOG_LEVELS[configuredLevel]
-      : LOG_LEVELS["warning"];
-  const messageLevelValue =
-    level in LOG_LEVELS ? LOG_LEVELS[level] : LOG_LEVELS["info"];
-
-  // Only log if message level is at or above configured level
-  if (messageLevelValue >= configuredLevelValue) {
-    const prefix = `[keylightd-control (${level.toUpperCase()})]`;
-    const consoleMethod =
-      level === "debug" && typeof console.debug === "function"
-        ? "debug"
-        : level === "info" && typeof console.info === "function"
-          ? "info"
-          : (level === "warn" || level === "warning") &&
-              typeof console.warn === "function"
-            ? "warn"
-            : "log";
-    console[consoleMethod](`${prefix} ${message}`, ...args);
-  }
+  const method = level === "warning" ? "warn" : level;
+  const consoleMethod = Object.hasOwn(LOG_LEVELS, method) ? method : "log";
+  console[consoleMethod](`[keylightd-control (${level.toUpperCase()})] ${message}`, ...args);
 }
 
 /**
