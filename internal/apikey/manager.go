@@ -90,18 +90,10 @@ func (m *Manager) DeleteAPIKey(key string) error {
 
 	// Save the configuration to persist the deletion
 	if err := m.cfg.Save(); err != nil {
-		keyPrefix := key
-		if len(keyPrefix) > 4 {
-			keyPrefix = keyPrefix[:4]
-		}
-		m.log.Error("failed to save config after deleting API key", "key_prefix", keyPrefix, "error", err)
+		m.log.Error("failed to save config after deleting API key", "error", err)
 		return fmt.Errorf("API key deleted from memory but failed to save to disk: %w", err)
 	}
-	keyPrefix := key
-	if len(keyPrefix) > 4 {
-		keyPrefix = keyPrefix[:4]
-	}
-	m.log.Info("deleted API key and saved to config", "key_prefix", keyPrefix)
+	m.log.Info("deleted API key and saved to config")
 	return nil
 }
 

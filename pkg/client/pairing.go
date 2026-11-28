@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 )
 
 type PairedProfile struct {
+	Certificate string `json:"certificate,omitempty"`
 	URL         string `json:"url"`
 	Fingerprint string `json:"fingerprint"`
 	APIKey      string `json:"api_key"`
@@ -36,35 +40,78 @@ func NewPaired(logger *slog.Logger, profile PairedProfile) (*HTTPClient, error) 
 		return nil, errors.New("invalid paired HTTPS profile")
 	}
 	c := NewHTTP(logger, profile.URL, profile.APIKey)
-	// The out-of-band invitation authenticates the server public key, including
-	// when the private IP or the hostname chosen to reach it changes.
-	cfg := &tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true, //nolint:gosec // VerifyConnection authenticates the pinned identity.
-		VerifyConnection: func(state tls.ConnectionState) error {
-			if len(state.PeerCertificates) == 0 {
-				return errors.New("missing daemon certificate")
-			}
-			cert := state.PeerCertificates[0]
-			if pairing.Fingerprint(cert) != profile.Fingerprint {
-				return errors.New("daemon identity differs from the paired fingerprint")
-			}
-			now := time.Now()
-			if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
-				return errors.New("daemon certificate is outside its validity period")
-			}
-			return nil
-		}}
 	base, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
 		return nil, errors.New("cannot configure TLS pinning on the default HTTP transport")
 	}
 	tr := base.Clone()
-	tr.TLSClientConfig = cfg
+	if profile.Certificate != "" {
+		der, err := base64.StdEncoding.DecodeString(profile.Certificate)
+		if err != nil {
+			return nil, err
+		}
+		cert, err := x509.ParseCertificate(der)
+		if err != nil {
+			return nil, err
+		}
+		tr.TLSClientConfig, err = pairedTLS(cert, profile.Fingerprint)
+		if err != nil {
+			return nil, err
+		}
+		c.dialTLS = tr.TLSClientConfig
+	} else {
+		// Early profiles stored just the pin. Recover the public certificate
+		// before sending any credentials and retain normal TLS verification.
+		c.dialPinned = func(ctx context.Context, network, address string) (net.Conn, error) {
+			return connectWithSavedPin(ctx, network, address, profile.Fingerprint)
+		}
+		tr.DialTLSContext = c.dialPinned
+		tr.Proxy = nil
+	}
 	c.client.Transport = tr
 	c.client.CheckRedirect = func(*http.Request, []*http.Request) error {
 		return errors.New("paired daemon redirected the connection")
 	}
-	c.dialTLS = cfg
 	return c, nil
+}
+
+func pairedTLS(cert *x509.Certificate, pin string) (*tls.Config, error) {
+	if pairing.Fingerprint(cert) != pin {
+		return nil, errors.New("daemon identity differs from the paired fingerprint")
+	}
+	roots := x509.NewCertPool()
+	roots.AddCert(cert)
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12, RootCAs: roots, ServerName: pairing.ServerName,
+		VerifyConnection: func(state tls.ConnectionState) error {
+			if len(state.PeerCertificates) == 0 || pairing.Fingerprint(state.PeerCertificates[0]) != pin {
+				return errors.New("daemon identity differs from the paired fingerprint")
+			}
+			return nil
+		},
+	}, nil
+}
+
+func connectWithSavedPin(ctx context.Context, network, address, pin string) (net.Conn, error) {
+	dialer := tls.Dialer{NetDialer: &net.Dialer{Timeout: 10 * time.Second}, Config: &tls.Config{
+		MinVersion: tls.VersionTLS12, RootCAs: x509.NewCertPool(), ServerName: pairing.ServerName,
+	}}
+	// With an empty trust store the first handshake returns the presented
+	// chain in a verification error. No application data travels on this connection.
+	conn, err := dialer.DialContext(ctx, network, address)
+	if err == nil {
+		_ = conn.Close()
+		return nil, errors.New("unexpected trusted peer during certificate discovery")
+	}
+	var failure *tls.CertificateVerificationError
+	if !errors.As(err, &failure) || len(failure.UnverifiedCertificates) == 0 {
+		return nil, err
+	}
+	dialer.Config, err = pairedTLS(failure.UnverifiedCertificates[0], pin)
+	if err != nil {
+		return nil, err
+	}
+	return dialer.DialContext(ctx, network, address)
 }
 
 func Redeem(ctx context.Context, logger *slog.Logger, token string) (PairedProfile, error) {
@@ -73,7 +120,7 @@ func Redeem(ctx context.Context, logger *slog.Logger, token string) (PairedProfi
 	if err != nil {
 		return profile, err
 	}
-	profile = PairedProfile{URL: invite.URL, Fingerprint: invite.Fingerprint}
+	profile = PairedProfile{URL: invite.URL, Fingerprint: invite.Fingerprint, Certificate: invite.Certificate}
 	c, err := NewPaired(logger, profile)
 	if err != nil {
 		return PairedProfile{}, err

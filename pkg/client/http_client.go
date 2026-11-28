@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -15,11 +16,12 @@ import (
 
 // HTTPClient represents an HTTP connection to keylightd
 type HTTPClient struct {
-	dialTLS *tls.Config
-	logger  *slog.Logger
-	baseURL string
-	apiKey  string
-	client  *http.Client
+	dialPinned func(context.Context, string, string) (net.Conn, error)
+	dialTLS    *tls.Config
+	logger     *slog.Logger
+	baseURL    string
+	apiKey     string
+	client     *http.Client
 }
 
 // NewHTTP creates a new HTTP client

@@ -89,7 +89,7 @@ func newIdentity() (config.HTTPSIdentity, error) {
 		return config.HTTPSIdentity{}, err
 	}
 	now := time.Now()
-	tmpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "keylightd"}, NotBefore: now.Add(-time.Hour), NotAfter: now.AddDate(10, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	tmpl := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: "keylightd"}, DNSNames: []string{pairing.ServerName}, NotBefore: now.Add(-time.Hour), NotAfter: now.AddDate(10, 0, 0), KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, pub, key)
 	if err != nil {
 		return config.HTTPSIdentity{}, err
@@ -108,6 +108,21 @@ func parseIdentity(identity config.HTTPSIdentity) (*tls.Config, string, error) {
 	}
 	if cert.Leaf == nil {
 		cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	// Pre-release identities contained only a common name. Reissue the leaf
+	// with the same Ed25519 key so existing clients retain their pin.
+	if len(cert.Leaf.DNSNames) == 0 {
+		template := *cert.Leaf
+		template.DNSNames = []string{pairing.ServerName}
+		der, err := x509.CreateCertificate(rand.Reader, &template, &template, template.PublicKey, cert.PrivateKey)
+		if err != nil {
+			return nil, "", err
+		}
+		cert.Certificate[0] = der
+		cert.Leaf, err = x509.ParseCertificate(der)
 		if err != nil {
 			return nil, "", err
 		}
@@ -318,7 +333,8 @@ func (s *Server) controlHTTPS(action, endpoint string) (map[string]any, error) {
 		if _, err := rand.Read(secret[:]); err != nil {
 			return nil, err
 		}
-		i := pairing.Invitation{URL: endpoint, Fingerprint: n.fingerprint, Secret: base64.RawURLEncoding.EncodeToString(secret[:])}
+		leaf := n.listener.tlsConfig.Certificates[0].Certificate[0]
+		i := pairing.Invitation{Certificate: base64.StdEncoding.EncodeToString(leaf), URL: endpoint, Fingerprint: n.fingerprint, Secret: base64.RawURLEncoding.EncodeToString(secret[:])}
 		token, err := i.Encode()
 		if err != nil {
 			return nil, err

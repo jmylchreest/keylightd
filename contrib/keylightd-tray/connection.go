@@ -20,7 +20,7 @@ func (a *App) makeClient(s Settings) (client.ClientInterface, error) {
 			return nil, errors.New("API URL and key are required")
 		}
 		if s.Fingerprint != "" {
-			return client.NewPaired(a.logger, client.PairedProfile{URL: s.APIUrl, Fingerprint: s.Fingerprint, APIKey: s.APIKey})
+			return client.NewPaired(a.logger, client.PairedProfile{URL: s.APIUrl, Certificate: s.Certificate, Fingerprint: s.Fingerprint, APIKey: s.APIKey})
 		}
 		return client.NewHTTP(a.logger, s.APIUrl, s.APIKey), nil
 	case "socket":
@@ -54,6 +54,7 @@ func (a *App) applySettings(s Settings) error {
 		s.APIKey = ""
 		s.APIUrl = ""
 		s.Fingerprint = ""
+		s.Certificate = ""
 	}
 	c, err := a.makeClient(s)
 	if err != nil {
@@ -139,7 +140,7 @@ func (a *App) pairClient(token, socket string) error {
 		_, err = candidate.Watch(ctx)
 	}
 	if err == nil {
-		err = a.applySettings(Settings{ConnectionType: "http", SocketPath: socket, APIUrl: profile.URL, APIKey: profile.APIKey, Fingerprint: profile.Fingerprint})
+		err = a.applySettings(Settings{ConnectionType: "http", SocketPath: socket, APIUrl: profile.URL, APIKey: profile.APIKey, Fingerprint: profile.Fingerprint, Certificate: profile.Certificate})
 	}
 	if err != nil {
 		// Avoid leaving a usable credential for a profile the tray could not save.

@@ -156,6 +156,10 @@ func (c *HTTPClient) Watch(ctx context.Context) (<-chan Event, error) {
 
 	dialer := *websocket.DefaultDialer
 	dialer.TLSClientConfig = c.dialTLS
+	dialer.NetDialTLSContext = c.dialPinned
+	if c.dialPinned != nil {
+		dialer.Proxy = nil
+	}
 	conn, resp, err := dialer.DialContext(ctx, wsURL, header) //nolint:bodyclose // closed below
 	if resp != nil {
 		_ = resp.Body.Close()

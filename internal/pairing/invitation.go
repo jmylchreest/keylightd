@@ -11,7 +11,11 @@ import (
 	"strings"
 )
 
+// ServerName is scoped to the private trust pool for one paired identity.
+const ServerName = "keylightd.invalid"
+
 type Invitation struct {
+	Certificate string `json:"certificate,omitempty"`
 	URL         string `json:"url"`
 	Fingerprint string `json:"fingerprint"`
 	Secret      string `json:"secret"`

@@ -107,5 +107,5 @@ func TestHTTPSPairingLifecycle(t *testing.T) {
 	op("https.delete-identity")
 	require.NotEqual(t, pin, op("https.enable")["fingerprint"])
 	_, err = remote.GetLights()
-	require.ErrorContains(t, err, "fingerprint")
+	require.ErrorContains(t, err, "certificate")
 }

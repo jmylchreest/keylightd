@@ -104,6 +104,7 @@ func (a *App) Quit() {
 
 // Settings represents the connection settings
 type Settings struct {
+	Certificate    string `json:"certificate,omitempty"`
 	Fingerprint    string `json:"fingerprint,omitempty"`
 	ConnectionType string `json:"connectionType"`
 	SocketPath     string `json:"socketPath"`
