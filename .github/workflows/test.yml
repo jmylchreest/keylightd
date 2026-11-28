@@ -119,7 +119,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           # Test all packages except keylightd-tray which requires frontend to be built
-          go test -race -coverprofile=coverage.txt -covermode=atomic \
+          go test -race -coverpkg=./cmd/...,./pkg/...,./internal/... -coverprofile=coverage.txt -covermode=atomic \
             ./cmd/... \
             ./pkg/... \
             ./internal/...

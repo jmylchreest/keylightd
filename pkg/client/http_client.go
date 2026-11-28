@@ -3,10 +3,12 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,10 +16,12 @@ import (
 
 // HTTPClient represents an HTTP connection to keylightd
 type HTTPClient struct {
-	logger  *slog.Logger
-	baseURL string
-	apiKey  string
-	client  *http.Client
+	dialPinned func(context.Context, string, string) (net.Conn, error)
+	dialTLS    *tls.Config
+	logger     *slog.Logger
+	baseURL    string
+	apiKey     string
+	client     *http.Client
 }
 
 // NewHTTP creates a new HTTP client
@@ -129,10 +133,14 @@ func (c *HTTPClient) SetLightState(id string, property string, value any) error 
 
 // CreateGroup creates a new group
 func (c *HTTPClient) CreateGroup(name string) error {
-	body := map[string]any{
-		"name": name,
-	}
-	return c.request("POST", "/api/v1/groups", body, nil)
+	return c.request("POST", "/api/v1/groups", map[string]string{"name": name}, nil)
+}
+
+// CreateGroupDetails returns the assigned ID with the new group.
+func (c *HTTPClient) CreateGroupDetails(name string) (map[string]any, error) {
+	var group map[string]any
+	err := c.request("POST", "/api/v1/groups", map[string]string{"name": name}, &group)
+	return group, err
 }
 
 // GetGroup returns a specific group

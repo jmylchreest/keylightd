@@ -223,6 +223,9 @@ export const KeylightdControlToggle = GObject.registerClass(
      * Connect to settings change signals
      */
     _connectSettings() {
+      for (const key of ["connection-method", "socket-path"]) {
+        this._settingsSignalIds.push(this._settings.connect("changed::" + key, () => this._debouncedLoadControls()));
+      }
       this._settingsSignalIds.push(
         this._settings.connect("changed::api-url", () => {
           this._debouncedLoadControls();

@@ -85,7 +85,7 @@ func (c *Client) request(req any, resp any) error {
 		return fmt.Errorf("failed to set connection deadline: %w", err)
 	}
 
-	c.logger.Debug("Encoding request", "request", req)
+	c.logger.Debug("Encoding socket request")
 	// Encode request
 	if err := json.NewEncoder(conn).Encode(req); err != nil {
 		c.logger.Error("Failed to encode request", "error", err)
@@ -99,7 +99,7 @@ func (c *Client) request(req any, resp any) error {
 			c.logger.Error("Failed to decode response", "error", err)
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
-		c.logger.Debug("Received response", "response", resp)
+		c.logger.Debug("Received response")
 
 		// Check for error in response.
 		// resp may be *map[string]any (pointer) or map[string]any (value);
@@ -126,7 +126,7 @@ func (c *Client) request(req any, resp any) error {
 			c.logger.Error("Failed to decode response", "error", err)
 			return fmt.Errorf("failed to decode response: %w", err)
 		}
-		c.logger.Debug("Received response (nil target)", "response", tempResp)
+		c.logger.Debug("Received response (nil target)")
 
 		// Check for error in response
 		if errMsg, ok := tempResp["error"].(string); ok {
@@ -226,27 +226,21 @@ func (c *Client) SetLightState(id string, property string, value any) error {
 
 // CreateGroup creates a new group of lights
 func (c *Client) CreateGroup(name string) error {
+	_, err := c.CreateGroupDetails(name)
+	return err
+}
+
+// CreateGroupDetails returns the assigned ID with the new group.
+func (c *Client) CreateGroupDetails(name string) (map[string]any, error) {
 	var resp map[string]any
-	if err := c.request(map[string]any{
-		"action": "create_group",
-		"data":   map[string]any{"name": name},
-	}, &resp); err != nil {
-		return err
+	err := c.request(map[string]any{"action": "create_group", "data": map[string]string{"name": name}}, &resp)
+	if err != nil {
+		return nil, err
 	}
-
-	// If the response is wrapped in a "group" field, extract it
 	if group, ok := resp["group"].(map[string]any); ok {
-		resp = group
+		return group, nil
 	}
-
-	// Check for error in response
-	if err, ok := resp["error"].(string); ok {
-		return fmt.Errorf("server error: %s", err)
-	}
-
-	// Log success
-	c.logger.Debug("Group created successfully", "name", name, "response", resp)
-	return nil
+	return resp, nil
 }
 
 // GetGroup returns the state of all lights in a group

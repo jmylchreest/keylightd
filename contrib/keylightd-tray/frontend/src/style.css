@@ -750,3 +750,50 @@ body {
 .btn-primary:hover {
     opacity: 0.8;
 }
+
+#secure-panel [hidden], #secure-dialog [hidden] { display: none; }
+.dialog-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+#secure-description { color: var(--text-secondary); overflow-wrap: anywhere; }
+#secure-address,#secure-code { display: block; width: 100%; margin: 5px 0; padding: 7px; border-radius: 6px; color: var(--text-primary); background: var(--input-bg); border: 1px solid var(--input-border); }
+#fingerprint { font-size: 11px; margin: 6px 0; }
+#secure-notice { margin: 6px 0; }
+#secure-dialog { margin: auto; padding: 16px; width: min(360px, calc(100% - 24px)); color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--bg-tertiary); border-radius: 12px; }
+#secure-dialog::backdrop { background: #11111ba8; }
+#secure-title { font-size: 17px; margin-bottom: 6px; }
+#secure-error { color: var(--error); overflow-wrap: anywhere; }
+.dialog-actions { justify-content: flex-end; margin-top: 12px; }
+
+#secure-address { color-scheme: dark; background-color: var(--surface); }
+
+.settings-panel { position: fixed; }
+.settings-panel [hidden] { display: none !important; }
+.settings-header { min-height: 44px; padding: 4px 10px; }
+.settings-header .icon-button { color: var(--text-primary); font-size: 23px; line-height: 1; }
+.settings-content { padding: 18px 16px; }
+.prefs-body { width: 100%; }
+.pref-page h2 { font-size: 21px; margin: 0 0 15px; }
+.pref-page h2:focus { outline: 0; }
+.pref-page h3 { font-size: 14px; margin: 18px 0 8px; }
+.pref-row {
+  display: flex; align-items: center; width: 100%; padding: 10px 4px; gap: 12px;
+  border: 0; border-top: 1px solid var(--bg-tertiary); min-height: 50px;
+  font: inherit; text-align: left; background: transparent; color: var(--text-primary); cursor: pointer;
+}
+.pref-row:last-child { border-bottom: 1px solid var(--bg-tertiary); }
+.pref-row:hover { background: var(--bg-secondary); }
+.pref-copy { flex: 1; min-width: 0; }
+.pref-copy strong, .pref-copy small { display: block; overflow-wrap: anywhere; }
+.pref-copy small, .pref-tail, #secure-notice { color: var(--text-secondary); }
+.pref-symbol { color: var(--accent); text-align: center; width: 20px; font-size: 18px; }
+.active-method .pref-tail { font-size: 12px; color: var(--success); }
+.pref-field { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; }
+.pref-field input { color: var(--text-primary); background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; padding: 8px; width: 100%; }
+.pref-field input[type=number] { max-width: 8em; }
+.pref-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin: 12px 0; }
+.pref-page .btn { width: 100%; min-height: 36px; }
+.pref-row:focus-visible, .pref-page .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pref-row input[role=switch] { appearance: none; width: 32px; height: 18px; border-radius: 18px; background: var(--bg-tertiary); padding: 3px; cursor: pointer; }
+.pref-row input[role=switch]::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 100%; background: var(--text-primary); }
+.pref-row input[role=switch]:checked { background: var(--accent); }
+.pref-row input[role=switch]:checked::before { transform: translateX(14px); background: var(--surface); }
+#secure-notice, #fingerprint { overflow-wrap: anywhere; }

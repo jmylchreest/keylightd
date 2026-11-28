@@ -1,7 +1,9 @@
 package mw
 
 import (
+	"bufio"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -14,6 +16,11 @@ type loggingResponseWriter struct {
 
 func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
 	return &loggingResponseWriter{w, http.StatusOK}
+}
+
+func (lrw *loggingResponseWriter) Unwrap() http.ResponseWriter { return lrw.ResponseWriter }
+func (lrw *loggingResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return http.NewResponseController(lrw.ResponseWriter).Hijack()
 }
 
 func (lrw *loggingResponseWriter) WriteHeader(code int) {

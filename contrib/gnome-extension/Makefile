@@ -35,6 +35,7 @@ pack: mkdist build
 		--extra-source=controllers/ \
 		--extra-source=managers/ \
 		--extra-source=ui/ \
+		--extra-source=transport.js \
 		--extra-source=utils.js \
 		--extra-source=icons.js \
 		--extra-source=icon-names.js \

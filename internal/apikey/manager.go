@@ -90,18 +90,10 @@ func (m *Manager) DeleteAPIKey(key string) error {
 
 	// Save the configuration to persist the deletion
 	if err := m.cfg.Save(); err != nil {
-		keyPrefix := key
-		if len(keyPrefix) > 4 {
-			keyPrefix = keyPrefix[:4]
-		}
-		m.log.Error("failed to save config after deleting API key", "key_prefix", keyPrefix, "error", err)
+		m.log.Error("failed to save config after deleting API key", "error", err)
 		return fmt.Errorf("API key deleted from memory but failed to save to disk: %w", err)
 	}
-	keyPrefix := key
-	if len(keyPrefix) > 4 {
-		keyPrefix = keyPrefix[:4]
-	}
-	m.log.Info("deleted API key and saved to config", "key_prefix", keyPrefix)
+	m.log.Info("deleted API key and saved to config")
 	return nil
 }
 
@@ -126,8 +118,11 @@ func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 	// Persisting on every validation is too expensive for high-traffic APIs.
 	// The timestamp will be persisted next time config is saved for other reasons
 	// (e.g., key creation, deletion, group changes).
-	if err := m.cfg.UpdateAPIKeyLastUsed(key, time.Now().UTC()); err != nil {
-		m.log.Error("failed to update last used timestamp for API key in memory", "key", key, "error", err)
+	usedAt := time.Now().UTC()
+	if err := m.cfg.UpdateAPIKeyLastUsed(key, usedAt); err != nil {
+		m.log.Error("failed to update last used timestamp for API key in memory")
+	} else {
+		apiKey.LastUsedAt = usedAt
 	}
 
 	return apiKey, nil

@@ -2,8 +2,11 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -30,6 +33,43 @@ func NewRootCommand(logger *slog.Logger, version, commit, buildDate string) *cob
 	cmd.AddCommand(NewLightCommand(logger))
 	cmd.AddCommand(NewGroupCommand(logger))
 	cmd.AddCommand(NewAPIKeyCommand(logger))
+	cmd.PersistentFlags().String("profile", "", "Use a paired HTTPS profile")
+	httpsCmd := newHTTPSCommand(logger)
+	cmd.AddCommand(httpsCmd, newRequestCommand())
+	cmd.PersistentPreRunE = func(command *cobra.Command, _ []string) error {
+		if command.Parent() == httpsCmd {
+			return nil
+		}
+		socket, _ := command.Flags().GetString("socket")
+		path, _ := command.Flags().GetString("profile")
+		if path != "" && socket != "" {
+			return errors.New("choose one of --profile and --socket")
+		}
+		var c client.ClientInterface
+		if path != "" {
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			var profile client.PairedProfile
+			if err := json.Unmarshal(raw, &profile); err != nil {
+				return err
+			}
+			if profile.APIKey == "" {
+				return errors.New("missing paired API key")
+			}
+			c, err = client.NewPaired(logger, profile)
+			if err != nil {
+				return err
+			}
+		} else if socket != "" {
+			c = client.New(logger, socket)
+		}
+		if c != nil {
+			command.SetContext(context.WithValue(command.Context(), ClientContextKey, c))
+		}
+		return nil
+	}
 
 	if logger != nil {
 		parent := cmd.Context()

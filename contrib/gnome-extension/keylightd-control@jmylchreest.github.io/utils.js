@@ -1,6 +1,7 @@
 "use strict";
 
 import GLib from "gi://GLib";
+import { request } from "./transport.js";
 import Soup from "gi://Soup";
 import GObject from "gi://GObject";
 
@@ -170,6 +171,18 @@ export async function fetchAPI(
     throw new Error("Settings have not been initialized");
   }
 
+  if (_settingsInstance.get_string("connection-method") !== "manual") {
+    try {
+      const result = await request(_settingsInstance, path, method, body);
+      if (method === "GET") _erroring = false;
+      stateUpdateEmitter?.emit("keylightd-state-update");
+      return result;
+    } catch (error) {
+      if (method === "GET") _erroring = true;
+      throw error;
+    }
+  }
+
   const endpoint = _settingsInstance.get_string("api-url");
   const apiKey = _settingsInstance.get_string("api-key");
 
@@ -191,6 +204,7 @@ export async function fetchAPI(
   let url = `${endpoint}/api/v1/${path}`;
   let session = new Soup.Session();
   let message = Soup.Message.new(method, url);
+  message.add_flags(Soup.MessageFlags.NO_REDIRECT);
   message.get_request_headers().append("X-API-Key", apiKey);
 
   // Log request details

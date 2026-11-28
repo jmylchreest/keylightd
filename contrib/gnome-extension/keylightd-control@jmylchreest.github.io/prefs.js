@@ -1,5 +1,5 @@
 "use strict";
-import * as GeneralPrefs from "./preferences/generalPage.js";
+import { connectionPage } from "./preferences/connectionPage.js";
 import * as GroupsPrefs from "./preferences/groupsPage.js";
 import * as LightsPrefs from "./preferences/lightsPage.js";
 import * as UIPrefs from "./preferences/uiPage.js";
@@ -22,10 +22,7 @@ export default class KeylightdControlPreferences extends ExtensionPreferences {
     // Set the global settings instance
     setSettings(window._settings);
 
-    const generalPage = new GeneralPrefs.GeneralPage(
-      window._settings,
-      SettingsKey,
-    );
+    const generalPage = connectionPage(window, window._settings);
     const groupsPage = new GroupsPrefs.GroupsPage(
       window._settings,
       SettingsKey,
@@ -44,8 +41,8 @@ export default class KeylightdControlPreferences extends ExtensionPreferences {
     window.set_search_enabled(true);
 
     window.add(generalPage);
-    window.add(groupsPage);
     window.add(lightsPage);
+    window.add(groupsPage);
     window.add(uiPage);
     window.add(aboutPage);
 
