@@ -126,8 +126,11 @@ func (m *Manager) ValidateAPIKey(key string) (*config.APIKey, error) {
 	// Persisting on every validation is too expensive for high-traffic APIs.
 	// The timestamp will be persisted next time config is saved for other reasons
 	// (e.g., key creation, deletion, group changes).
-	if err := m.cfg.UpdateAPIKeyLastUsed(key, time.Now().UTC()); err != nil {
-		m.log.Error("failed to update last used timestamp for API key in memory", "key", key, "error", err)
+	usedAt := time.Now().UTC()
+	if err := m.cfg.UpdateAPIKeyLastUsed(key, usedAt); err != nil {
+		m.log.Error("failed to update last used timestamp for API key in memory")
+	} else {
+		apiKey.LastUsedAt = usedAt
 	}
 
 	return apiKey, nil

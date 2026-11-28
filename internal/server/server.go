@@ -56,6 +56,7 @@ type Server struct {
 	apikeyManager *apikey.Manager
 	rootCtx       context.Context
 	rootCancel    context.CancelFunc
+	network       remoteAPI
 	httpServer    *http.Server
 	eventBus      *events.Bus
 	versionInfo   VersionInfo
@@ -142,12 +143,8 @@ func (s *Server) Start() error {
 	}
 	s.logger.Info("Listening on Unix socket", "path", s.socketPath)
 
-	s.wg.Add(1)
-	go s.acceptConnections()
-
 	// Start HTTP server if API is configured
-	if s.cfg.Config.API.ListenAddress != "" {
-		s.logger.Info("Starting HTTP API server", "address", s.cfg.Config.API.ListenAddress)
+	{
 
 		// Create handler implementations
 		lightHandler := &handlers.LightHandler{Lights: s.lights}
@@ -200,6 +197,8 @@ func (s *Server) Start() error {
 		})
 		router.With(rawAuth).Get("/api/v1/ws", ws.Handler(wsHub, s.logger))
 
+		router.Post("/api/v1/pair/exchange", s.exchangeInvitation)
+		router.With(rawAuth).Delete("/api/v1/pair/credential", s.revokeCredential)
 		s.httpServer = &http.Server{
 			Addr:         s.cfg.Config.API.ListenAddress,
 			Handler:      router,
@@ -208,19 +207,13 @@ func (s *Server) Start() error {
 			IdleTimeout:  60 * time.Second,
 		}
 
-		s.wg.Go(func() {
-			defer func() {
-				if r := recover(); r != nil {
-					s.logger.Error("panic in HTTP server goroutine", "recover", r)
-				}
-			}()
-			if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				s.logger.Error("HTTP server failed", "error", err)
-			}
-			s.logger.Info("HTTP server stopped")
-		})
+		if err := s.startNetwork(); err != nil {
+			s.Stop()
+			return err
+		}
 	}
-
+	s.wg.Add(1)
+	go s.acceptConnections()
 	return nil
 }
 
@@ -235,6 +228,13 @@ func (s *Server) Stop() {
 		_ = s.listener.Close() // Close the socket listener to stop accepting new connections
 	}
 
+	s.network.mu.Lock()
+	s.network.stopped = true
+	if s.network.listener != nil {
+		_ = s.network.listener.Close()
+		s.network.listener.disconnect()
+	}
+	s.network.mu.Unlock()
 	if s.httpServer != nil {
 		s.logger.Info("Shutting down HTTP server")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -299,6 +299,12 @@ type socketActionHandler func(s *Server, r socketRequest) socketActionResult
 
 // socketActions maps action names to their handler functions.
 var socketActions = map[string]socketActionHandler{
+	"https.status":          (*Server).handleHTTPS,
+	"https.enable":          (*Server).handleHTTPS,
+	"https.disable":         (*Server).handleHTTPS,
+	"https.delete-identity": (*Server).handleHTTPS,
+	"pair.create":           (*Server).handleHTTPS,
+
 	"ping":                       (*Server).handlePing,
 	"list_lights":                (*Server).handleListLights,
 	"get_light":                  (*Server).handleGetLight,
@@ -372,7 +378,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		var req map[string]any
 		if err := json.Unmarshal(line, &req); err != nil {
-			s.logger.Error("Failed to unmarshal request", "error", err, "request", string(line))
+			s.logger.Error("Failed to unmarshal request", "error", err)
 			s.sendError(conn, "", fmt.Sprintf("invalid JSON request: %s", err))
 			continue
 		}
@@ -381,7 +387,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 		id, _ := req["id"].(string)             // Optional request ID for client tracking
 		data, _ := req["data"].(map[string]any) // Data payload
 
-		s.logger.Debug("Received request", "action", action, "id", id, "data", data)
+		s.logger.Debug("Received request", "action", action, "id", id)
 
 		r := socketRequest{conn: conn, ctx: ctx, id: id, data: data, action: action}
 

@@ -219,3 +219,29 @@ func TestLightProbeConfigRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, cfg.Config.Lights, reloaded.Config.Lights)
 }
+
+func TestDaemonStateDirectoryKeepsLegacyConfigAndRestoresIdentity(t *testing.T) {
+	base := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", base)
+	t.Setenv("STATE_DIRECTORY", t.TempDir())
+	path := GetDaemonConfigPath()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0700))
+	legacy := []byte("state:\n  api_keys:\n    - key: original\n      name: existing\nconfig:\n  api:\n    listen_address: ''\n")
+	require.NoError(t, os.WriteFile(path, legacy, 0600))
+	cfg, err := Load(DaemonConfigFilename, "")
+	require.NoError(t, err)
+	require.Empty(t, cfg.Config.API.ListenAddress)
+	require.Len(t, cfg.GetAPIKeys(), 1)
+	identity := HTTPSIdentity{Enabled: true, Certificate: "cert", PrivateKey: "private"}
+	require.NoError(t, cfg.SetHTTPSIdentity(identity))
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, legacy, after)
+	cfg, err = Load(DaemonConfigFilename, "")
+	require.NoError(t, err)
+	require.Equal(t, identity, cfg.HTTPSIdentity())
+	require.Len(t, cfg.GetAPIKeys(), 1)
+	fi, err := os.Stat(cfg.statePath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0600), fi.Mode().Perm())
+}

@@ -89,6 +89,24 @@ The app can connect to keylightd via:
 
 Configure in Settings > Connection.
 
+### Paired HTTPS
+
+On the daemon host, open **Preferences → Connection → Paired HTTPS → Enable and use HTTPS**. The daemon generates an identity and switches its API port to HTTPS. Existing plain HTTP clients will disconnect. The tray saves the new profile after an authenticated light read and a secure WebSocket handshake succeed.
+
+To connect another tray, choose a reachable URL under **Network address**, then select **Create invitation**. Transfer the invitation privately and paste it into **Use an invitation** on the other computer. The invitation expires after five minutes and can be redeemed once. Each client receives its own API key and verifies the daemon's pinned public key.
+
+**Disable HTTPS** restores the previous listener mode and keeps the identity. **Forget identity…** is available while HTTPS is disabled and requires clients to pair again after reactivation.
+
+The CLI can issue and redeem the same invitations. On the daemon host, run:
+
+```bash
+keylightctl https enable
+keylightctl https status
+keylightctl https invite
+```
+
+On the client, pass the invitation on standard input to `keylightctl https pair --profile ./studio.json`. Select that profile with `keylightctl --profile ./studio.json light list`. The profile contains the client's API key and is saved with owner-only permissions.
+
 ## Custom Theming
 
 ### CSS Location
@@ -154,14 +172,9 @@ The app watches for changes to the CSS file and automatically reloads styles - n
 
 ## Settings
 
-Settings are stored in the browser's localStorage:
+**Connection** shows the active method. **This computer** uses the Unix socket. **Manual address** accepts an API address and key. Both forms test the proposed connection before saving it. The tray stores the active connection in its user-only configuration file.
 
-- **Connection Type** - Unix Socket or HTTP API
-- **Socket Path** - Path to keylightd socket
-- **API URL** - HTTP API endpoint
-- **API Key** - Authentication key for HTTP API
-- **Refresh Interval** - Polling interval (1000-10000ms, default 2500ms)
-- **Visibility** - Show/hide specific lights and groups
+**Lights** and **Groups** control which entries appear in the tray. **Display** sets the refresh interval in seconds (1–10, default 2.5). These display preferences are stored locally for each tray. Group membership is saved on the daemon and shared by its clients.
 
 ## Troubleshooting
 

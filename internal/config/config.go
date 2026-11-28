@@ -78,7 +78,14 @@ func GenerateKey(length int) (string, error) {
 // Using path utility functions from utils.go
 
 // State holds persistent data like API keys and groups
+type HTTPSIdentity struct {
+	Enabled     bool   `yaml:"enabled"`
+	Certificate string `yaml:"certificate"`
+	PrivateKey  string `yaml:"private_key"`
+}
+
 type State struct {
+	HTTPS   HTTPSIdentity  `yaml:"https,omitempty"`
 	APIKeys []APIKey       `yaml:"api_keys"`
 	Groups  map[string]any `yaml:"groups"`
 }
@@ -98,7 +105,7 @@ type ConfigBlock struct {
 //   - saveMutex protects BOTH in-memory mutation of State (APIKeys / Groups) and on-disk persistence in Save().
 //   - All mutator methods (AddAPIKey, DeleteAPIKey, SetAPIKeyDisabledStatus, UpdateAPIKeyLastUsed, SetAPIKeys, Save, etc.) acquire this mutex.
 //   - Read helpers that expose internal slices/maps (GetAPIKeys, FindAPIKey) also lock to avoid races; GetAPIKeys returns a copy,
-//     while FindAPIKey returns a pointer into the slice (treat as read-only outside config).
+//     and FindAPIKey returns a snapshot.
 //   - Callers MUST NOT modify returned *APIKey directly; all changes go through config methods to ensure locking & persistence.
 //   - If future performance profiling shows contention, consider splitting saveMutex into (stateMu, persistMu) but only after evidence.
 //   - Consider renaming saveMutex -> mu for semantic clarity in a future refactor.
@@ -108,6 +115,7 @@ type Config struct {
 	State  State       `yaml:"state"`
 	Config ConfigBlock `yaml:"config"`
 
+	statePath string
 	v         *viper.Viper
 	saveMutex sync.RWMutex `mapstructure:"-" yaml:"-"`
 }
@@ -209,6 +217,21 @@ func Load(configName, configFile string) (*Config, error) {
 		}
 	}
 
+	// The packaged service reads its configuration from /etc and can write
+	// only to systemd's StateDirectory. Seed the first save from legacy state.
+	if dir := os.Getenv("STATE_DIRECTORY"); configName == DaemonConfigFilename && configFile == "" && dir != "" {
+		cfg.statePath = filepath.Join(strings.Split(dir, ":")[0], "state.yaml")
+		raw, err := os.ReadFile(cfg.statePath)
+		if err == nil {
+			var saved State
+			if err := yaml.Unmarshal(raw, &saved); err != nil {
+				return nil, fmt.Errorf("read daemon state: %w", err)
+			}
+			cfg.State = saved
+		} else if !os.IsNotExist(err) {
+			return nil, err
+		}
+	}
 	// Enforce critical defaults after unmarshal
 	if cfg.Config.Server.UnixSocket == "" {
 		cfg.Config.Server.UnixSocket = GetRuntimeSocketPath()
@@ -223,9 +246,6 @@ func Load(configName, configFile string) (*Config, error) {
 	}
 	if cfg.Config.Discovery.CleanupTimeout == 0 {
 		cfg.Config.Discovery.CleanupTimeout = int(DefaultStateTimeout.Seconds())
-	}
-	if cfg.Config.API.ListenAddress == "" {
-		cfg.Config.API.ListenAddress = DefaultAPIListenAddress
 	}
 	// Use default values if logging configuration is invalid
 	if cfg.Config.Logging.Level != LogLevelDebug && cfg.Config.Logging.Level != LogLevelInfo &&
@@ -244,13 +264,40 @@ func (c *Config) Save() error {
 	c.saveMutex.Lock()
 	defer c.saveMutex.Unlock()
 
+	return c.saveLocked()
+}
+
+func (c *Config) HTTPSIdentity() HTTPSIdentity {
+	c.saveMutex.RLock()
+	defer c.saveMutex.RUnlock()
+	return c.State.HTTPS
+}
+
+func (c *Config) SetHTTPSIdentity(identity HTTPSIdentity) error {
+	c.saveMutex.Lock()
+	defer c.saveMutex.Unlock()
+	old := c.State.HTTPS
+	c.State.HTTPS = identity
+	if err := c.saveLocked(); err != nil {
+		c.State.HTTPS = old
+		return err
+	}
+	return nil
+}
+
+func (c *Config) saveLocked() error {
 	logger := slog.Default()
-	logger.Debug("Saving configuration", "path", c.v.ConfigFileUsed())
+	if c.v == nil {
+		return errors.New("no config file path set for saving")
+	}
 
 	settings := map[string]any{}
 
 	// Only write state if api_keys or groups are non-empty
 	stateMap := map[string]any{}
+	if c.State.HTTPS != (HTTPSIdentity{}) {
+		stateMap["https"] = c.State.HTTPS
+	}
 	if len(c.State.APIKeys) > 0 {
 		stateMap["api_keys"] = c.State.APIKeys
 	}
@@ -282,11 +329,17 @@ func (c *Config) Save() error {
 		settings["config"] = configMap
 	}
 
+	if c.statePath != "" {
+		settings = stateMap
+	}
 	data, err := yaml.Marshal(settings)
 	if err != nil {
 		return fmt.Errorf("error marshaling config to YAML: %w", err)
 	}
-	configPath := c.v.ConfigFileUsed()
+	configPath := c.statePath
+	if configPath == "" {
+		configPath = c.v.ConfigFileUsed()
+	}
 	if configPath == "" {
 		return errors.New("no config file path set for saving")
 	}
@@ -414,13 +467,13 @@ func (c *Config) DeleteAPIKey(keyString string) bool {
 }
 
 // FindAPIKey retrieves an API key by its key string.
-// NOTE: Returns a pointer to the internal slice element; do not store or modify outside config methods.
+// Returns a snapshot so concurrent authentication and persistence can proceed independently.
 func (c *Config) FindAPIKey(keyString string) (*APIKey, bool) {
 	c.saveMutex.RLock()
 	defer c.saveMutex.RUnlock()
-	for i, k := range c.State.APIKeys {
+	for _, k := range c.State.APIKeys {
 		if k.Key == keyString {
-			return &c.State.APIKeys[i], true
+			return &k, true
 		}
 	}
 	return nil, false

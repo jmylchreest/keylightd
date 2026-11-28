@@ -154,7 +154,9 @@ func (c *HTTPClient) Watch(ctx context.Context) (<-chan Event, error) {
 		header.Set("X-API-Key", c.apiKey)
 	}
 
-	conn, resp, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header) //nolint:bodyclose // closed below
+	dialer := *websocket.DefaultDialer
+	dialer.TLSClientConfig = c.dialTLS
+	conn, resp, err := dialer.DialContext(ctx, wsURL, header) //nolint:bodyclose // closed below
 	if resp != nil {
 		_ = resp.Body.Close()
 	}

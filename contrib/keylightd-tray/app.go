@@ -24,6 +24,9 @@ import (
 
 // App struct
 type App struct {
+	profileMu     sync.Mutex
+	connectionMu  sync.RWMutex
+	settings      Settings
 	ctx           context.Context
 	version       string
 	commit        string
@@ -101,6 +104,7 @@ func (a *App) Quit() {
 
 // Settings represents the connection settings
 type Settings struct {
+	Fingerprint    string `json:"fingerprint,omitempty"`
 	ConnectionType string `json:"connectionType"`
 	SocketPath     string `json:"socketPath"`
 	APIUrl         string `json:"apiUrl"`
@@ -159,7 +163,9 @@ func (a *App) startup(ctx context.Context) {
 	socket := config.GetRuntimeSocketPath()
 
 	// Create client
+	a.settings = Settings{ConnectionType: "socket", SocketPath: socket}
 	a.client = client.New(a.logger, socket)
+	a.restoreConnection()
 
 	a.startWatch(ctx)
 
@@ -225,7 +231,7 @@ func (a *App) startWatch(ctx context.Context) {
 	if a.watchCancel != nil {
 		a.watchCancel()
 	}
-	w, ok := a.client.(client.Watcher)
+	w, ok := a.currentClient().(client.Watcher)
 	if !ok {
 		a.watchCancel = nil
 		a.watchMu.Unlock()
@@ -289,40 +295,46 @@ func (a *App) WatchAlive() bool {
 
 // SaveSettings saves the connection settings and reconnects the client
 func (a *App) SaveSettings(settings Settings) error {
-	if settings.ConnectionType == "http" {
-		// Validate HTTP settings
-		if settings.APIUrl == "" {
-			return errors.New("API URL is required for HTTP connection")
-		}
-		if settings.APIKey == "" {
-			return errors.New("API key is required for HTTP connection")
-		}
-
-		// Create HTTP client
-		a.client = client.NewHTTP(a.logger, settings.APIUrl, settings.APIKey)
-	} else {
-		// Use provided socket path or default
-		socketPath := settings.SocketPath
-		if socketPath == "" {
-			socketPath = config.GetRuntimeSocketPath()
-		}
-
-		// Create socket client
-		a.client = client.New(a.logger, socketPath)
+	a.profileMu.Lock()
+	defer a.profileMu.Unlock()
+	// The manual form cannot carry a paired credential to a different URL.
+	if settings.Fingerprint != "" {
+		return errors.New("use pairing to save a pinned connection")
 	}
-
-	a.startWatch(a.ctx) //nolint:contextcheck // Wails binding has no ctx param
-	return nil
+	return a.applySettings(settings)
 }
 
-// GetSettings returns the current connection settings
-func (a *App) GetSettings() Settings {
-	return Settings{
-		ConnectionType: "socket",
-		SocketPath:     config.GetRuntimeSocketPath(),
-		APIUrl:         "",
-		APIKey:         "",
+// TestAndUseSettings verifies the proposed connection before replacing the active profile.
+func (a *App) TestAndUseSettings(settings Settings) error {
+	a.profileMu.Lock()
+	defer a.profileMu.Unlock()
+	if settings.Fingerprint != "" {
+		return errors.New("use pairing to save a pinned connection")
 	}
+	candidate, err := a.makeClient(settings)
+	if err != nil {
+		return err
+	}
+	if _, err = candidate.GetLights(); err != nil {
+		return err
+	}
+	return a.applySettings(settings)
+}
+
+func (a *App) GetSettings() Settings {
+	a.connectionMu.RLock()
+	defer a.connectionMu.RUnlock()
+	settings := a.settings
+	if settings.Fingerprint != "" {
+		settings.APIKey = ""
+	}
+	return settings
+}
+
+func (a *App) currentClient() client.ClientInterface {
+	a.connectionMu.RLock()
+	defer a.connectionMu.RUnlock()
+	return a.client
 }
 
 // getConfigDir returns the config directory for keylightd-tray
@@ -521,10 +533,10 @@ func (a *App) GetVersion() string {
 // GetDaemonVersion returns the keylightd daemon version string.
 // Returns an empty string if the daemon is unreachable.
 func (a *App) GetDaemonVersion() string {
-	if a.client == nil {
+	if a.currentClient() == nil {
 		return ""
 	}
-	info, err := a.client.GetVersion()
+	info, err := a.currentClient().GetVersion()
 	if err != nil {
 		return ""
 	}
@@ -539,16 +551,16 @@ func (a *App) GetDaemonVersion() string {
 
 // GetStatus returns the current status of all lights and groups
 func (a *App) GetStatus() (*Status, error) {
-	if a.client == nil {
+	if a.currentClient() == nil {
 		return nil, errors.New("client not initialized")
 	}
 
-	lights, err := a.client.GetLights()
+	lights, err := a.currentClient().GetLights()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lights: %w", err)
 	}
 
-	groups, err := a.client.GetGroups()
+	groups, err := a.currentClient().GetGroups()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get groups: %w", err)
 	}
@@ -604,7 +616,7 @@ func (a *App) GetStatus() (*Status, error) {
 
 // GetLights returns all discovered lights
 func (a *App) GetLights() ([]Light, error) {
-	lights, err := a.client.GetLights()
+	lights, err := a.currentClient().GetLights()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lights: %w", err)
 	}
@@ -628,12 +640,12 @@ func (a *App) GetLights() ([]Light, error) {
 
 // GetGroups returns all groups
 func (a *App) GetGroups() ([]Group, error) {
-	lights, err := a.client.GetLights()
+	lights, err := a.currentClient().GetLights()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lights: %w", err)
 	}
 
-	groups, err := a.client.GetGroups()
+	groups, err := a.currentClient().GetGroups()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get groups: %w", err)
 	}
@@ -663,27 +675,27 @@ func (a *App) GetGroups() ([]Group, error) {
 
 // SetLightState sets a property on a light
 func (a *App) SetLightState(id string, property string, value any) error {
-	return a.client.SetLightState(id, property, value)
+	return a.currentClient().SetLightState(id, property, value)
 }
 
 // SetGroupState sets a property on all lights in a group
 func (a *App) SetGroupState(id string, property string, value any) error {
-	return a.client.SetGroupState(id, property, value)
+	return a.currentClient().SetGroupState(id, property, value)
 }
 
 // CreateGroup creates a new group
 func (a *App) CreateGroup(name string) error {
-	return a.client.CreateGroup(name)
+	return a.currentClient().CreateGroup(name)
 }
 
 // DeleteGroup deletes a group
 func (a *App) DeleteGroup(id string) error {
-	return a.client.DeleteGroup(id)
+	return a.currentClient().DeleteGroup(id)
 }
 
 // SetGroupLights sets the lights in a group
 func (a *App) SetGroupLights(groupID string, lightIDs []string) error {
-	return a.client.SetGroupLights(groupID, lightIDs)
+	return a.currentClient().SetGroupLights(groupID, lightIDs)
 }
 
 // convertLight converts the API light data to our Light struct
@@ -789,7 +801,7 @@ func (a *App) convertGroup(data map[string]any, lightMap map[string]Light) Group
 
 // Ping checks if the backend connection is working
 func (a *App) Ping() error {
-	_, err := a.client.GetLights()
+	_, err := a.currentClient().GetLights()
 	return err
 }
 

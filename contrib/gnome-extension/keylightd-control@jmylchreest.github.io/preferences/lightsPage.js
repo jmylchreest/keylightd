@@ -30,8 +30,8 @@ export var LightsPage = GObject.registerClass(
 
       // Create the lights list
       this._lightsGroup = new Adw.PreferencesGroup({
-        title: _("Keylight Lights"),
-        description: _("Manage individual Key Lights"),
+        title: _("Show in Quick Settings"),
+        description: "",
       });
 
       // Add a header with a refresh button
@@ -50,12 +50,6 @@ export var LightsPage = GObject.registerClass(
       headerBox.append(this._refreshButton);
 
       this._lightsGroup.set_header_suffix(headerBox);
-
-      // Create a visibility toggle-all action row
-      this._visibilityToggleRow = new Adw.ActionRow({
-        title: _("Light Visibility"),
-        subtitle: _("Show or hide all lights"),
-      });
 
       // Create toggle all button
       const toggleAllBox = new Gtk.Box({
@@ -84,8 +78,8 @@ export var LightsPage = GObject.registerClass(
       toggleAllBox.append(showAllButton);
       toggleAllBox.append(hideAllButton);
 
-      this._visibilityToggleRow.add_suffix(toggleAllBox);
-      this._lightsGroup.add(this._visibilityToggleRow);
+      this._visibilityToggleRow = toggleAllBox;
+      toggleAllBox.halign = Gtk.Align.END;
 
       // Status information
       this._statusBox = new Gtk.Box({
@@ -130,12 +124,16 @@ export var LightsPage = GObject.registerClass(
 
       listBox.append(this._statusBox);
       listBox.append(this._lightsList);
+      listBox.append(toggleAllBox);
       listBox.append(this._noLightsLabel);
 
       this._lightsGroup.add(listBox);
       this.add(this._lightsGroup);
 
       // Connect to settings changes
+      for (const key of ["connection-method", "socket-path"]) {
+        this._settings.connect("changed::" + key, () => this._loadLights());
+      }
       this._settings.connect("changed::api-url", () => {
         this._loadLights();
       });
@@ -154,35 +152,8 @@ export var LightsPage = GObject.registerClass(
       // Disable all actions when in error state
       this._refreshButton.sensitive = true; // Always allow refresh
 
-      // Disable all light rows when in error state
-      let child = this._lightsList.get_first_child();
-      while (child) {
-        // Find all buttons within each row
-        const buttons = [];
-        if (child instanceof Adw.ActionRow) {
-          // Get all suffixes (which should include our buttons)
-          for (let i = 0; i < child.get_suffix_count(); i++) {
-            const widget = child.get_suffix_at_index(i);
-            if (widget instanceof Gtk.Button || widget instanceof Gtk.Switch) {
-              buttons.push(widget);
-            }
-          }
-        }
-
-        // Set sensitivity of all buttons
-        buttons.forEach((button) => {
-          button.sensitive = !isErroring;
-        });
-
-        child = child.get_next_sibling();
-      }
-
-      if (isErroring) {
-        this._setStatus(
-          _("API connection error. Please check settings."),
-          true,
-        );
-      }
+      this._lightsList.sensitive = !isErroring;
+      this._visibilityToggleRow.sensitive = !isErroring;
     }
 
     _setStatus(message, isError = false) {
@@ -275,7 +246,8 @@ export var LightsPage = GObject.registerClass(
     _createLightRow(light) {
       const row = new Adw.ActionRow({
         title: light.name,
-        subtitle: _("ID: %s").format(light.id),
+        subtitle: [light.productName || light.productname, light.ip].filter(Boolean).join(" · ") || light.id,
+        use_markup: false,
       });
 
       // Get current visible lights
@@ -305,19 +277,8 @@ export var LightsPage = GObject.registerClass(
         this._settings.set_strv("visible-lights", visibleLights);
       });
 
-      const visibilityBox = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
-        margin_end: 8,
-      });
-
-      const visibilityLabel = new Gtk.Label({
-        label: _("Visible"),
-        margin_end: 8,
-      });
-
-      visibilityBox.append(visibilityLabel);
-      visibilityBox.append(visibilitySwitch);
-      row.add_suffix(visibilityBox);
+      row.add_suffix(visibilitySwitch);
+      row.activatable_widget = visibilitySwitch;
 
       return row;
     }

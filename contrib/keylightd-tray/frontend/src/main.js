@@ -1,3 +1,5 @@
+import { setupPreferences, visibleItems } from "./preferences.js";
+import { setupSecureConnection } from "./secure.js";
 // Wails runtime bindings
 let GetStatus, GetVersion, GetDaemonVersion, SetLightState, SetGroupState;
 let WatchAlive;
@@ -66,20 +68,14 @@ if (window.go && window.go.main && window.go.main.App) {
 let CreateGroup,
   DeleteGroup,
   SetGroupLights,
-  GetLights,
   SetInitialWindowHeight,
-  SaveSettings,
-  GetSettings,
   GetCustomCSS;
 
 if (window.go && window.go.main && window.go.main.App) {
   CreateGroup = window.go.main.App.CreateGroup;
   DeleteGroup = window.go.main.App.DeleteGroup;
   SetGroupLights = window.go.main.App.SetGroupLights;
-  GetLights = window.go.main.App.GetLights;
   SetInitialWindowHeight = window.go.main.App.SetInitialWindowHeight;
-  SaveSettings = window.go.main.App.SaveSettings;
-  GetSettings = window.go.main.App.GetSettings;
   GetCustomCSS = window.go.main.App.GetCustomCSS;
 } else {
   CreateGroup = async (name) => {
@@ -91,36 +87,9 @@ if (window.go && window.go.main && window.go.main.App) {
   SetGroupLights = async (groupId, lightIds) => {
     console.log(`SetGroupLights: ${groupId} = ${lightIds}`);
   };
-  GetLights = async () => [
-    {
-      id: "light-1",
-      name: "Key Light Left",
-      on: true,
-      brightness: 75,
-      temperature: 4500,
-      productName: "Key Light",
-    },
-    {
-      id: "light-2",
-      name: "Key Light Right",
-      on: false,
-      brightness: 50,
-      temperature: 5000,
-      productName: "Key Light",
-    },
-  ];
   SetInitialWindowHeight = async (contentHeight) => {
     console.log(`SetInitialWindowHeight: ${contentHeight}`);
   };
-  SaveSettings = async (settings) => {
-    console.log(`SaveSettings:`, settings);
-  };
-  GetSettings = async () => ({
-    connectionType: "socket",
-    socketPath: "",
-    apiUrl: "",
-    apiKey: "",
-  });
   GetCustomCSS = async () => "";
 }
 
@@ -128,8 +97,6 @@ if (window.go && window.go.main && window.go.main.App) {
 let refreshInterval = null;
 let debounceTimers = {};
 let activeSliders = {}; // Track sliders being dragged
-let settingsDirty = false; // Track if settings have been modified
-let settingsUpdating = false; // Prevent concurrent settings panel updates
 let isWindows = false; // Track if running on Windows
 
 // Polling pause + diff infrastructure.
@@ -258,7 +225,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Setup settings panel
-  setupSettings();
+  setupPreferences({ GetStatus, CreateGroup, DeleteGroup, SetGroupLights, changePollingInterval, isWindows,
+    refresh: () => { lastStatusHash = null; return refresh(); },
+  });
+  await setupSecureConnection(refresh);
 
   // Setup master toggle
   setupMasterToggle();
@@ -302,330 +272,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyPauseState();
 });
 
-// Settings panel management
-function setupSettings() {
-  const settingsBtn = document.getElementById("settings-btn");
-  const settingsCloseBtn = document.getElementById("settings-close-btn");
-  const settingsPanel = document.getElementById("settings-panel");
-  const testConnectionBtn = document.getElementById("test-connection-btn");
-  const saveSettingsBtn = document.getElementById("save-settings-btn");
-
-  settingsBtn.addEventListener("click", async () => {
-    if (settingsUpdating) return;
-    settingsUpdating = true;
-
-    settingsPanel.classList.add("open");
-    try {
-      await updateVisibilityLists();
-      await updateGroupEditor();
-    } finally {
-      settingsUpdating = false;
-    }
-  });
-
-  // Setup group creation
-  const createGroupBtn = document.getElementById("create-group-btn");
-  const newGroupNameInput = document.getElementById("new-group-name");
-
-  createGroupBtn.addEventListener("click", async () => {
-    const name = newGroupNameInput.value.trim();
-    if (name) {
-      try {
-        await CreateGroup(name);
-        newGroupNameInput.value = "";
-        await updateGroupEditor();
-        await refresh();
-      } catch (e) {
-        console.error("Failed to create group:", e);
-      }
-    }
-  });
-
-  newGroupNameInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      createGroupBtn.click();
-    }
-  });
-
-  settingsCloseBtn.addEventListener("click", () => {
-    settingsPanel.classList.remove("open");
-  });
-
-  testConnectionBtn.addEventListener("click", testConnection);
-  saveSettingsBtn.addEventListener("click", saveSettings);
-
-  // Load saved settings
-  loadSettings();
-
-  // Setup connection type toggle
-  setupConnectionTypeToggle();
-}
-
-// Save settings to backend
-async function saveSettings() {
-  const saveBtn = document.getElementById("save-settings-btn");
-  const originalText = saveBtn.textContent;
-  saveBtn.textContent = "Saving...";
-  saveBtn.disabled = true;
-
-  const settings = {
-    connectionType: document.getElementById("conn-socket").checked
-      ? "socket"
-      : "http",
-    socketPath: document.getElementById("socket-path").value,
-    apiUrl: document.getElementById("api-url").value,
-    apiKey: document.getElementById("api-key").value,
-  };
-
-  try {
-    await SaveSettings(settings);
-
-    // Also save to localStorage for persistence
-    localStorage.setItem("connectionType", settings.connectionType);
-    localStorage.setItem("socketPath", settings.socketPath);
-    localStorage.setItem("apiUrl", settings.apiUrl);
-    localStorage.setItem("apiKey", settings.apiKey);
-
-    saveBtn.textContent = "Saved";
-    settingsDirty = false;
-
-    // Test the new connection
-    try {
-      await refresh();
-    } catch (refreshErr) {
-      console.error("Refresh after save failed:", refreshErr);
-      // Don't fail the save, connection might need time
-    }
-
-    // Reset button after delay
-    setTimeout(() => {
-      saveBtn.textContent = originalText;
-      saveBtn.disabled = true;
-    }, 1500);
-  } catch (e) {
-    console.error("Save settings error:", e);
-    saveBtn.textContent = "Failed";
-
-    // Re-enable button on error
-    setTimeout(() => {
-      saveBtn.textContent = originalText;
-      saveBtn.disabled = false;
-    }, 1500);
-  }
-}
-
-// Load settings from localStorage
-function loadSettings() {
-  const socketPath = localStorage.getItem("socketPath") || "";
-  const refreshMs = localStorage.getItem("refreshInterval") || "2500";
-  const apiUrl = localStorage.getItem("apiUrl") || "";
-  const apiKey = localStorage.getItem("apiKey") || "";
-
-  document.getElementById("socket-path").value = socketPath;
-  document.getElementById("refresh-interval").value = refreshMs;
-  // Only set API URL if there's a saved value, otherwise keep the default
-  if (apiUrl) {
-    document.getElementById("api-url").value = apiUrl;
-  }
-  document.getElementById("api-key").value = apiKey;
-
-  // Update refresh interval
-  const interval = parseInt(refreshMs);
-  if (interval >= 1000) {
-    changePollingInterval(interval);
-  }
-
-  // Setup change listeners - mark settings as dirty
-  const markDirty = () => {
-    settingsDirty = true;
-    document.getElementById("save-settings-btn").disabled = false;
-  };
-
-  document
-    .getElementById("refresh-interval")
-    .addEventListener("change", (e) => {
-      let interval = parseInt(e.target.value);
-      if (interval < 1000) {
-        interval = 1000;
-        e.target.value = interval;
-      }
-      localStorage.setItem("refreshInterval", interval);
-      changePollingInterval(interval);
-    });
-
-  document.getElementById("socket-path").addEventListener("input", markDirty);
-  document.getElementById("api-url").addEventListener("input", markDirty);
-  document.getElementById("api-key").addEventListener("input", markDirty);
-  document.getElementById("conn-socket").addEventListener("change", markDirty);
-  document.getElementById("conn-http").addEventListener("change", markDirty);
-}
-
-// Test connection - tests with currently saved settings
-async function testConnection() {
-  const statusEl = document.getElementById("connection-status");
-  statusEl.textContent = "Testing...";
-  statusEl.className = "connection-status";
-
-  try {
-    await GetStatus();
-    statusEl.textContent = "Connected";
-    statusEl.className = "connection-status success";
-  } catch (e) {
-    console.error("Test connection error:", e);
-    statusEl.textContent = "Failed";
-    statusEl.className = "connection-status error";
-  }
-}
-
-// Update visibility lists in settings
-async function updateVisibilityLists() {
-  try {
-    const status = await GetStatus();
-
-    // Lights visibility
-    const lightsContainer = document.getElementById("visibility-lights");
-    const visibleLights = JSON.parse(
-      localStorage.getItem("visibleLights") || "[]",
-    );
-
-    let lightsHtml = "<h4>Lights</h4>";
-    status.lights.forEach((light) => {
-      const checked =
-        visibleLights.length === 0 || visibleLights.includes(light.id);
-      lightsHtml += `
-                <div class="visibility-item">
-                    <input type="checkbox" id="vis-light-${light.id}" ${checked ? "checked" : ""}
-                        onchange="toggleVisibility('light', '${light.id}', this.checked)">
-                    <label for="vis-light-${light.id}">${escapeHtml(light.name)}</label>
-                </div>
-            `;
-    });
-    lightsContainer.innerHTML = lightsHtml;
-
-    // Groups visibility
-    const groupsContainer = document.getElementById("visibility-groups");
-    const visibleGroups = JSON.parse(
-      localStorage.getItem("visibleGroups") || "[]",
-    );
-
-    let groupsHtml = "<h4>Groups</h4>";
-    status.groups.forEach((group) => {
-      const checked =
-        visibleGroups.length === 0 || visibleGroups.includes(group.id);
-      groupsHtml += `
-                <div class="visibility-item">
-                    <input type="checkbox" id="vis-group-${group.id}" ${checked ? "checked" : ""}
-                        onchange="toggleVisibility('group', '${group.id}', this.checked)">
-                    <label for="vis-group-${group.id}">${escapeHtml(group.name)}</label>
-                </div>
-            `;
-    });
-    groupsContainer.innerHTML = groupsHtml;
-  } catch (e) {
-    console.error("Failed to update visibility lists:", e);
-  }
-}
-
-// Toggle visibility of a light or group
-window.toggleVisibility = function (type, id, visible) {
-  const key = type === "light" ? "visibleLights" : "visibleGroups";
-  let items = JSON.parse(localStorage.getItem(key) || "[]");
-
-  if (visible) {
-    if (!items.includes(id)) {
-      items.push(id);
-    }
-  } else {
-    items = items.filter((i) => i !== id);
-  }
-
-  localStorage.setItem(key, JSON.stringify(items));
-};
-
-// Update group editor in settings
-async function updateGroupEditor() {
-  try {
-    const status = await GetStatus();
-    const lights = await GetLights();
-    const container = document.getElementById("group-editor");
-
-    if (status.groups.length === 0) {
-      container.innerHTML =
-        '<div class="empty-state">No groups configured</div>';
-      return;
-    }
-
-    let html = "";
-    for (const group of status.groups) {
-      html += `
-        <div class="group-item" data-group-id="${group.id}">
-          <div class="group-item-header">
-            <span class="group-item-name">${escapeHtml(group.name)}</span>
-            <div class="group-item-actions">
-              <button class="btn btn-danger" onclick="deleteGroup('${group.id}')">Delete</button>
-            </div>
-          </div>
-          <div class="group-lights-list">
-            ${lights
-              .map((light) => {
-                const checked =
-                  group.lightIds && group.lightIds.includes(light.id);
-                return `
-                <div class="group-light-item">
-                  <input type="checkbox" id="grp-${group.id}-${light.id}"
-                    ${checked ? "checked" : ""}
-                    onchange="toggleGroupLight('${group.id}', '${light.id}', this.checked)">
-                  <label for="grp-${group.id}-${light.id}">${escapeHtml(light.name)}</label>
-                </div>
-              `;
-              })
-              .join("")}
-          </div>
-        </div>
-      `;
-    }
-    container.innerHTML = html;
-  } catch (e) {
-    console.error("Failed to update group editor:", e);
-  }
-}
-
-// Delete a group
-window.deleteGroup = async function (groupId) {
-  if (confirm("Are you sure you want to delete this group?")) {
-    try {
-      await DeleteGroup(groupId);
-      await updateGroupEditor();
-      await refresh();
-    } catch (e) {
-      console.error("Failed to delete group:", e);
-    }
-  }
-};
-
-// Toggle a light in a group
-window.toggleGroupLight = async function (groupId, lightId, checked) {
-  try {
-    const status = await GetStatus();
-    const group = status.groups.find((g) => g.id === groupId);
-    if (!group) return;
-
-    let lightIds = group.lightIds || [];
-    if (checked) {
-      if (!lightIds.includes(lightId)) {
-        lightIds.push(lightId);
-      }
-    } else {
-      lightIds = lightIds.filter((id) => id !== lightId);
-    }
-
-    await SetGroupLights(groupId, lightIds);
-    await refresh();
-  } catch (e) {
-    console.error("Failed to update group lights:", e);
-  }
-};
-
 // Setup custom CSS auto-reload via filesystem watcher
 function setupCustomCssReload() {
   // Load initial custom CSS
@@ -666,70 +312,6 @@ async function loadCustomCss() {
     }
   } catch (e) {
     console.error("Custom CSS load failed:", e.message);
-  }
-}
-
-// Setup connection type toggle
-function setupConnectionTypeToggle() {
-  const socketRadio = document.getElementById("conn-socket");
-  const httpRadio = document.getElementById("conn-http");
-  const socketSettings = document.querySelectorAll(".socket-setting");
-  const httpSettings = document.querySelectorAll(".http-setting");
-  const socketOption = socketRadio.closest(".setting-group");
-
-  // Hide Unix socket option on Windows (not supported)
-  if (isWindows && socketOption) {
-    socketOption.style.display = "none";
-    // Force HTTP mode on Windows
-    httpRadio.checked = true;
-    localStorage.setItem("connectionType", "http");
-  }
-
-  function updateConnectionFields() {
-    const isSocket = socketRadio.checked;
-    socketSettings.forEach(
-      (el) => (el.style.display = isSocket ? "flex" : "none"),
-    );
-    httpSettings.forEach(
-      (el) => (el.style.display = isSocket ? "none" : "flex"),
-    );
-    localStorage.setItem("connectionType", isSocket ? "socket" : "http");
-
-    // Reset test connection result
-    const statusEl = document.getElementById("connection-status");
-    statusEl.textContent = "";
-    statusEl.className = "connection-status";
-  }
-
-  socketRadio.addEventListener("change", updateConnectionFields);
-  httpRadio.addEventListener("change", updateConnectionFields);
-
-  // Load saved connection type (or default to HTTP on Windows)
-  const savedType = localStorage.getItem("connectionType") || "socket";
-  if (savedType === "http" || isWindows) {
-    httpRadio.checked = true;
-  } else {
-    socketRadio.checked = true;
-  }
-  updateConnectionFields();
-
-  // Setup API key show/hide toggle
-  const apiKeyToggle = document.getElementById("api-key-toggle");
-  const apiKeyInput = document.getElementById("api-key");
-
-  if (apiKeyToggle && apiKeyInput) {
-    apiKeyToggle.addEventListener("click", () => {
-      const isPassword = apiKeyInput.type === "password";
-      apiKeyInput.type = isPassword ? "text" : "password";
-
-      // Toggle icon visibility
-      const eyeIcon = apiKeyToggle.querySelector(".eye-icon");
-      const eyeOffIcon = apiKeyToggle.querySelector(".eye-off-icon");
-      if (eyeIcon && eyeOffIcon) {
-        eyeIcon.style.display = isPassword ? "none" : "block";
-        eyeOffIcon.style.display = isPassword ? "block" : "none";
-      }
-    });
   }
 }
 
@@ -829,13 +411,7 @@ function updateUI(status) {
 // Hide sections with no visible items
 function updateSectionVisibility(status) {
   const groupsSection = document.getElementById("groups-section");
-  const visibleGroups = JSON.parse(
-    localStorage.getItem("visibleGroups") || "[]",
-  );
-  const filteredGroups =
-    visibleGroups.length === 0
-      ? status.groups
-      : status.groups.filter((g) => visibleGroups.includes(g.id));
+  const filteredGroups = visibleItems("Groups", status.groups);
 
   if (groupsSection) {
     if (filteredGroups.length === 0) {
@@ -851,13 +427,7 @@ function renderGroups(groups) {
   const container = document.getElementById("groups-list");
 
   // Filter by visibility
-  const visibleGroups = JSON.parse(
-    localStorage.getItem("visibleGroups") || "[]",
-  );
-  const filteredGroups =
-    visibleGroups.length === 0
-      ? groups
-      : groups.filter((g) => visibleGroups.includes(g.id));
+  const filteredGroups = visibleItems("Groups", groups);
 
   if (filteredGroups.length === 0) {
     container.innerHTML = '<div class="empty-state">No groups visible</div>';
@@ -891,13 +461,7 @@ function renderLights(lights) {
   const container = document.getElementById("lights-list");
 
   // Filter by visibility
-  const visibleLights = JSON.parse(
-    localStorage.getItem("visibleLights") || "[]",
-  );
-  const filteredLights =
-    visibleLights.length === 0
-      ? lights
-      : lights.filter((l) => visibleLights.includes(l.id));
+  const filteredLights = visibleItems("Lights", lights);
 
   if (filteredLights.length === 0) {
     container.innerHTML = '<div class="empty-state">No lights visible</div>';

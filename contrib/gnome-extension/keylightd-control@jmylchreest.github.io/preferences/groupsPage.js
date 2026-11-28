@@ -13,7 +13,7 @@ import { SYSTEM_PREFS_GROUPS_ICON } from "../icon-names.js";
 // A dialog for adding/editing groups
 const GroupDialog = GObject.registerClass(
   {
-    Signals: { "group-saved": {} },
+    Signals: { "group-saved": {}, "delete-requested": {} },
   },
   class GroupDialog extends Adw.Window {
     _init(parent, settings, group = null) {
@@ -62,6 +62,7 @@ const GroupDialog = GObject.registerClass(
         text: group ? group.name : "",
         margin_bottom: 12,
       });
+      nameEntry.editable = !group;
       this._nameEntry = nameEntry;
 
       content.append(nameEntry);
@@ -111,6 +112,14 @@ const GroupDialog = GObject.registerClass(
 
         scrollWindow.set_child(lightsView);
         content.append(scrollWindow);
+        this._visibility = new Adw.SwitchRow({
+          title: _("Show in Quick Settings"),
+          active: settings.get_strv("visible-groups").includes(group.id),
+        });
+        content.append(this._visibility);
+        const remove = new Gtk.Button({label: _("Delete group…"), halign: Gtk.Align.START});
+        remove.connect("clicked", () => { this.close(); this.emit("delete-requested"); });
+        content.append(remove);
       }
 
       // Error message
@@ -304,6 +313,9 @@ const GroupDialog = GObject.registerClass(
           const body = { light_ids: selectedLights };
           await fetchAPI(endpoint, method, body);
           groupId = this._group.id;
+          const visible = new Set(this._settings.get_strv("visible-groups"));
+          if (this._visibility.active) visible.add(groupId); else visible.delete(groupId);
+          this._settings.set_strv("visible-groups", [...visible]);
         } else {
           // Create new group (only send name)
           const groupData = { name: name };
@@ -509,6 +521,9 @@ export var GroupsPage = GObject.registerClass(
       this.add(this._groupsGroup);
 
       // Connect to settings changes
+      for (const key of ["connection-method", "socket-path"]) {
+        this._settings.connect("changed::" + key, () => this._loadGroups());
+      }
       this._settings.connect("changed::api-url", () => {
         try {
           this._loadGroups().catch((error) => {
@@ -578,72 +593,8 @@ export var GroupsPage = GObject.registerClass(
       this._addButton.sensitive = !isErroring;
       this._refreshButton.sensitive = true; // Always allow refresh
 
-      // Disable all group rows when in error state
-      let child = this._groupsList.get_first_child();
-      while (child) {
-        // Find all buttons within each row
-        const buttons = [];
-        if (child instanceof Adw.ActionRow) {
-          // Different methods for getting suffixes based on GNOME version
-          if (typeof child.get_suffix_count === "function") {
-            // Newer GNOME versions use explicit suffix count/access methods
-            try {
-              for (let i = 0; i < child.get_suffix_count(); i++) {
-                const widget = child.get_suffix_at_index(i);
-                if (widget instanceof Gtk.Button) {
-                  buttons.push(widget);
-                }
-              }
-            } catch (e) {
-              filteredLog("error", "Error accessing suffixes by index", e);
-            }
-          } else if (typeof child.get_suffixes === "function") {
-            // Some GNOME versions provide a get_suffixes() method
-            try {
-              const suffixes = child.get_suffixes();
-              for (const widget of suffixes) {
-                if (widget instanceof Gtk.Button) {
-                  buttons.push(widget);
-                }
-              }
-            } catch (e) {
-              filteredLog("error", "Error accessing suffixes array", e);
-            }
-          } else {
-            // Fallback method: try to find buttons in child widgets
-            let childWidget = child.get_first_child();
-            while (childWidget) {
-              if (childWidget instanceof Gtk.Button) {
-                buttons.push(childWidget);
-              } else if (childWidget instanceof Gtk.Box) {
-                // Look inside boxes for buttons
-                let boxChild = childWidget.get_first_child();
-                while (boxChild) {
-                  if (boxChild instanceof Gtk.Button) {
-                    buttons.push(boxChild);
-                  }
-                  boxChild = boxChild.get_next_sibling();
-                }
-              }
-              childWidget = childWidget.get_next_sibling();
-            }
-          }
-        }
-
-        // Set sensitivity of all buttons
-        buttons.forEach((button) => {
-          button.sensitive = !isErroring;
-        });
-
-        child = child.get_next_sibling();
-      }
-
-      if (isErroring) {
-        this._setStatus(
-          _("API connection error. Please check settings."),
-          true,
-        );
-      }
+      this._groupsList.sensitive = !isErroring;
+      this._visibilityToggleRow.sensitive = !isErroring;
     }
 
     _setStatus(message, isError = false) {
@@ -719,82 +670,22 @@ export var GroupsPage = GObject.registerClass(
     }
 
     _createGroupRow(group) {
+      const shown = this._settings.get_strv("visible-groups").includes(group.id);
+      const count = group.lights?.length || 0;
       const row = new Adw.ActionRow({
         title: group.name,
-        subtitle: _("ID: %s").format(group.id),
+        use_markup: false,
+        subtitle: (count === 1 ? _("1 light") : _("%s lights").format(count)) + " · " + (shown ? _("Visible") : _("Hidden")),
+        activatable: true,
       });
-
-      // Get current visible groups
-      const visibleGroups = this._settings.get_strv("visible-groups");
-      const isVisible = visibleGroups.includes(group.id);
-
-      // Visibility toggle
-      const visibilitySwitch = new Gtk.Switch({
-        active: isVisible,
-        valign: Gtk.Align.CENTER,
-        margin_end: 8,
-      });
-
-      visibilitySwitch.connect("notify::active", () => {
-        let visibleGroups = this._settings.get_strv("visible-groups");
-        if (visibilitySwitch.active) {
-          // Add to visible groups if not already there
-          if (!visibleGroups.includes(group.id)) {
-            visibleGroups.push(group.id);
-          }
-        } else {
-          // Remove from visible groups
-          visibleGroups = visibleGroups.filter((id) => id !== group.id);
-        }
-        this._settings.set_strv("visible-groups", visibleGroups);
-      });
-
-      const visibilityBox = new Gtk.Box({
-        orientation: Gtk.Orientation.HORIZONTAL,
-        margin_end: 8,
-      });
-
-      const visibilityLabel = new Gtk.Label({
-        label: _("Visible"),
-        margin_end: 8,
-      });
-
-      visibilityBox.append(visibilityLabel);
-      visibilityBox.append(visibilitySwitch);
-      row.add_suffix(visibilityBox);
-
-      // Lights count
-      const lightsCount = new Gtk.Label({
-        label: group.lights ? group.lights.length.toString() : "0",
-        css_classes: ["dim-label", "numeric"],
-        margin_end: 8,
-      });
-      row.add_suffix(lightsCount);
-
-      // Edit button
-      const editButton = new Gtk.Button({
-        icon_name: "document-edit-symbolic",
-        tooltip_text: _("Edit"),
-        valign: Gtk.Align.CENTER,
-        margin_end: 8,
-      });
-      editButton.connect("clicked", () => this._showGroupDialog(group));
-      row.add_suffix(editButton);
-
-      // Delete button
-      const deleteButton = new Gtk.Button({
-        icon_name: "user-trash-symbolic",
-        tooltip_text: _("Delete"),
-        valign: Gtk.Align.CENTER,
-      });
-      deleteButton.connect("clicked", () => this._confirmDeleteGroup(group));
-      row.add_suffix(deleteButton);
-
+      row.add_suffix(new Gtk.Image({icon_name: "go-next-symbolic"}));
+      row.connect("activated", () => this._showGroupDialog(group));
       return row;
     }
 
     _showGroupDialog(group = null) {
       const dialog = new GroupDialog(this.get_root(), this._settings, group);
+      dialog.connect("delete-requested", () => this._confirmDeleteGroup(group));
       dialog.connect("group-saved", () => this._loadGroups());
       dialog.present();
     }

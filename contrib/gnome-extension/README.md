@@ -28,7 +28,7 @@ contrib/gnome-extension/
     metadata.json
     version-info.json
     preferences/
-      generalPage.js
+      connectionPage.js
       groupsPage.js
       lightsPage.js
       uiPage.js
@@ -320,3 +320,5 @@ Running GNOME Shell in a nested Wayland session allows you to test and debug you
 - Use the [Looking Glass](https://wiki.gnome.org/Projects/GnomeShell/LookingGlass) debugger (`lg` in Alt+F2) for live JS console and object inspection.
 - Use `console.log()` and `console.error()` in your JS code for debugging output.
 - Always test with both the preferences dialog and the quick settings menu.
+
+The Connection tab supports a manual API address and key, a local Unix socket, and paired HTTPS. The socket and pairing methods use the matching version of `keylightctl` on your PATH. Pairing stores the verified profile in `$XDG_CONFIG_HOME/keylightd/gnome-pairing.json`.

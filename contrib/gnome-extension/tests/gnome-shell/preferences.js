@@ -80,10 +80,23 @@ app.connect('activate', () => {
                 dialog.response('cancel');
         }
 
-        window.set_visible_page(pages[0]);
-        const combo = descendants(pages[0]).find(widget => widget instanceof Adw.ComboRow);
-        if (!combo)
-            throw new Error('Log level dropdown not found');
+        const connection = pages.find(page => page.title === 'Connection');
+        window.set_visible_page(connection);
+        const methods = descendants(connection).filter(w => w instanceof Adw.ActionRow);
+        for (const title of ['This computer', 'Paired HTTPS', 'Manual address']) {
+            const row = methods.find(w => w.title === title);
+            if (!row) throw new Error('Missing connection method ' + title);
+            row.activate();
+            await delay(250);
+            window.pop_subpage();
+            await delay(250);
+        }
+        const about = pages.find(page => page.title === 'About');
+        window.set_visible_page(about);
+        descendants(about).find(w => w instanceof Adw.ActionRow && w.title === 'Diagnostics').activate();
+        preferences.getSettings().set_boolean('enable-logging', true);
+        const combo = descendants(window).find(w => w instanceof Adw.ComboRow);
+        if (!combo) throw new Error('Log level dropdown not found');
         combo.activate();
         await capture('11-log-level-dropdown');
         GLib.file_set_contents(`${home}/prefs-done`, 'done');

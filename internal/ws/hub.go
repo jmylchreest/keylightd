@@ -40,6 +40,7 @@ type Client struct {
 
 // Hub manages a set of active WebSocket clients and broadcasts events.
 type Hub struct {
+	done       chan struct{}
 	logger     *slog.Logger
 	clients    map[*Client]struct{}
 	mu         sync.RWMutex
@@ -52,6 +53,7 @@ type Hub struct {
 // NewHub creates a Hub and subscribes to the event bus.
 func NewHub(logger *slog.Logger, bus *events.Bus) *Hub {
 	h := &Hub{
+		done:       make(chan struct{}),
 		logger:     logger,
 		clients:    make(map[*Client]struct{}),
 		broadcast:  make(chan []byte, 256),
@@ -82,6 +84,7 @@ func NewHub(logger *slog.Logger, bus *events.Bus) *Hub {
 //nolint:misspell // British spelling intentional
 func (h *Hub) Run(ctx context.Context) {
 	defer h.unsub()
+	defer close(h.done)
 	h.logger.Info("ws: hub started")
 
 	for {
@@ -121,7 +124,7 @@ func (h *Hub) Run(ctx context.Context) {
 				default:
 					// Client buffer full — schedule disconnect.
 					go func(cl *Client) {
-						h.unregister <- cl
+						h.Unregister(cl)
 					}(c)
 				}
 			}
@@ -139,12 +142,19 @@ func (h *Hub) ClientCount() int {
 
 // Register adds a client to the hub.
 func (h *Hub) Register(c *Client) {
-	h.register <- c
+	select {
+	case h.register <- c:
+	case <-h.done:
+		_ = c.conn.Close()
+	}
 }
 
 // Unregister removes a client from the hub.
 func (h *Hub) Unregister(c *Client) {
-	h.unregister <- c
+	select {
+	case h.unregister <- c:
+	case <-h.done:
+	}
 }
 
 // NewClient creates a new Client attached to this hub.

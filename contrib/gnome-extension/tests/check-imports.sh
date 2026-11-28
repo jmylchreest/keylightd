@@ -14,6 +14,7 @@ echo "Checking for improper Gtk/Gdk imports in GNOME Shell extension..."
 SHELL_FILES=(
     "extension.js"
     "utils.js"
+    "transport.js"
     "icons.js"
     "icon-names.js"
     "controllers/*.js"

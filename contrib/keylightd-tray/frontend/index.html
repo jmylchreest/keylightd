@@ -39,190 +39,95 @@
                 </div>
             </header>
 
-            <!-- Settings Panel -->
-            <div class="settings-panel" id="settings-panel">
+            <div class="settings-panel" id="settings-panel" inert>
                 <div class="settings-header">
-                    <h2>Settings</h2>
-                    <div class="settings-header-actions">
-                        <button
-                            class="btn btn-primary btn-sm"
-                            id="save-settings-btn"
-                            disabled
-                        >
-                            Save
-                        </button>
-                        <button class="icon-button" id="settings-close-btn">
-                            <svg viewBox="0 0 24 24">
-                                <path
-                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
-                                />
-                            </svg>
-                        </button>
-                    </div>
+                    <button id="prefs-back" class="icon-button" aria-label="Back">‹</button>
+                    <strong>Keylight Control</strong>
+                    <button id="settings-close-btn" class="icon-button" aria-label="Close preferences">×</button>
                 </div>
-                <div class="settings-content">
-                    <!-- Connection Tab -->
-                    <section class="settings-section">
-                        <h3>Connection</h3>
-                        <div class="setting-row">
-                            <label>Connection Type</label>
-                            <div class="radio-group">
-                                <label class="radio-label">
-                                    <input
-                                        type="radio"
-                                        name="connection-type"
-                                        value="socket"
-                                        id="conn-socket"
-                                        checked
-                                    />
-                                    Unix Socket
-                                </label>
-                                <label class="radio-label">
-                                    <input
-                                        type="radio"
-                                        name="connection-type"
-                                        value="http"
-                                        id="conn-http"
-                                    />
-                                    HTTP API
-                                </label>
-                            </div>
-                        </div>
-                        <div class="setting-row socket-setting">
-                            <label for="socket-path">Socket Path</label>
-                            <input
-                                type="text"
-                                id="socket-path"
-                                placeholder="/run/user/1000/keylightd.sock"
-                            />
-                        </div>
-                        <div
-                            class="setting-row http-setting"
-                            style="display: none"
-                        >
-                            <label for="api-url">API URL</label>
-                            <input
-                                type="text"
-                                id="api-url"
-                                value="http://localhost:9123"
-                            />
-                        </div>
-                        <div
-                            class="setting-row http-setting"
-                            style="display: none"
-                        >
-                            <label for="api-key">API Key</label>
-                            <div class="password-input-wrapper">
-                                <input
-                                    type="password"
-                                    id="api-key"
-                                    placeholder="your-api-key"
-                                />
-                                <button
-                                    type="button"
-                                    class="password-toggle"
-                                    id="api-key-toggle"
-                                    title="Show/hide API key"
-                                >
-                                    <svg viewBox="0 0 24 24" class="eye-icon">
-                                        <path
-                                            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"
-                                        />
-                                    </svg>
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        class="eye-off-icon"
-                                        style="display: none"
-                                    >
-                                        <path
-                                            d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="setting-row">
-                            <button
-                                class="btn btn-secondary"
-                                id="test-connection-btn"
-                            >
-                                Test Connection
-                            </button>
-                            <span
-                                class="connection-status"
-                                id="connection-status"
-                            ></span>
-                        </div>
-                    </section>
-
-                    <!-- Display Tab -->
-                    <section class="settings-section">
-                        <h3>Display</h3>
-                        <div class="setting-row">
-                            <label for="refresh-interval"
-                                >Refresh Interval (ms)</label
-                            >
-                            <input
-                                type="number"
-                                id="refresh-interval"
-                                value="2500"
-                                min="1000"
-                                max="10000"
-                                step="500"
-                            />
-                        </div>
-                    </section>
-
-                    <!-- Groups Tab -->
-                    <section class="settings-section">
-                        <h3>Groups</h3>
-                        <div class="group-editor" id="group-editor">
-                            <!-- Populated dynamically -->
-                        </div>
-                        <div class="setting-row">
-                            <input
-                                type="text"
-                                id="new-group-name"
-                                placeholder="New group name"
-                            />
-                            <button
-                                class="btn btn-secondary"
-                                id="create-group-btn"
-                            >
-                                Create
-                            </button>
-                        </div>
-                    </section>
-
-                    <!-- Visibility Tab -->
-                    <section class="settings-section">
-                        <h3>Visibility</h3>
-                        <div class="visibility-list" id="visibility-lights">
-                            <h4>Lights</h4>
-                            <!-- Populated dynamically -->
-                        </div>
-                        <div class="visibility-list" id="visibility-groups">
-                            <h4>Groups</h4>
-                            <!-- Populated dynamically -->
-                        </div>
-                    </section>
-
-                    <!-- About Tab -->
-                    <section class="settings-section">
-                        <h3>About</h3>
-                        <div class="about-info">
-                            <p><strong>Keylight Control</strong></p>
-                            <p id="about-version">Tray: dev</p>
-                            <p id="about-daemon-version">Daemon: unknown</p>
-                            <p>
-                                A tray application for controlling Key Lights
-                                via keylightd.
-                            </p>
-                        </div>
-                    </section>
-                </div>
+                <div class="settings-content"><div class="prefs-body">
+<section class="pref-page" data-view="index" hidden><h2>Preferences</h2>
+<button class="pref-row" data-page="connection" ><span class="pref-symbol" aria-hidden="true">⇄</span><span class="pref-copy"><strong>Connection</strong><small><span id="summary-connection">Connection method</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="lights" ><span class="pref-symbol" aria-hidden="true">☀</span><span class="pref-copy"><strong>Lights</strong><small><span id="summary-lights">Light visibility</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="groups" ><span class="pref-symbol" aria-hidden="true">▦</span><span class="pref-copy"><strong>Groups</strong><small><span id="summary-groups">Light groups</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="display" ><span class="pref-symbol" aria-hidden="true">▣</span><span class="pref-copy"><strong>Display</strong><small><span id="summary-display">Refresh interval</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="about" ><span class="pref-symbol" aria-hidden="true">ⓘ</span><span class="pref-copy"><strong>About</strong><small><span id="summary-about">Versions and build information</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+</section>
+<section class="pref-page" data-view="connection" hidden><h2>Connection</h2>
+<button class="pref-row" data-page="local" id="method-local"><span class="pref-symbol" aria-hidden="true">▣</span><span class="pref-copy"><strong>This computer</strong><small><span id="socket-summary">Unix socket</span></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="secure" id="method-secure"><span class="pref-symbol" aria-hidden="true">⚿</span><span class="pref-copy"><strong>Paired HTTPS</strong><small>Pair using an invitation</small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+<button class="pref-row" data-page="manual" id="method-manual"><span class="pref-symbol" aria-hidden="true">⇄</span><span class="pref-copy"><strong>Manual address</strong><small>API address and key</small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+</section>
+<section class="pref-page" data-view="local" hidden><h2>This computer</h2>
+<label class="pref-field">Socket path<input id="socket-path" type="text" placeholder="Default socket"></label><button class="btn btn-secondary" id="use-local">Test and use</button>
+</section>
+<section class="pref-page" data-view="manual" hidden><h2>Manual address</h2>
+<label class="pref-field">API address<input id="api-url" type="url" value="http://localhost:9123"></label><label class="pref-field">API key<input id="api-key" type="password" autocomplete="off"></label><button class="btn btn-secondary" id="use-manual">Test and use</button>
+</section>
+<section class="pref-page" data-view="secure" hidden><h2>Paired HTTPS</h2>
+<div id="secure-panel" hidden>
+    <button class="pref-row" id="enter-invitation">
+        <span class="pref-symbol" aria-hidden="true">⇄</span>
+        <span class="pref-copy"><strong>Use an invitation</strong><small>Pair this tray with a daemon</small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+  <div id="local-https" hidden>
+    <h3>On this computer</h3>
+    <button class="pref-row" id="issue-invitation">
+        <span class="pref-symbol" aria-hidden="true">+</span>
+        <span class="pref-copy"><strong>Create invitation</strong><small>Pair another client</small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+    <button class="pref-row" id="enable-https">
+        <span class="pref-symbol" aria-hidden="true">⚿</span>
+        <span class="pref-copy"><strong><span id="enable-label">Enable and use HTTPS</span></strong><small><span id="listener-status"></span></small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+    <button class="pref-row" id="disable-https">
+        <span class="pref-symbol" aria-hidden="true">⚿</span>
+        <span class="pref-copy"><strong>Disable HTTPS</strong><small>HTTPS enabled</small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+    <button class="pref-row" data-page="addresses">
+        <span class="pref-symbol" aria-hidden="true">⇄</span>
+        <span class="pref-copy"><strong>Network address</strong><small><span id="chosen-address"></span></small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+    <button class="pref-row" data-page="identity">
+        <span class="pref-symbol" aria-hidden="true">ⓘ</span>
+        <span class="pref-copy"><strong>Daemon identity</strong><small><span id="identity-summary"></span></small></span>
+        <span class="pref-tail" aria-hidden="true">›</span>
+    </button>
+  </div>
+</div>
+</section>
+<section class="pref-page" data-view="addresses" hidden><h2>Network address</h2>
+<label class="pref-field">Connection address<select id="secure-address"></select></label>
+</section>
+<section class="pref-page" data-view="identity" hidden><h2>Daemon identity</h2>
+<p id="fingerprint"></p><button class="btn btn-secondary" id="forget-https">Forget identity…</button>
+</section>
+<section class="pref-page" data-view="lights" hidden><h2>Lights</h2>
+<h3>Show in the tray</h3><div id="visibility-lights"></div><div class="pref-actions"><button class="btn btn-secondary" id="show-lights">Show all</button><button class="btn btn-secondary" id="hide-lights">Hide all</button></div>
+</section>
+<section class="pref-page" data-view="groups" hidden><h2>Groups</h2>
+<div id="group-editor"></div><button class="pref-row" data-page="new-group" ><span class="pref-symbol" aria-hidden="true">+</span><span class="pref-copy"><strong>Create group</strong><small></small></span><span class="pref-tail" aria-hidden="true">›</span></button>
+</section>
+<section class="pref-page" data-view="new-group" hidden><h2>Create group</h2>
+<label class="pref-field">Group name<input id="new-group-name" type="text" ></label><button class="btn btn-secondary" id="create-group">Create group</button>
+</section>
+<section class="pref-page" data-view="edit" hidden><h2>Edit group</h2>
+<div id="group-members"></div><div class="pref-actions"><button class="btn btn-secondary" id="delete-group">Delete group…</button><button class="btn btn-secondary" id="save-group">Save group</button></div>
+</section>
+<section class="pref-page" data-view="display" hidden><h2>Display</h2>
+<label class="pref-field">Refresh interval (seconds)<input id="refresh-interval" type="number" min="1" max="10" step="0.5" required></label>
+</section>
+<section class="pref-page" data-view="about" hidden><h2>About</h2>
+<h3>Keylight Control</h3><p id="about-version"></p><p id="about-daemon-version"></p>
+</section>
+<p id="secure-notice" role="status"></p>
+                </div></div>
             </div>
-
             <main class="main">
                 <section class="section" id="groups-section">
                     <h2>Groups</h2>
@@ -238,6 +143,12 @@
                     </div>
                 </section>
             </main>
+            <dialog id="secure-dialog" aria-labelledby="secure-title">
+                <h2 id="secure-title"></h2><p id="secure-description"></p>
+                <textarea aria-label="Pairing invitation" id="secure-code" rows="3" spellcheck="false" hidden></textarea>
+                <p role="alert" id="secure-error"></p>
+                <div class="dialog-actions"><button class="btn btn-secondary" id="secure-cancel">Cancel</button><button class="btn btn-primary" id="secure-confirm">Continue</button></div>
+            </dialog>
 
             <!-- version shown in Settings > About -->
         </div>

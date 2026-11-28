@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
 	"net/http"
@@ -62,9 +63,6 @@ func main() {
 	tray := NewTrayManager(app)
 	app.SetTrayManager(tray)
 
-	// Run systray in a goroutine
-	go systray.Run(tray.OnReady, tray.OnExit)
-
 	err := wails.Run(&options.App{
 		Title:             "Keylight Control",
 		Width:             380,
@@ -78,7 +76,10 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 30, G: 30, B: 46, A: 255},
 		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		// Tray activation can show a window immediately, so register only
+		// after the Wails window and its runtime context are ready.
+		OnDomReady: func(context.Context) { go systray.Run(tray.OnReady, tray.OnExit) },
+		OnShutdown: app.shutdown,
 		Bind: []any{
 			app,
 		},

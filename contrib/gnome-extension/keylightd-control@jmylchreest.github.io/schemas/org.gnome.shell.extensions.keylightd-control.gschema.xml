@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
   <schema id="org.gnome.shell.extensions.keylightd-control" path="/org/gnome/shell/extensions/keylightd-control/">
+    <key type="s" name="connection-method">
+      <choices><choice value="manual"/><choice value="local"/><choice value="paired"/></choices>
+      <default>'manual'</default>
+      <summary>Active connection method</summary>
+    </key>
+    <key type="s" name="socket-path">
+      <default>'/run/keylightd/keylightd.sock'</default>
+      <summary>Local daemon socket</summary>
+    </key>
     <!-- API -->
     <key type="s" name="api-url">
       <default>''</default>
